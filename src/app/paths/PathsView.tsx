@@ -17,7 +17,7 @@ const PATHS: Path[] = [
     id: "web-request",
     name: "Life of a web request",
     desc: "Follow a request from your keyboard to the server and back. Start with IP, go through DNS, TCP, TLS, and HTTP.",
-    lessons: ["journey", "ip", "dns", "tcp", "tls", "http", "https", "http2", "quic"],
+    lessons: ["ip", "dns", "tcp", "tls", "http", "https", "http2", "quic", "journey"],
   },
   {
     id: "first-hop",

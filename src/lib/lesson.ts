@@ -121,7 +121,6 @@ export interface Lesson {
 }
 
 export const GROUPS: { id: GroupId; name: string; blurb: string }[] = [
-  { id: "journey", name: "Start here", blurb: "End-to-end stories that chain many protocols." },
   { id: "foundations", name: "Internet foundations", blurb: "IP, TCP, UDP, QUIC and friends: how data crosses the internet." },
   { id: "lan", name: "Local networks", blurb: "Ethernet, ARP, VLANs, DHCP, Wi‑Fi: the first hop." },
   { id: "routing", name: "Routing and the backbone", blurb: "How networks find paths to each other." },
@@ -133,6 +132,7 @@ export const GROUPS: { id: GroupId; name: string; blurb: string }[] = [
   { id: "vpn", name: "Tunnels and VPNs", blurb: "Private paths over the public internet." },
   { id: "iot", name: "IoT and operations", blurb: "Industrial control, sensors and monitoring." },
   { id: "india", name: "Made for India", blurb: "Everyday Indian systems, explained packet by packet." },
+  { id: "journey", name: "Put it all together", blurb: "The capstone: type a web address and watch DHCP, ARP, DNS, TCP, TLS and HTTP work together." },
 ];
 
 export const OSI_NAMES: Record<number, string> = {

@@ -27,8 +27,8 @@ export function Logo({ size = 34 }: { size?: number }) {
 }
 
 const NAV = [
-  { href: "/learn/journey", key: "journey" as const },
   { href: "/learn", key: "learn" as const },
+  { href: "/learn/journey", key: "journey" as const },
   { href: "/compare", key: "compare" as const },
   { href: "/paths", key: "paths" as const },
   { href: "/tools", key: "tools" as const },

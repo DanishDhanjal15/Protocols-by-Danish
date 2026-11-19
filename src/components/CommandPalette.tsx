@@ -15,7 +15,7 @@ interface Hit {
 }
 
 const PAGES = [
-  { href: "/learn/journey", title: "Type google.com", sub: "The whole journey of a web request", tag: "Journey" },
+  { href: "/learn/journey", title: "Journey: type google.com", sub: "The capstone: the whole life of a web request", tag: "Journey" },
   { href: "/learn", title: "All lessons", sub: "Browse every protocol by group", tag: "Page" },
   { href: "/compare", title: "Compare protocols", sub: "TCP vs UDP vs QUIC, TLS 1.2 vs 1.3…", tag: "Page" },
   { href: "/paths", title: "Learning paths", sub: "CCNA, web developer, security, interview prep", tag: "Page" },

@@ -4,7 +4,7 @@ export type Lang = "en" | "hi";
 
 const en = {
   learn: "Roadmap",
-  journey: "Type google.com",
+  journey: "Journey",
   compare: "Compare",
   paths: "Paths",
   tools: "Tools",
@@ -61,7 +61,7 @@ const en = {
 
 const hi: typeof en = {
   learn: "रोडमैप",
-  journey: "google.com टाइप करो",
+  journey: "जर्नी",
   compare: "तुलना",
   paths: "पाथ",
   tools: "टूल्स",
