@@ -1,6 +1,16 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { compactLesson } from "@/lib/catalog";
+import { getLesson } from "@/lessons";
+import { Player } from "@/components/player/Player";
 
-// The site opens on the "Type google.com" journey: the whole internet in one story.
-export default function Home() {
-  redirect("/learn/journey");
+export const metadata: Metadata = {
+  title: { absolute: "Protocols by Danish · See the internet, packet by packet" },
+  description: "Start learning how the internet works with IP, the protocol on every packet, then follow the roadmap lesson by lesson.",
+};
+
+// Home: the learning journey starts with IP, right here (no redirect).
+export default async function Home() {
+  const lesson = await getLesson("ip");
+  if (!lesson) return null;
+  return <Player lesson={compactLesson(lesson)} />;
 }

@@ -27,8 +27,8 @@ export function Logo({ size = 34 }: { size?: number }) {
 }
 
 const NAV = [
+  { href: "/", key: "home" as const },
   { href: "/learn", key: "learn" as const },
-  { href: "/learn/journey", key: "journey" as const },
   { href: "/compare", key: "compare" as const },
   { href: "/paths", key: "paths" as const },
   { href: "/tools", key: "tools" as const },
@@ -52,7 +52,7 @@ export function TopBar() {
 
         <nav className="hidden lg:flex items-center gap-1" aria-label="Main">
           {NAV.map((n) => {
-            const active = n.href === "/learn" ? path === "/learn" || (path.startsWith("/learn/") && path !== "/learn/journey") : path.startsWith(n.href);
+            const active = n.href === "/" ? path === "/" : n.href === "/learn" ? path.startsWith("/learn") : path.startsWith(n.href);
             return (
               <Link key={n.href} href={n.href}
                 className={`px-3 h-8 inline-flex items-center rounded-lg text-[13.5px] font-medium whitespace-nowrap ${active ? "bg-panel-3 text-ink" : "text-muted hover:text-ink"}`}>
