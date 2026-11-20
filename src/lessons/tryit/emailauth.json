@@ -1,0 +1,35 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Read a domain's SPF record", "hinglish": "Domain ka SPF record padho" },
+      "why": { "en": "SPF is just a TXT record on the domain. Look at the one for google.com to see how a real domain lists its allowed senders.", "hinglish": "SPF domain par bas ek TXT record hota hai. google.com ka dekho aur samjho ki asli domain apne allowed senders kaise list karta hai." },
+      "windows": "nslookup -type=TXT google.com 8.8.8.8",
+      "unix": "dig TXT google.com +short",
+      "expect": { "en": "Several TXT strings; look for the one starting with \"v=spf1\" with include: entries and an ending like ~all or -all. The exact contents change over time.", "hinglish": "Kai TXT strings; \"v=spf1\" se shuru hone wali dhoondo jisme include: entries aur ~all ya -all jaisa end hota hai. Exact contents samay ke saath badalte hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Read a domain's DMARC policy", "hinglish": "Domain ki DMARC policy padho" },
+      "why": { "en": "DMARC lives at _dmarc.<domain>. It shows the policy (none, quarantine or reject) and the report address.", "hinglish": "DMARC _dmarc.<domain> par rehta hai. Isme policy (none, quarantine ya reject) aur report address dikhta hai." },
+      "windows": "nslookup -type=TXT _dmarc.google.com 8.8.8.8",
+      "unix": "dig TXT _dmarc.google.com +short",
+      "expect": { "en": "A string like \"v=DMARC1; p=reject; rua=mailto:...\". The policy value depends on the domain you query.", "hinglish": "\"v=DMARC1; p=reject; rua=mailto:...\" jaisi string. Policy value us domain par depend karti hai jise aap query karte ho." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Look up a DKIM public key", "hinglish": "DKIM public key lookup karo" },
+      "why": { "en": "DKIM keys are TXT records at <selector>._domainkey.<domain>. Google's selector is 20230601 (selectors can change).", "hinglish": "DKIM keys <selector>._domainkey.<domain> par TXT records hoti hain. Google ka selector 20230601 hai (selectors badal sakte hain)." },
+      "windows": "nslookup -type=TXT 20230601._domainkey.gmail.com 8.8.8.8",
+      "unix": "dig TXT 20230601._domainkey.gmail.com +short",
+      "expect": { "en": "A long \"v=DKIM1; k=rsa; p=...\" string split into pieces. If the selector has been rotated you may get no answer; that is normal.", "hinglish": "Lambi \"v=DKIM1; k=rsa; p=...\" string jo tukdon mein bati hoti hai. Agar selector rotate ho gaya ho to answer nahi aa sakta; ye normal hai." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Find the DNS TXT lookups in the capture", "hinglish": "Capture mein DNS TXT lookups dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark to see the SPF, DKIM and DMARC queries the MX makes.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur MX ke SPF, DKIM aur DMARC queries dekho." },
+      "wireshark": "dns.qry.type == 16",
+      "expect": { "en": "Three TXT queries and their answers: bank.example, mail2026._domainkey.bank.example and _dmarc.bank.example.", "hinglish": "Teen TXT queries aur unke answers: bank.example, mail2026._domainkey.bank.example aur _dmarc.bank.example." },
+      "step": 2
+    }
+  ]
+}

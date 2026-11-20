@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import { TopBar } from "@/components/TopBar";
 import { Providers } from "@/components/Providers";
 import { getCatalog } from "@/lessons";
 
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
-const display = Space_Grotesk({ variable: "--font-display", subsets: ["latin"], weight: ["500", "600", "700"] });
-const mono = JetBrains_Mono({ variable: "--font-mono", subsets: ["latin"] });
+const inter = IBM_Plex_Sans({ variable: "--font-inter", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
+const display = IBM_Plex_Sans({ variable: "--font-display", subsets: ["latin"], weight: ["600", "700"] });
+const mono = IBM_Plex_Mono({ variable: "--font-mono", subsets: ["latin"], weight: ["400", "500", "600"] });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://protocols-by-danish.vercel.app"),
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { color: "#0e1116" },
+    { color: "#0f1114" },
   ],
   viewportFit: "cover",
 };

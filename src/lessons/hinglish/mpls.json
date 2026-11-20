@@ -1,0 +1,231 @@
+{
+  "tagline": "ISP ke andar poore address lookup ki jagah chhote labels.",
+  "description": "Bahut se ISP networks ke andar packets ko unke IP address se hop by hop route nahi kiya jaata. Pehla router samne ek chhota label laga deta hai, core routers sirf labels swap karte hain, aur exit ke paas label hata diya jaata hai. Isi trick se ek ISP hazaaron private company networks (VPNs) ko saath saath carry kar leta hai.",
+  "facts": [
+    ["Layer", "Between 2 and 3 (“layer 2.5”)"],
+    ["EtherType", "0x8847 (unicast MPLS)"],
+    ["Label entry", "4 bytes: label 20, TC 3, S 1, TTL 8"],
+    ["Labels from", "LDP, RSVP-TE, BGP, segment routing"],
+    ["Common uses", "L3VPN, traffic engineering, fast reroute"],
+    ["Defined in", "RFC 3031, RFC 3032"]
+  ],
+  "legend": [
+    "Plain IP packet",
+    "Labelled packet (ek label)",
+    "VPN packet (do labels)",
+    "Label decisions"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Push, swap, pop",
+      "summary": "Customer ka packet ISP core ko PE1 se PE2 tak ek label-switched path par cross karta hai.",
+      "steps": [
+        {
+          "title": "Plain IP aata hai",
+          "desc": "PE1 ko ek aam packet milta hai",
+          "detail": "Customer ka 203.0.113.10 ka connection PE1 par aata hai, jo provider edge router hai. PE1 ek normal IP lookup karta hai aur dekhta hai ki exit PE2 hai. Pehle LDP (Label Distribution Protocol) ne PE1 ko bataya tha ki P1 PE2 ki taraf jaane wali har cheez ke liye label 24001 chahta hai.",
+          "facts": [
+            ["Destination", "203.0.113.10"],
+            ["Exit router", "PE2 (192.0.2.4)"],
+            ["Label for that path", "24001 (from P1, via LDP)"]
+          ]
+        },
+        {
+          "title": "Label push karo",
+          "desc": "PE1 4-byte label jodta hai",
+          "detail": "PE1 Ethernet header aur IP header ke beech 4-byte label entry daalta hai aur EtherType 0x8847 set karta hai. Label ka TTL IP TTL se copy hota hai, uske ghatne ke baad (63), isliye traceroute ko ab bhi har hop dikhta hai. S bit 1 hai kyunki yeh akela, yaani bottom, label hai.",
+          "facts": [
+            ["Label stack", "24001"],
+            ["IP TTL inside", "63"],
+            ["Router action", "PUSH"]
+          ],
+          "quiz": {
+            "q": "Agla router kaise jaanta hai ki Ethernet header ke baad MPLS label hai, IP nahi?",
+            "options": [
+              "Label 0xFF se shuru hota hai",
+              "EtherType 0x8847 hai",
+              "IP version field 5 bolta hai",
+              "Woh size se andaza lagata hai"
+            ],
+            "why": "Ethernet Type field batata hai ki aage kya aa raha hai: IPv4 ke liye 0x0800, MPLS label stack ke liye 0x8847."
+          }
+        },
+        {
+          "title": "Core mein swap",
+          "desc": "P1 24001 ko 24017 se swap karta hai",
+          "detail": "P1 24001 ko ek chhoti label table mein dhoondta hai, poori internet routing table mein nahi. Table kehti hai: ise 24017 se replace karo aur P2 ko bhejo. P1 label TTL ko 62 karta hai aur IP header ko padhta hi nahi.",
+          "facts": [
+            ["Label stack", "24017"],
+            ["IP TTL inside", "63 (not touched)"],
+            ["Router action", "SWAP"]
+          ],
+          "quiz": {
+            "q": "Andar ke IP header mein ab bhi TTL 63 hai. P1 ne use kam kyun nahi kiya?",
+            "options": [
+              "P1 bhool gaya",
+              "P1 sirf top label padhta aur update karta hai",
+              "IP TTL sirf server par badalta hai",
+              "Labels mein TTL hota hi nahi"
+            ],
+            "why": "Core routers sirf top label par kaam karte hain: woh label ka TTL ghatate hain aur IP header ko haath nahi lagate. IP TTL tab theek hota hai jab label hataya jaata hai."
+          }
+        },
+        {
+          "title": "Ek hop pehle pop",
+          "desc": "Penultimate hop popping",
+          "detail": "PE2 ne P2 se kaha ki label 3 use karo, “implicit null”. Yeh label kabhi bheja nahi jaata: iska matlab hai “mujhe dene se pehle label hata do”. Isliye P2, jo second-to-last router hai, label pop karta hai aur uska TTL minus one (61) IP header mein copy kar deta hai. PE2 ko plain IP milta hai.",
+          "facts": [
+            ["Label stack", "none"],
+            ["IP TTL inside", "61 (copied from label)"],
+            ["Router action", "POP (PHP)"]
+          ],
+          "quiz": {
+            "q": "Label PE2 ki jagah P2 se kyun hatwaya jaata hai?",
+            "options": [
+              "Labels last router tak pahunch hi nahi sakte",
+              "PE2 ko tab label lookup aur phir IP lookup ki jagah sirf ek IP lookup karna padta hai",
+              "Customer se label chhupane ke liye",
+              "Label P2 ka hota hai"
+            ],
+            "why": "Agar label PE2 tak aata, to woh label lookup karke sirf yeh dekhta ki “ise hata do”, phir IP lookup karta. Ek hop pehle pop karne se PE2 ka yeh extra step bach jaata hai."
+          }
+        },
+        {
+          "title": "Deliver",
+          "desc": "PE2 packet ko normally route karta hai",
+          "detail": "PE2 aam IP lookup karta hai aur packet server ko bhejta hai, IP TTL ko 60 karke. Server ko normal packet dikhta hai aur use pata bhi nahi chalta ki labels kabhi use hue the.",
+          "facts": [
+            ["IP TTL", "60"],
+            ["Labels seen by server", "None"],
+            ["IP lookups in the core", "0"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Labels par core paar",
+        "text": "PE1 ne ek IP lookup kiya aur label push kiya, P1 ne use swap kiya, P2 ne pop kiya, aur PE2 ne plain IP packet deliver kiya. Core routers ne sirf 4-byte label dekha.",
+        "facts": [
+          ["Labels used", "24001 → 24017 → popped"],
+          ["Overhead", "4 bytes per label"],
+          ["EtherType", "0x8847"],
+          ["Labels learned by", "LDP"]
+        ]
+      }
+    },
+    "l3vpn": {
+      "name": "Do labels: company VPN",
+      "summary": "ISP ek shop chain ka private 10.x network Pune aur Delhi ke beech transport label aur VPN label se carry karta hai.",
+      "steps": [
+        {
+          "title": "Customer ke VRF mein",
+          "desc": "PE1 har customer ke liye alag table rakhta hai",
+          "detail": "Shop ka Pune office Delhi mein 10.2.2.10 ko packet bhejta hai. Doosre customers bhi 10.x addresses use karte hain, isliye PE1 har customer ke liye alag routing table, yaani VRF, rakhta hai. Is shop ke VRF mein PE2 ne 10.2.2.0/24 ko MP-BGP par VPN label 18 ke saath advertise kiya hai.",
+          "facts": [
+            ["Customer VRF", "SHOP-A"],
+            ["Destination", "10.2.2.10"],
+            ["VPN label", "18 (from PE2 via MP-BGP)"]
+          ],
+          "quiz": {
+            "q": "Do alag customers dono 10.2.2.10 use karte hain. PE2 ko kaise pata chalta hai ki packet kiska hai?",
+            "options": [
+              "Source MAC se",
+              "Andar wale VPN label se",
+              "IP TTL se",
+              "Nahi pata chalta, isliye addresses unique hone chahiye"
+            ],
+            "why": "PE2 har customer ke routes ko apna VPN label deta hai. Label 18 wala packet aane par PE2 jaan jaata hai ki woh SHOP-A ki table ka hai."
+          }
+        },
+        {
+          "title": "Do labels push karo",
+          "desc": "Upar transport label, neeche VPN label",
+          "detail": "PE1 do labels push karta hai. Andar wala, 18, batata hai ki kaun sa customer. Bahar wala, 24001, wahi transport label hai jo PE2 jaane wala koi bhi traffic use karta hai. Sirf andar wale par S (bottom of stack) bit set hota hai.",
+          "facts": [
+            ["Top label", "24001 (S = 0)"],
+            ["Bottom label", "18 (S = 1)"],
+            ["Overhead", "8 bytes"]
+          ]
+        },
+        {
+          "title": "Core sirf top dekhta hai",
+          "desc": "P1 24001 → 24017 swap karta hai",
+          "detail": "P1 ise bilkul pehle wale plain packet ki tarah handle karta hai. Woh top label swap karta hai aur label 18 ko chhuta bhi nahi. P routers ko VPNs ka pata hi nahi hota aur unke paas koi customer routes nahi hote, isi wajah se yeh design hazaaron customers tak scale karta hai.",
+          "facts": [
+            ["Top label", "24017"],
+            ["Bottom label", "18 (untouched)"],
+            ["Customer routes in P1", "0"]
+          ],
+          "quiz": {
+            "q": "P2 ke penultimate hop popping ke baad PE2 ko kya milta hai?",
+            "options": [
+              "Plain IP packet",
+              "Upar label 18 wala packet",
+              "Labels 24017 aur 18 wala packet",
+              "Kuch nahi: P2 use drop kar deta hai"
+            ],
+            "why": "P2 sirf transport label pop karta hai. VPN label bacha rehta hai, aur PE2 ko sahi customer table chunne ke liye uski zaroorat hoti hai."
+          }
+        },
+        {
+          "title": "Transport label pop hua",
+          "desc": "Sirf VPN label bacha",
+          "detail": "Pehle ki tarah P2 transport label pop karta hai kyunki PE2 ne implicit null maanga tha. VPN label 18 ab top aur akela label hai, S = 1 ke saath.",
+          "facts": [
+            ["Label stack", "18 only"],
+            ["Popped by", "P2 (PHP)"],
+            ["S bit", "1"]
+          ]
+        },
+        {
+          "title": "VPN label table chunta hai",
+          "desc": "PE2 18 pop karke SHOP-A mein route karta hai",
+          "detail": "PE2 label 18 dhoondta hai, jo SHOP-A VRF ki taraf point karta hai. Woh label pop karta hai, us customer ki table mein 10.2.2.10 dhoondta hai aur packet Delhi office ko bhej deta hai. Shop ko yeh ek hi private network jaisa lagta hai.",
+          "facts": [
+            ["Label 18", "→ VRF SHOP-A"],
+            ["Delivered to", "10.2.2.10"],
+            ["Other customers", "Fully separate"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Shared core par private network",
+        "text": "Do labels kaam baant lete hain: bahar wala label packet ko core paar karata hai, andar wala label exit router ko batata hai ki woh kis customer ka hai. Isi tarah MPLS L3VPNs (RFC 4364) ISPs ko ek backbone par bahut si companies ko private networks bechne dete hain.",
+        "facts": [
+          ["Outer label", "Transport, from LDP"],
+          ["Inner label", "VPN, from MP-BGP"],
+          ["Overhead", "8 bytes"],
+          ["Defined in", "RFC 4364"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Label operations",
+      "items": [
+        ["PUSH", "Label jodo (ingress PE)"],
+        ["SWAP", "Top label badlo (P routers)"],
+        ["POP", "Top label hatao"],
+        ["PHP", "Second-to-last router par pop"]
+      ]
+    },
+    {
+      "title": "Label stack entry (4 bytes)",
+      "items": [
+        ["Label", "20 bits: 0–1,048,575"],
+        ["TC", "3 bits: priority (QoS)"],
+        ["S", "1 bit: bottom of stack"],
+        ["TTL", "8 bits: loop protection"]
+      ]
+    },
+    {
+      "title": "Reserved labels",
+      "items": [
+        ["0", "IPv4 explicit null"],
+        ["2", "IPv6 explicit null"],
+        ["3", "Implicit null (mujhse pehle pop karo)"],
+        ["16+", "Normal labels"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Check your system's proxy setting", "hinglish": "Apne system ki proxy setting check karo" },
+      "why": { "en": "See whether your machine is already configured to use a proxy. This only reads settings.", "hinglish": "Dekho ki tumhari machine pehle se proxy use karne ke liye configured hai ya nahi. Yeh sirf settings padhta hai." },
+      "windows": "netsh winhttp show proxy",
+      "unix": "env | grep -i proxy",
+      "expect": { "en": "On Windows, “Direct access (no proxy server)” at home, or a proxy address like 192.168.1.5:3128 at an office. On Unix, empty output or http_proxy/https_proxy variables. It varies by machine.", "hinglish": "Windows par ghar mein “Direct access (no proxy server)”, ya office mein 192.168.1.5:3128 jaisa proxy address. Unix par khaali output ya http_proxy/https_proxy variables. Yeh machine ke hisaab se alag hota hai." }
+    },
+    {
+      "title": { "en": "See the absolute-URL GET and CONNECT in the capture", "hinglish": "Capture mein absolute-URL GET aur CONNECT dekho" },
+      "why": { "en": "Requests to a proxy look different from normal ones: the request line holds the full URL, and HTTPS starts with CONNECT.", "hinglish": "Proxy ko jaane wali requests normal se alag dikhti hain: request line mein poora URL hota hai, aur HTTPS CONNECT se shuru hota hai." },
+      "wireshark": "http.request.method == \"CONNECT\" || http.request.uri contains \"http://\"",
+      "expect": { "en": "A GET http://example.com/ request and a CONNECT example.com:443 request, both sent to the proxy on port 3128.", "hinglish": "Ek GET http://example.com/ request aur ek CONNECT example.com:443 request, dono port 3128 par proxy ko bheji gayi." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Find the 407 login challenge", "hinglish": "407 login challenge dhoondo" },
+      "why": { "en": "The auth scenario shows the proxy asking for credentials before fetching anything.", "hinglish": "Auth scenario dikhata hai ki proxy kuch bhi fetch karne se pehle credentials maangta hai." },
+      "wireshark": "http.response.code == 407 || http.proxy_authorization",
+      "expect": { "en": "A 407 response with Proxy-Authenticate, then a retried request with Proxy-Authorization: Basic ZGFuaXNo… which Wireshark can decode.", "hinglish": "Proxy-Authenticate ke saath 407 response, phir Proxy-Authorization: Basic ZGFuaXNo… ke saath retry hui request jise Wireshark decode kar sakta hai." }
+    },
+    {
+      "title": { "en": "Fetch a page through a proxy (if you have one)", "hinglish": "Proxy ke zariye page fetch karo (agar tumhare paas ho)" },
+      "why": { "en": "curl -x sends the request to a proxy you own or are allowed to use. Replace the address with your own proxy; skip this if you have none.", "hinglish": "curl -x request ko aise proxy ko bhejta hai jo tumhara apna ho ya jise use karne ki permission ho. Address ko apne proxy se badlo; agar tumhare paas nahi hai to skip karo." },
+      "windows": "curl.exe -v -x http://127.0.0.1:3128 http://example.com/",
+      "unix": "curl -v -x http://127.0.0.1:3128 http://example.com/",
+      "expect": { "en": "With a proxy running, you see “GET http://example.com/ HTTP/1.1” in the request and Via headers in the reply. Without one, curl reports connection refused.", "hinglish": "Proxy chalne par request mein “GET http://example.com/ HTTP/1.1” aur reply mein Via headers dikhte hain. Bina proxy ke curl connection refused batata hai." },
+      "step": 2
+    }
+  ]
+}

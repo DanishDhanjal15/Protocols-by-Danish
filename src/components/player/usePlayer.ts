@@ -88,7 +88,8 @@ export function usePlayer(scenario: Scenario, holdRef?: { current: () => boolean
     setGroupIdx(0);
     setPlaying(false);
     store.set(0);
-  }, [scenario, store]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenario.id, store]);
 
   useEffect(() => {
     if (!playing || stepIdx < 0 || stepIdx >= stepGroups.length) return;

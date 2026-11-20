@@ -1,0 +1,35 @@
+{
+  "commands": [
+    {
+      "title": { "en": "See the SSH handshake in detail", "hinglish": "SSH handshake detail mein dekho" },
+      "why": { "en": "ssh -v shows the banner exchange, KEXINIT algorithm choice, host key check and auth methods. Use a machine you own; the login attempt below is only against your own computer.", "hinglish": "ssh -v banner exchange, KEXINIT algorithm choice, host key check aur auth methods dikhata hai. Apni hi machine use karo; neeche ka login attempt sirf aapke apne computer par hai." },
+      "windows": "ssh -v -o BatchMode=yes -o ConnectTimeout=5 localhost exit",
+      "unix": "ssh -v -o BatchMode=yes -o ConnectTimeout=5 localhost exit",
+      "expect": { "en": "Debug lines such as 'Remote protocol version 2.0', 'kex: algorithm: curve25519-sha256', 'Server host key: ssh-ed25519 SHA256:...' and 'Authentications that can continue: publickey'. If you have no SSH server on your machine you will just see 'Connection refused', which is fine. Output varies by version.", "hinglish": "'Remote protocol version 2.0', 'kex: algorithm: curve25519-sha256', 'Server host key: ssh-ed25519 SHA256:...' aur 'Authentications that can continue: publickey' jaisi debug lines. Agar aapki machine par SSH server nahi hai to bas 'Connection refused' dikhega, jo theek hai. Output version ke hisaab se badalta hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "List the host keys you already trust", "hinglish": "Wo host keys dekho jin par aap pehle se bharosa karte ho" },
+      "why": { "en": "known_hosts is where SSH remembers each server's fingerprint (trust on first use). A changed fingerprint triggers the warning in the host-key scenario.", "hinglish": "known_hosts wo jagah hai jahan SSH har server ka fingerprint yaad rakhta hai (trust on first use). Fingerprint badalne par host-key scenario wali warning aati hai." },
+      "windows": "if (Test-Path $HOME\\.ssh\\known_hosts) { ssh-keygen -l -f $HOME\\.ssh\\known_hosts } else { 'no known_hosts yet' }",
+      "unix": "ssh-keygen -l -f ~/.ssh/known_hosts",
+      "expect": { "en": "One line per saved server: key size, SHA256 fingerprint, host and key type (for example ED25519). It may be empty or missing if you have never used SSH.", "hinglish": "Har saved server ki ek line: key size, SHA256 fingerprint, host aur key type (jaise ED25519). Agar aapne kabhi SSH use nahi kiya to khali ya missing ho sakta hai." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Show your own public key fingerprint", "hinglish": "Apni public key ka fingerprint dikhao" },
+      "why": { "en": "Key login uses a key pair. This prints the fingerprint of your public key only, never the private key.", "hinglish": "Key login key pair use karta hai. Ye sirf aapki public key ka fingerprint print karta hai, private key kabhi nahi." },
+      "windows": "ssh-keygen -l -f $HOME\\.ssh\\id_ed25519.pub",
+      "unix": "ssh-keygen -l -f ~/.ssh/id_ed25519.pub",
+      "expect": { "en": "A line like '256 SHA256:... you@host (ED25519)'. If you have no key, you get 'No such file'; create one with ssh-keygen -t ed25519.", "hinglish": "'256 SHA256:... you@host (ED25519)' jaisi line. Agar key nahi hai to 'No such file' aayega; ssh-keygen -t ed25519 se bana lo." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Find the KEXINIT and key exchange in the capture", "hinglish": "Capture mein KEXINIT aur key exchange dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark. Banners and key exchange are readable; after NEWKEYS everything is encrypted.", "hinglish": "Lesson ka .pcap Wireshark mein kholo. Banners aur key exchange padhe ja sakte hain; NEWKEYS ke baad sab encrypted hai." },
+      "wireshark": "ssh.message_code == 20 || ssh.message_code == 21 || ssh.message_code == 30 || ssh.message_code == 31",
+      "expect": { "en": "KEXINIT (20), the ECDH init and reply (30, 31) and NEWKEYS (21). Later packets show only 'Encrypted packet'.", "hinglish": "KEXINIT (20), ECDH init aur reply (30, 31) aur NEWKEYS (21). Baad ke packets mein sirf 'Encrypted packet' dikhta hai." },
+      "step": 2
+    }
+  ]
+}

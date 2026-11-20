@@ -1,0 +1,221 @@
+{
+  "tagline": "Fire and forget: tez datagrams, koi promise nahi.",
+  "description": "UDP IP mein bas port numbers, ek length aur ek checksum jodta hai, phir har message alag se bhej deta hai. Na handshake, na acknowledgment, na dobara bhejna. Isliye yeh voice, video, games aur DNS ke liye perfect hai, jahan late data missing data se bhi bura hota hai.",
+  "facts": [
+    ["Layer", "Transport (Layer 4)"],
+    ["Connection", "Koi nahi, handshake nahi"],
+    ["Reliability", "Koi nahi; app decide karta hai"],
+    ["Header", "8 bytes"],
+    ["Used by", "DNS, DHCP, VoIP, games, QUIC"],
+    ["Defined in", "RFC 768"]
+  ],
+  "legend": [
+    "Laptop se voice",
+    "Doosri taraf se voice",
+    "ICMP messages",
+    "Errors"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Voice call, ek packet kho gaya",
+      "summary": "Call app UDP par 20 ms ke voice packets stream karta hai. Ek kho jata hai aur koi use dobara nahi bhejta.",
+      "steps": [
+        {
+          "title": "Bas bolna shuru karo",
+          "desc": "Pehla datagram bina handshake ke nikalta hai",
+          "detail": "Call app ko relay ka address aur port apni signalling se pehle se pata hai. Woh seedha pehla voice packet bhej deta hai. Na SYN, na setup round trip: sabse pehla UDP datagram hi 20 ms ki speech le jata hai.",
+          "facts": [
+            ["To", "203.0.113.40:5004"],
+            ["From port", "50004"],
+            ["Setup time", "0 round trips"]
+          ],
+          "quiz": {
+            "q": "Pehla voice data bhejne se pehle UDP ko kitne round trips chahiye?",
+            "options": [
+              "0",
+              "1, TCP ke handshake jaisa",
+              "2",
+              "3"
+            ],
+            "why": "UDP mein set up karne ke liye koi connection nahi hota. Pehla datagram hi data le jata hai; TCP se compare karo, jise pehle poora ek round trip chahiye."
+          }
+        },
+        {
+          "title": "Lagatar stream",
+          "desc": "Har 20 ms mein ek datagram",
+          "detail": "Har datagram akela khada hota hai: 8 bytes UDP header, 12 bytes RTP header aur lagbhag 80 bytes compressed voice. UDP ko khud nahi pata ki yeh ek saath hain. Andar ka RTP sequence number aur timestamp doosri side ko inhe order mein bajane dete hain.",
+          "facts": [
+            ["Interval", "20 ms"],
+            ["UDP header", "8 bytes"],
+            ["Per packet", "~142 bytes on the wire"]
+          ]
+        },
+        {
+          "title": "Ek kho jata hai",
+          "desc": "UDP level par kisi ko pata nahi chalta",
+          "detail": "Datagram 1003 ko ek busy router drop kar deta hai. Laptop ko kuch pata nahi, kyunki kuch bhi acknowledge nahi hota. Agla, 1004, 20 ms baad aise nikalta hai jaise kuch hua hi nahi.",
+          "facts": [
+            ["Lost", "seq 1003"],
+            ["Sender ko pata?", "Nahi"],
+            ["Resent?", "Kabhi nahi"]
+          ],
+          "quiz": {
+            "q": "Kho gaye datagram ke baare mein UDP kya karta hai?",
+            "options": [
+              "Timeout ke baad dobara bhejta hai",
+              "Receiver se NACK maangta hai",
+              "Kuch bhi nahi",
+              "Stream slow kar deta hai"
+            ],
+            "why": "UDP mein acknowledgments aur timers nahi hote. Agar application ko parwah hai, to use khud notice karke react karna hoga."
+          }
+        },
+        {
+          "title": "Receiver gap chhupa deta hai",
+          "desc": "Sequence numbers gap dikhate hain, codec use cover karta hai",
+          "detail": "Relay ko 1002 ke baad 1004 dikhta hai, isliye use pata chal jata hai ki 1003 missing hai. Use dobara maangna bekaar hota: jab tak copy aati, speech ka woh pal pehle hi baj chuka hona chahiye tha. Voice decoder 20 ms ke gap ko andaze se bhar deta hai, aur listener ko shayad hi sunai deta hai.",
+          "facts": [
+            ["Gap found by", "RTP sequence number"],
+            ["Fix", "Codec mein loss concealment"],
+            ["Audible?", "Kam hi, 50 mein 1 lost par"]
+          ]
+        },
+        {
+          "title": "Dono taraf ek saath",
+          "desc": "Doosri side apni stream khud bhejti hai",
+          "detail": "Dost ki awaaz bilkul alag datagrams ki stream ke roop mein wapas aati hai. Dono directions ke beech koi shared state nahi hai aur ports ke alawa kuch unhe jodta nahi. Har side jab audio hota hai tab bhej deti hai.",
+          "facts": [
+            ["Direction", "Relay → laptop"],
+            ["Ports", "5004 → 50004"],
+            ["Shared state", "Koi nahi"]
+          ]
+        },
+        {
+          "title": "TCP kyun nahi?",
+          "desc": "Resend ka intezaar call ko freeze kar deta",
+          "detail": "TCP par, kho gaya packet apne peeche ka sab kuch rok leta jab tak resend na aa jaye, isliye voice ek round trip ya zyada ke liye ruk jati. TCP ko pehle handshake bhi chahiye aur uska header 20 bytes ka hai. Live audio ke liye, abhi chhota sa gap perfect audio late milne se behtar hai.",
+          "facts": [
+            ["TCP header", "20+ bytes vs UDP 8"],
+            ["TCP after loss", "Rukta hai, phir catch up karta hai"],
+            ["UDP after loss", "Skip karke aage badhta hai"]
+          ],
+          "quiz": {
+            "q": "TCP par packet 1003 kho gaya. Receiver par 1004 aur 1005 ka kya hoga?",
+            "options": [
+              "Turant play ho jate hain",
+              "1003 dobara aane tak buffer mein wait karte hain",
+              "Phenk diye jate hain",
+              "Wapas bhej diye jate hain"
+            ],
+            "why": "TCP bytes ko strictly order mein deliver karta hai, isliye baad ka data missing piece ka intezaar karta hai. Ise head-of-line blocking kehte hain."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Tez, perfect se behtar",
+        "text": "UDP ne har voice packet taiyaar hote hi bhej diya, 8-byte header ke saath aur bina handshake. Ek packet kho gaya aur wapas nahi aaya, aur woh theek tha: RTP ne gap notice kiya aur codec ne use cover kar diya.",
+        "facts": [
+          ["Handshake", "Koi nahi"],
+          ["Lost / resent", "1 / 0"],
+          ["Header", "8 bytes"],
+          ["Order aur loss", "RTP aur app sambhalte hain"]
+        ]
+      }
+    },
+    "closed-port": {
+      "name": "Koi sun nahi raha (port unreachable)",
+      "summary": "Relay program crash ho gaya hai, isliye server ka OS ICMP Port Unreachable se jawab deta hai.",
+      "steps": [
+        {
+          "title": "Closed port ko bhejo",
+          "desc": "Datagram kisi bhi aur ki tarah nikalta hai",
+          "detail": "Relay program crash ho gaya hai, lekin server khud chal raha hai. Laptop hamesha ki tarah port 5004 par voice datagram bhejta hai. UDP mein use pehle se nahi pata ki koi sun raha hai ya nahi.",
+          "facts": [
+            ["To", "203.0.113.40:5004"],
+            ["Listener", "Koi nahi (program crashed)"],
+            ["Sender ko pata?", "Abhi nahi"]
+          ]
+        },
+        {
+          "title": "Port unreachable",
+          "desc": "Server ka OS ICMP type 3, code 3 se jawab deta hai",
+          "detail": "Server ke operating system ko UDP port 5004 par koi socket nahi milta. Khamoshi ki jagah woh ICMP Destination Unreachable, code 3 (port unreachable) bhejta hai. Andar woh original IP header aur 8-byte UDP header quote karta hai taaki laptop jaan sake yeh kis socket ka hai.",
+          "facts": [
+            ["ICMP", "Type 3, code 3"],
+            ["Quoted", "IP header + UDP header"],
+            ["Laga", "32 ms"]
+          ],
+          "quiz": {
+            "q": "ICMP message kya quote karta hai taaki laptop jaan sake kaunsa socket fail hua?",
+            "options": [
+              "Kuch nahi, bas server ka address",
+              "Original IP header aur UDP ports",
+              "Poora voice audio",
+              "Laptop ka MAC address"
+            ],
+            "why": "ICMP errors us packet ki shuruaat carry karte hain jisne unhe trigger kiya: IP header plus 8 bytes, jo UDP ke liye poora header hai, dono ports ke saath."
+          }
+        },
+        {
+          "title": "App react karta hai",
+          "desc": "Error report karo, ya backoff ke saath retry karo",
+          "detail": "Agar app ka UDP socket relay se “connected” hai, to agla receive call “connection refused” ke saath fail hota hai. Call app “Reconnecting…” dikhata hai aur doosra relay try karta hai. Kai firewalls aise datagrams ko chupchap drop kar dete hain, isliye UDP apps ko apne timeouts bhi use karne padte hain.",
+          "facts": [
+            ["Socket error", "ECONNREFUSED"],
+            ["App karta hai", "Relay badalta hai"],
+            ["Agar filtered", "Khamoshi, app timeout karta hai"]
+          ],
+          "quiz": {
+            "q": "Agar firewall datagram ko chupchap drop kar deta, to app ko kaise pata chalta?",
+            "options": [
+              "ICMP message se",
+              "TCP RST se",
+              "Sirf apne timeout se",
+              "Datagram wapas bounce ho jata"
+            ],
+            "why": "Kisi bhi tarah ka reply na aane par UDP app ko kuch nahi deta. App ko khud notice karna padta hai ki jawab aana band ho gaye."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Closed aur khamosh ek jaise nahi",
+        "text": "Jis host par koi listener nahi hota woh UDP ka jawab ICMP Port Unreachable se deta hai, jisme woh refuse kiya hua datagram quote karta hai. Firewall aam taur par kuch nahi kehta. UDP scanners aur apps in dono mein fark isse karte hain ki woh ICMP wapas aata hai ya nahi.",
+        "facts": [
+          ["Closed port", "ICMP 3/3"],
+          ["Filtered port", "Khamoshi"],
+          ["TCP ka version", "RST"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "UDP header (8 bytes)",
+      "items": [
+        ["Source port", "2 bytes"],
+        ["Destination port", "2 bytes"],
+        ["Length", "Header + data"],
+        ["Checksum", "Header, data, IP pseudo-header"]
+      ]
+    },
+    {
+      "title": "UDP vs TCP",
+      "items": [
+        ["Setup", "Koi nahi vs 3-way handshake"],
+        ["Order", "Nahi rakhta vs hamesha order mein"],
+        ["Loss", "Ignore vs dobara bheja"],
+        ["Header", "8 vs 20–60 bytes"]
+      ]
+    },
+    {
+      "title": "Common UDP ports",
+      "items": [
+        ["53", "DNS"],
+        ["67 / 68", "DHCP server / client"],
+        ["123", "NTP"],
+        ["443", "QUIC (HTTP/3)"],
+        ["5004", "RTP media"]
+      ]
+    }
+  ]
+}

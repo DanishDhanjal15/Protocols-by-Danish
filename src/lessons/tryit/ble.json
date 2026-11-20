@@ -1,0 +1,31 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find the advertising packets in the capture", "hinglish": "Capture mein advertising packets dhoondo" },
+      "why": { "en": "Open the .pcap in Wireshark and show only BLE advertising PDUs.", "hinglish": ".pcap Wireshark mein kholo aur sirf BLE advertising PDUs dikhao." },
+      "wireshark": "btle.advertising_header",
+      "expect": { "en": "ADV_IND packets on channels 37, 38 and 39 with access address 0x8e89bed6, plus SCAN_REQ, SCAN_RSP and CONNECT_IND.", "hinglish": "Channels 37, 38 aur 39 par access address 0x8e89bed6 wale ADV_IND packets, saath mein SCAN_REQ, SCAN_RSP aur CONNECT_IND." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Follow the GATT conversation", "hinglish": "GATT baatcheet follow karo" },
+      "why": { "en": "ATT requests, responses and notifications make up GATT: service discovery, the CCCD write, then heart-rate notifications.", "hinglish": "ATT requests, responses aur notifications se GATT banta hai: service discovery, CCCD write, phir heart-rate notifications." },
+      "wireshark": "btatt",
+      "expect": { "en": "Read By Group Type, Write Request to handle 0x000f, Write Response and repeating Handle Value Notifications on 0x000e.", "hinglish": "Read By Group Type, handle 0x000f par Write Request, Write Response aur 0x000e par baar-baar Handle Value Notifications." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Show the pairing messages", "hinglish": "Pairing messages dikhao" },
+      "why": { "en": "The Security Manager Protocol carries the public keys, confirm values and failure codes in the MITM scenario.", "hinglish": "Security Manager Protocol MITM scenario mein public keys, confirm values aur failure codes carry karta hai." },
+      "wireshark": "btsmp",
+      "expect": { "en": "Pairing Request/Response (IO capabilities), Public Key exchange, then Pairing Failed with reason 0x0c when numeric comparison fails.", "hinglish": "Pairing Request/Response (IO capabilities), Public Key exchange, phir numeric comparison fail hone par reason 0x0c ke saath Pairing Failed." }
+    },
+    {
+      "title": { "en": "See the Bluetooth adapters on your own machine", "hinglish": "Apni machine ke Bluetooth adapters dekho" },
+      "why": { "en": "A read-only look at whether your PC has a Bluetooth radio and which devices it already knows. It does not scan or connect to anything.", "hinglish": "Read-only dekho ki tumhare PC mein Bluetooth radio hai ya nahi aur woh kaunse devices pehle se jaanta hai. Yeh kuch scan ya connect nahi karta." },
+      "windows": "Get-PnpDevice -Class Bluetooth | Select-Object FriendlyName, Status",
+      "unix": "bluetoothctl devices",
+      "expect": { "en": "A list of Bluetooth radios and paired devices, or nothing if you have none. Output varies by machine.", "hinglish": "Bluetooth radios aur paired devices ki list, ya agar koi nahi hai to kuch nahi. Output machine ke hisaab se alag hota hai." }
+    }
+  ]
+}

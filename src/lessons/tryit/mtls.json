@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Ask a normal website for a client certificate", "hinglish": "Normal website se client certificate maango" },
+      "why": { "en": "A normal HTTPS server does not send CertificateRequest, unlike an mTLS server. This shows what a regular one-way TLS server negotiates.", "hinglish": "Normal HTTPS server mTLS server ki tarah CertificateRequest nahi bhejta. Ye dikhata hai ki regular one-way TLS server kya negotiate karta hai." },
+      "unix": "openssl s_client -connect example.com:443 -servername example.com -brief < /dev/null",
+      "windows": "curl.exe -v https://example.com -o NUL",
+      "expect": { "en": "A normal TLS 1.3 handshake with the server's certificate and no 'Client certificate' request (OpenSSL prints 'No client certificate CA names sent'; curl -v shows no 'Request CERT'). An mTLS server would list CA names it accepts. Output varies.", "hinglish": "Server ke certificate ke saath normal TLS 1.3 handshake aur koi 'Client certificate' request nahi (OpenSSL 'No client certificate CA names sent' print karta hai; curl -v mein 'Request CERT' nahi dikhta). mTLS server un CA names ko list karta jinhe wo accept karta hai. Output badalta hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Inspect a certificate's identity fields", "hinglish": "Certificate ke identity fields dekho" },
+      "why": { "en": "mTLS identities live in the certificate's subject and SAN (for example a SPIFFE URI). This prints them for a public site so you can see the same fields.", "hinglish": "mTLS identities certificate ke subject aur SAN mein hoti hain (jaise SPIFFE URI). Ye ek public site ke liye unhe print karta hai taaki aap wahi fields dekh sako." },
+      "unix": "openssl s_client -connect example.com:443 -servername example.com < /dev/null 2>/dev/null | openssl x509 -noout -subject -issuer -ext subjectAltName",
+      "windows": "$tcp = New-Object Net.Sockets.TcpClient('example.com',443); $ssl = New-Object Net.Security.SslStream($tcp.GetStream()); $ssl.AuthenticateAsClient('example.com'); $ssl.RemoteCertificate | Select Subject, Issuer",
+      "expect": { "en": "A subject, an issuer and a subjectAltName list of DNS names. In mTLS the client certificate carries a name like spiffe://acme.internal/ns/prod/sa/orders instead.", "hinglish": "Subject, issuer aur DNS names ki subjectAltName list. mTLS mein client certificate mein uski jagah spiffe://acme.internal/ns/prod/sa/orders jaisa naam hota hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find CertificateRequest in the capture", "hinglish": "Capture mein CertificateRequest dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark. This filter finds the server's CertificateRequest and the client's Certificate message. Wireshark can only show them if the capture has decryption keys.", "hinglish": "Lesson ka .pcap Wireshark mein kholo. Ye filter server ka CertificateRequest aur client ka Certificate message dhoondta hai. Wireshark unhe tabhi dikha sakta hai jab capture ke saath decryption keys hon." },
+      "wireshark": "tls.handshake.type == 13 || tls.handshake.type == 11",
+      "expect": { "en": "If the handshake is encrypted and no key log is loaded, you will only see Application Data records and no matches. With a key log you will see type 13 (CertificateRequest) and two type 11 Certificate messages.", "hinglish": "Agar handshake encrypted hai aur koi key log load nahi hai, to sirf Application Data records dikhenge aur koi match nahi. Key log ke saath type 13 (CertificateRequest) aur do type 11 Certificate messages dikhenge." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Spot the certificate_required alert", "hinglish": "certificate_required alert pakdo" },
+      "why": { "en": "In the no-cert scenario the server ends the handshake with alert 116. It is encrypted, so it appears as a short record near the end of the connection.", "hinglish": "no-cert scenario mein server handshake ko alert 116 se khatam karta hai. Wo encrypted hai, isliye connection ke end ke paas ek chhote record ki tarah dikhta hai." },
+      "wireshark": "tls.alert_message.desc == 116 || (tls.record.content_type == 23 && tcp.len < 40)",
+      "expect": { "en": "Without keys you see a small Application Data record (about 24 bytes) just before the TCP FIN. With a key log loaded it decodes as Alert 116.", "hinglish": "Keys ke bina TCP FIN se theek pehle ek chhota Application Data record (lagbhag 24 bytes) dikhta hai. Key log load karne par wo Alert 116 ki tarah decode hota hai." },
+      "step": 4
+    }
+  ]
+}

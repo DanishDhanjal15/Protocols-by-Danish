@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Send three echo requests", "hinglish": "Teen echo requests bhejo" },
+      "why": { "en": "This is exactly the ICMP echo request and reply exchange from the lesson.", "hinglish": "Yeh bilkul wahi ICMP echo request aur reply exchange hai jo lesson mein hai." },
+      "windows": "ping -n 3 example.com",
+      "unix": "ping -c 3 example.com",
+      "expect": { "en": "Three reply lines with a time in ms and a TTL, then a summary with packets sent, received and loss. Some networks block ICMP, so a timeout is possible.", "hinglish": "Teen reply lines time (ms) aur TTL ke saath, phir sent, received aur loss ka summary. Kuch networks ICMP block karte hain, isliye timeout ho sakta hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Map the path with traceroute", "hinglish": "traceroute se path ka map banao" },
+      "why": { "en": "Each hop is a router that sent back a Time Exceeded message.", "hinglish": "Har hop ek router hai jisne Time Exceeded message wapas bheja." },
+      "windows": "tracert -d -h 15 example.com",
+      "unix": "traceroute -n -m 15 example.com",
+      "expect": { "en": "A numbered list of routers with three timings each; hops that do not answer show *. The routers and hop count differ per network.", "hinglish": "Routers ki numbered list, har ek ke teen timings ke saath; jo hops jawab nahi dete woh * dikhate hain. Routers aur hop count har network par alag hote hain." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Ping with a small TTL to trigger Time Exceeded", "hinglish": "Chhote TTL se ping karo aur Time Exceeded dekho" },
+      "why": { "en": "A TTL of 1 dies at your first router, which answers with ICMP type 11.", "hinglish": "TTL 1 tumhare pehle router par khatam ho jata hai, jo ICMP type 11 se jawab deta hai." },
+      "windows": "ping -n 1 -i 1 example.com",
+      "unix": "ping -c 1 -t 1 example.com",
+      "expect": { "en": "A line like 'Reply from 192.168.1.1: TTL expired in transit' (Windows) or 'Time to live exceeded' (Linux/macOS), coming from your router. On older Linux ping use -t for TTL; the exact wording varies.", "hinglish": "Tumhare router se 'Reply from 192.168.1.1: TTL expired in transit' (Windows) ya 'Time to live exceeded' (Linux/macOS) jaisi line. Exact wording alag ho sakti hai." }
+    },
+    {
+      "title": { "en": "Filter ICMP types in the capture", "hinglish": "Capture mein ICMP types filter karo" },
+      "why": { "en": "Open the .pcap in Wireshark to see echo, time exceeded and unreachable messages.", "hinglish": ".pcap Wireshark mein kholo aur echo, time exceeded aur unreachable messages dekho." },
+      "wireshark": "icmp.type == 8 || icmp.type == 0 || icmp.type == 11 || icmp.type == 3",
+      "expect": { "en": "Echo requests and replies in the ping scenario, Time Exceeded packets in traceroute, and Destination Unreachable packets in the last scenario.", "hinglish": "Ping scenario mein echo requests aur replies, traceroute mein Time Exceeded packets, aur aakhri scenario mein Destination Unreachable packets." }
+    }
+  ]
+}

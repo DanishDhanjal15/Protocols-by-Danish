@@ -1,0 +1,209 @@
+{
+  "tagline": "Beech ka aadmi jo tumhare liye pages fetch karta hai, ya unhe andhe ho kar tunnel karta hai.",
+  "description": "Forward proxy tumhare browser aur internet ke beech baithta hai, aksar office ya school mein. Plain HTTP ke liye woh tumhari request padhta hai, khud page fetch karta hai aur wapas de deta hai. HTTPS ke liye woh sirf CONNECT se tunnel khol sakta hai aur encrypted bytes dono taraf pass karta hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Common ports", "3128, 8080"],
+    ["Plain HTTP", "GET with an absolute URL"],
+    ["HTTPS", "CONNECT host:443 tunnel"],
+    ["Login", "407 + Proxy-Authorization"],
+    ["Defined in", "RFC 9110, RFC 9112"]
+  ],
+  "legend": [
+    "TCP handshakes aur ACKs",
+    "Requests",
+    "Responses",
+    "Tunnel ke andar TLS bytes",
+    "Proxy ke refusals"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Office proxy ke zariye",
+      "summary": "curl proxy ke zariye ek plain HTTP page fetch karta hai, phir CONNECT se HTTPS tunnel kholta hai.",
+      "steps": [
+        {
+          "title": "Proxy se connect karo",
+          "desc": "Website se nahi",
+          "detail": "Laptop ko 192.168.1.5 port 3128 par proxy use karne ke liye set kiya gaya hai. Isliye TCP connection proxy ko jaata hai, kabhi seedha example.com ko nahi. Laptop ko DNS mein example.com lookup karne ki bhi zaroorat nahi; woh proxy karega.",
+          "facts": [
+            ["Proxy", "192.168.1.5:3128"],
+            ["DNS lookup by", "The proxy"],
+            ["Round trip", "< 1 ms (LAN)"]
+          ]
+        },
+        {
+          "title": "Poore URL ke saath GET",
+          "desc": "Absolute form proxy ko batata hai kahan jaana hai",
+          "detail": "Normally request line mein sirf path hota hai, jaise GET /. Proxy ke zariye usme poora URL hota hai: GET http://example.com/ HTTP/1.1. Isi se proxy ko pata chalta hai ki kis server se fetch karna hai.",
+          "facts": [
+            ["Request line", "GET http://example.com/"],
+            ["Sent to", "The proxy"],
+            ["Encrypted", "No"]
+          ],
+          "quiz": {
+            "q": "Request line mein sirf / ki jagah http://example.com kyun hai?",
+            "options": [
+              "HTTP/1.1 mein har jagah yeh zaroori hai",
+              "TCP connection proxy ko jaata hai, isliye URL batata hai ki kaun sa server chahiye",
+              "Use lamba karne ke liye",
+              "DNS ke liye"
+            ],
+            "why": "Proxy ka apna address IP header mein hota hai, isliye target ko request ke andar travel karna padta hai."
+          }
+        },
+        {
+          "title": "Proxy fetch karta hai",
+          "desc": "Proxy se server ko nayi request",
+          "detail": "Proxy example.com ke saath apna TCP connection kholta hai aur request ko normal form mein dobara bhejta hai, Via aur X-Forwarded-For jodte hue. Server ko proxy ka address client dikhta hai.",
+          "facts": [
+            ["Server sees", "192.168.1.5 (the proxy, after NAT)"],
+            ["Added", "Via, X-Forwarded-For"],
+            ["Two connections", "Laptop↔proxy, proxy↔server"]
+          ]
+        },
+        {
+          "title": "Page wapas aata hai",
+          "desc": "Server → proxy → laptop",
+          "detail": "Server proxy ko jawab deta hai, aur proxy response ko apne Via aur X-Cache headers ke saath laptop ko pass karta hai. Kyunki yeh plain HTTP hai, proxy har byte padh, filter, log aur cache kar sakta hai.",
+          "facts": [
+            ["Status", "200 OK"],
+            ["Cache", "MISS (now stored)"],
+            ["Proxy can see", "Everything"]
+          ]
+        },
+        {
+          "title": "HTTPS ke liye CONNECT",
+          "desc": "Port 443 tak tunnel maango",
+          "detail": "https://example.com ke liye proxy ko traffic padhna nahi chahiye, aur woh padh bhi nahi sakta. curl CONNECT example.com:443 bhejta hai. Proxy us host aur port se TCP connection kholta hai, phir 200 Connection established se jawab deta hai.",
+          "facts": [
+            ["Request", "CONNECT example.com:443"],
+            ["Reply", "200 Connection established"],
+            ["After that", "Raw bytes both ways"]
+          ],
+          "quiz": {
+            "q": "200 Connection established ke baad laptop agla kya bhejega?",
+            "options": [
+              "Plain text mein GET / HTTP/1.1",
+              "TLS Client Hello",
+              "Ek aur CONNECT",
+              "DNS query"
+            ],
+            "why": "Tunnel khul chuka hai, isliye laptop proxy ke beech se hi asli server ke saath TLS shuru karta hai."
+          }
+        },
+        {
+          "title": "Tunnel ke zariye TLS",
+          "desc": "Proxy aise bytes relay karta hai jo woh padh nahi sakta",
+          "detail": "Laptop ka Client Hello proxy ko jaata hai, jo wahi bytes server ke saath apne connection par copy kar deta hai. Jawab bhi usi tarah wapas aata hai. Proxy ko SNI mein example.com ka naam aur sizes dikhte hain, lekin andar ke pages, cookies ya passwords ka kuch nahi.",
+          "facts": [
+            ["Proxy sees", "SNI, sizes, timing"],
+            ["Proxy can't see", "URLs, headers, bodies"],
+            ["Certificate", "From the real server"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Proxy se guzarne ke do tareeke",
+        "text": "Plain HTTP ke liye proxy client ki tarah kaam karta hai: woh padhta, rewrite karta, cache karta aur forward karta hai. HTTPS ke liye woh sirf CONNECT se TCP tunnel kholta hai aur encrypted bytes copy karta hai, isliye laptop aur server ke beech end-to-end security bani rehti hai.",
+        "facts": [
+          ["HTTP", "Proxy sab kuch padhta hai"],
+          ["HTTPS", "CONNECT tunnel, proxy sirf SNI dekhta hai"],
+          ["Connections", "Hamesha do: client side aur server side"]
+        ]
+      }
+    },
+    "auth": {
+      "name": "407 Proxy Authentication Required",
+      "summary": "Proxy kuch bhi fetch karne se pehle username aur password chahta hai.",
+      "steps": [
+        {
+          "title": "Login ke bina request",
+          "desc": "Proxy ne is user ko kabhi nahi dekha",
+          "detail": "curl pehle jaisa hi absolute-URL GET bhejta hai. Lekin yeh proxy sirf logged-in staff ko serve karta hai.",
+          "facts": [
+            ["Request", "GET http://example.com/"],
+            ["Credentials", "None"],
+            ["Proxy policy", "Login required"]
+          ]
+        },
+        {
+          "title": "Proxy se 407",
+          "desc": "Proxy-Authenticate: Basic",
+          "detail": "Proxy khud jawab deta hai, example.com se contact kiye bina. Status 407 ka matlab hai ki proxy, website nahi, credentials chahta hai. Proxy-Authenticate header kehta hai ki woh realm \"Office proxy\" ke liye Basic login accept karta hai.",
+          "facts": [
+            ["Status", "407"],
+            ["Challenge", "Basic realm=\"Office proxy\""],
+            ["Website contacted?", "No"]
+          ],
+          "quiz": {
+            "q": "401 aur 407 mein kya fark hai?",
+            "options": [
+              "Koi nahi",
+              "401 mein website login maangti hai, 407 mein proxy",
+              "407 ka matlab password galat tha",
+              "401 sirf HTTPS ke liye hai"
+            ],
+            "why": "401 origin server ke liye WWW-Authenticate/Authorization use karta hai. 407 beech ke proxy ke liye Proxy-Authenticate/Proxy-Authorization use karta hai."
+          }
+        },
+        {
+          "title": "Credentials ke saath retry",
+          "desc": "Proxy-Authorization: Basic …",
+          "detail": "curl usi connection par retry karta hai, danish:s3cret ke base64 ke saath Proxy-Authorization jodte hue. Proxy use accept karta hai aur page fetch karta hai. Basic credentials sirf encoded hote hain, isliye LAN sniff karne wala koi bhi unhe decode kar sakta hai; Kerberos/Negotiate ya proxy tak TLS connection zyada safe hai.",
+          "facts": [
+            ["Header", "Proxy-Authorization: Basic"],
+            ["Value", "base64(\"danish:s3cret\")"],
+            ["Safer options", "Negotiate (Kerberos), HTTPS to the proxy"]
+          ],
+          "quiz": {
+            "q": "Koi office Wi-Fi par ZGFuaXNoOnMzY3JldA== capture kar leta hai. Woh kya kar sakta hai?",
+            "options": [
+              "Kuch nahi, yeh hash hai",
+              "Ek hi step mein use danish:s3cret mein decode kar sakta hai",
+              "Sirf ek baar replay kar sakta hai",
+              "Server ki key ke bina kuch nahi"
+            ],
+            "why": "base64 reversible encoding hai, encryption nahi. Plain HTTP par Basic auth password expose kar deta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Proxy ek gatekeeper hai",
+        "text": "Proxy kuch bhi forward karne se pehle 407 aur Proxy-Authorization se login maang sakta hai. Browsers login box dikhate hain aur phir har request mein header jod dete hain. Basic ke saath password LAN par aasaani se decode hone wali form mein guzarta hai.",
+        "facts": [
+          ["Challenge", "407 + Proxy-Authenticate"],
+          ["Answer", "Proxy-Authorization"],
+          ["Basic is", "base64, encryption nahi"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Request forms",
+      "items": [
+        ["Origin form", "GET /path (server ko)"],
+        ["Absolute form", "GET http://host/path (proxy ko)"],
+        ["Authority form", "CONNECT host:443 (tunnel)"]
+      ]
+    },
+    {
+      "title": "Status codes",
+      "items": [
+        ["200 Connection established", "Tunnel khul gaya"],
+        ["407", "Proxy credentials chahta hai"],
+        ["403", "Policy se blocked"],
+        ["502 / 504", "Proxy server tak nahi pahunch saka / time out"]
+      ]
+    },
+    {
+      "title": "Headers",
+      "items": [
+        ["Via", "Jin proxies se message guzra"],
+        ["X-Forwarded-For", "Original client ka address"],
+        ["Proxy-Authenticate", "Proxy ka login challenge"],
+        ["Proxy-Authorization", "Proxy ke liye credentials"]
+      ]
+    }
+  ]
+}

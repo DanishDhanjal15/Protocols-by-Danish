@@ -1,0 +1,192 @@
+{
+  "tagline": "IKEv2 se keys agree karo, phir har IP packet ko ESP se encrypt karo.",
+  "description": "IPsec poore IP packets ko protect karta hai. IKEv2 pehle crypto par agree karta hai, Diffie-Hellman keys badalta hai aur prove karta hai ki har side kaun hai. Uske baad ESP asli traffic carry karta hai, encrypted aur numbered, aur beech mein NAT ho to UDP 4500 mein wrapped.",
+  "facts": [
+    ["Layer", "Network (Layer 3)"],
+    ["Key exchange", "UDP 500 / 4500 par IKEv2"],
+    ["Data", "ESP (IP protocol 50) ya ESP-in-UDP"],
+    ["IKE header", "28 bytes"],
+    ["ESP header", "8 bytes + IV + tag"],
+    ["Defined in", "RFC 7296, RFC 4303, RFC 3948"]
+  ],
+  "legend": [
+    "IKE key exchange",
+    "Authenticated, tunnel up",
+    "Laptop ka traffic (ESP)",
+    "Office ka traffic wapas",
+    "Errors"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Remote worker office se connect hota hai",
+      "summary": "Laptop ghar ke NAT ke peeche se IKEv2 session banata hai, phir ESP ke zariye file server tak pahunchta hai.",
+      "steps": [
+        {
+          "title": "IKE_SA_INIT request",
+          "desc": "Crypto offer karo, public key aur nonce bhejo",
+          "detail": "Laptop port 500 par ek UDP packet se shuru karta hai. Isme teen key payloads hain: SA (jo crypto woh accept karega), KE (uski Curve25519 public key) aur Nonce (fresh random bytes). Do Notify payloads uske apne address aur port ke hashes carry karte hain, taaki gateway bata sake ki NAT ne unhe rewrite kiya ya nahi.",
+          "facts": [
+            ["Exchange", "IKE_SA_INIT (34)"],
+            ["Offer", "AES-GCM-256, SHA2-256, Curve25519"],
+            ["Port", "UDP 500 → 500"]
+          ]
+        },
+        {
+          "title": "IKE_SA_INIT response",
+          "desc": "Gateway crypto chunta hai aur NAT pakadta hai",
+          "detail": "Gateway proposal accept karta hai, apni public key aur nonce bhejta hai, aur apna Responder SPI bharta hai. Ab dono sides X25519 se wahi shared secret compute karke keys derive kar sakte hain. Gateway ka NAT hash 198.51.100.7 se bana hai, jo address usne asal mein dekha, isliye laptop ko pata chal jaata hai ki beech mein NAT hai.",
+          "facts": [
+            ["Responder SPI", "0xc41e77a0935b2d18"],
+            ["Shared secret", "X25519, kabhi bheja nahi"],
+            ["NAT mila", "Haan: hashes alag hain"]
+          ],
+          "quiz": {
+            "q": "NAT hashes match nahi karte. Dono sides ab kya karengi?",
+            "options": [
+              "Haar maan lengi: IPsec NAT cross nahi kar sakta",
+              "UDP 4500 par chali jayengi aur ESP ko UDP mein wrap karengi",
+              "TCP 443 par switch karengi",
+              "Phir bhi ESP ko IP protocol 50 ki tarah bhejengi"
+            ],
+            "why": "Plain ESP mein ports nahi hote, isliye ghar ka NAT use track nahi kar sakta. NAT traversal IKE ko port 4500 par le jaata hai aur ESP ko bhi UDP 4500 ke andar daalta hai."
+          }
+        },
+        {
+          "title": "IKE_AUTH, encrypted",
+          "desc": "Identities prove karo aur ESP tunnel set up karo",
+          "detail": "Ab se IKE SK payload ke andar encrypted hai aur UDP 4500 par chalta hai, isliye 4-byte non-ESP marker se shuru hota hai. Andar chhupe hain laptop ki identity, certificate aur AUTH signature, inner address ki request, aur traffic selectors ke saath ESP proposal. Gateway apne certificate aur AUTH ke saath jawab deta hai, laptop ko 10.99.0.7 deta hai aur ek ESP SPI chunta hai.",
+          "facts": [
+            ["Andar ki request", "IDi, CERT, AUTH, CP, SA, TSi, TSr"],
+            ["Inner IP", "10.99.0.7"],
+            ["Port", "UDP 4500 (NAT-T)"]
+          ],
+          "quiz": {
+            "q": "Yeh IKE message chaar zero bytes se kyun shuru hota hai?",
+            "options": [
+              "Alignment ke liye padding",
+              "Shared port 4500 par batane ke liye ki yeh IKE hai, ESP nahi",
+              "Yeh khaali SPI hai",
+              "Ek version number"
+            ],
+            "why": "IKE aur ESP UDP 4500 share karte hain. ESP non-zero SPI se shuru hota hai, isliye chaar zero bytes packet ko IKE mark karte hain."
+          }
+        },
+        {
+          "title": "ESP: traffic bahar jaata hai",
+          "desc": "Poora IP packet, UDP 4500 ke andar encrypted",
+          "detail": "Laptop 10.20.0.15 par file share kholna chahta hai. Woh 10.99.0.7 se normal packet banata hai, use poora AES-GCM se encrypt karta hai, aur gateway ke SPI aur sequence number 1 ke saath ESP header jodta hai. Gateway use decrypt karke plain packet office ke andar forward karta hai.",
+          "facts": [
+            ["SPI", "0xc7a3e912"],
+            ["Sequence", "1"],
+            ["Inner packet", "10.99.0.7 → 10.20.0.15:445"]
+          ],
+          "quiz": {
+            "q": "Coffee-shop mein baitha eavesdropper is packet se kya seekh sakta hai?",
+            "options": [
+              "Jo file name khul rahi hai",
+              "Inner IP addresses",
+              "Sirf outer addresses, ports, SPI aur size",
+              "Kuch bhi nahi, size bhi nahi"
+            ],
+            "why": "Inner packet encrypted hai. Outer IP aur UDP headers, SPI, sequence number aur length phir bhi dikhte hain."
+          }
+        },
+        {
+          "title": "Reply aur keepalive",
+          "desc": "Traffic wapas, aur NAT khula rakhne ke liye chhota packet",
+          "detail": "File server ka answer gateway laptop ke SPI se encrypt karke UDP 4500 par wapas bhejta hai. Jab tunnel shaant hota hai, laptop har 20 seconds mein ek-byte NAT-keepalive (0xFF) bhejta hai taaki ghar ka router port mapping na bhoole.",
+          "facts": [
+            ["Reply SPI", "0x5d20b6f4"],
+            ["Keepalive", "UDP 4500 par 1 byte 0xFF"],
+            ["Interval", "Lagbhag 20 s"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Tunnel chal raha hai",
+        "text": "IKEv2 ke do round trips ne crypto par agree kiya, keys badli, dono identities prove ki aur ESP security associations ki ek jodi banayi. Ab office ka har packet UDP 4500 ke andar encrypted ESP ki tarah travel karta hai, isliye woh ghar ke NAT se nikal jaata hai.",
+        "facts": [
+          ["IKE round trips", "2"],
+          ["ESP SAs", "2 (har taraf ek)"],
+          ["NAT traversal", "UDP 4500 + keepalives"],
+          ["Cipher", "AES-GCM-256"]
+        ]
+      }
+    },
+    "no-proposal": {
+      "name": "Proposal mismatch",
+      "summary": "Purana client sirf 3DES aur kamzor DH group offer karta hai; gateway NO_PROPOSAL_CHOSEN se mana kar deta hai.",
+      "steps": [
+        {
+          "title": "Purane zamane ka offer",
+          "desc": "3DES, SHA-1 aur 1024-bit DH",
+          "detail": "Is laptop ka config kisi purani guide se copy kiya hua hai. Uska ekmatra proposal 3DES encryption, HMAC-SHA1-96 integrity, SHA-1 PRF aur DH group 2 (1024-bit MODP) hai. Isliye uska KE payload 32 ki jagah 128 bytes lamba hai.",
+          "facts": [
+            ["Encryption", "3DES (ID 3)"],
+            ["DH group", "2 (MODP-1024)"],
+            ["KE size", "128 bytes"]
+          ]
+        },
+        {
+          "title": "NO_PROPOSAL_CHOSEN",
+          "desc": "Gateway kuch bhi accept nahi karta",
+          "detail": "Gateway sirf Curve25519 ya strong MODP groups ke saath AES-GCM allow karta hai, isliye offer mein kuch match nahi karta. Woh ek hi Notify payload, type 14 NO_PROPOSAL_CHOSEN, se jawab deta hai aur koi state nahi rakhta. Fix client par hai: uski proposal list update karo, gateway ko kamzor mat banao.",
+          "facts": [
+            ["Notify type", "14 (NO_PROPOSAL_CHOSEN)"],
+            ["Responder SPI", "0 (koi session nahi bana)"],
+            ["Fix", "Client par modern proposals"]
+          ],
+          "quiz": {
+            "q": "Gateway ke reply mein kaunse payloads honge?",
+            "options": [
+              "Apni choice ke saath SA, KE aur Nonce",
+              "Bas ek Notify: NO_PROPOSAL_CHOSEN",
+              "Ek encrypted SK payload",
+              "Kuch nahi; woh chup rehta hai"
+            ],
+            "why": "Koi acceptable proposal na ho to negotiate karne ko kuch nahi bachta, isliye reply ek akela error Notify hota hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Pehle message par hi refuse",
+        "text": "Dono IKE peers ke paas kam se kam ek poora algorithms ka set common hona chahiye. Na ho to responder NO_PROPOSAL_CHOSEN bhejta hai aur kuch set up nahi hota. Dono sides ke logs aksar offered aur allowed transforms list karte hain, jisse yeh theek karna aasan hota hai.",
+        "facts": [
+          ["Packets", "2"],
+          ["Error", "Notify 14"],
+          ["Common wajah", "Purani ya mismatched crypto settings"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Exchanges",
+      "items": [
+        ["IKE_SA_INIT (34)", "Crypto offer, DH keys, nonces, NAT hashes"],
+        ["IKE_AUTH (35)", "Identities, certificates, pehla ESP SA"],
+        ["CREATE_CHILD_SA (36)", "Aur SAs ya rekeying"],
+        ["INFORMATIONAL (37)", "Delete, errors, liveness checks"]
+      ]
+    },
+    {
+      "title": "Payload types",
+      "items": [
+        ["33 SA / 34 KE / 40 Nonce", "Negotiation"],
+        ["35 IDi / 36 IDr / 39 AUTH", "Aap kaun ho, aur proof"],
+        ["44 TSi / 45 TSr", "Kaunsa traffic tunnel mein jaata hai"],
+        ["41 Notify / 46 SK", "Messages / encrypted container"]
+      ]
+    },
+    {
+      "title": "Numbers to know",
+      "items": [
+        ["UDP 500", "IKE"],
+        ["UDP 4500", "NAT milne par IKE + ESP"],
+        ["IP proto 50 / 51", "ESP / AH"],
+        ["Notify 14", "NO_PROPOSAL_CHOSEN"],
+        ["Non-ESP marker", "4 zero bytes"]
+      ]
+    }
+  ]
+}

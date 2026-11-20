@@ -1,0 +1,253 @@
+{
+  "tagline": "Data ke pehle byte se pehle tumhara phone tower se kya kehta hai.",
+  "description": "Phone mobile data use kar sake, usse pehle use radio link set karna padta hai, core network mein register karna padta hai, sabit karna padta hai ki uska SIM asli hai (aur check karna padta hai ki network bhi asli hai), encryption on karni padti hai aur IP address lena padta hai. Uske baad uska bheja har packet tower se core tak GTP-U tunnel mein lapeta jata hai.",
+  "facts": [
+    ["Radio control", "RRC (phone ↔ tower)"],
+    ["Core signalling", "NAS (phone ↔ AMF)"],
+    ["Authentication", "5G-AKA, mutual"],
+    ["Hawa mein identity", "SUCI (concealed)"],
+    ["User data tunnel", "GTP-U, UDP 2152"],
+    ["Specs", "3GPP TS 38.331, 24.501, 33.501, 29.281"]
+  ],
+  "legend": [
+    "Radio aur registration signalling",
+    "Authentication aur security",
+    "Accepted / set up",
+    "User data",
+    "Attacks"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Switch on, register, browse",
+      "summary": "Phone 5G cell se connect hota hai, concealed identity ke saath register karta hai, authenticate karta hai, IP paata hai aur GTP-U tunnel se apna pehla packet bhejta hai.",
+      "steps": [
+        {
+          "title": "Radio connection",
+          "desc": "RRC Setup Request aur RRC Setup",
+          "detail": "Phone sabse strong cell chunta hai jo woh sun sakta hai aur, ek chhote random-access exchange ke baad, tower (gNB) se signalling connection maangta hai. Woh random identity use karta hai kyunki network use abhi jaanta nahi. Tower RRC Setup se jawab deta hai: is phone ke control channel ki radio settings.",
+          "facts": [
+            ["Between", "Sirf Phone ↔ gNB"],
+            ["Phone identity", "39-bit random value"],
+            ["Cause", "mo-Signalling"]
+          ]
+        },
+        {
+          "title": "Register karo, identity chhupi hui",
+          "desc": "SUCI ke saath NAS Registration Request",
+          "detail": "RRC Setup Complete ke andar phone apna pehla NAS message bhejta hai, jise tower core ke AMF tak pahunchata hai. Use batana hai ki woh kaun hai, lekin uski permanent ID (SUPI, jo IMSI par based hai) radio wale kisi ko bhi padhne ko mil jati. Isliye SIM subscriber part ko home network ki public key se encrypt karta hai aur SUCI bhejta hai, jo har baar alag dikhta hai.",
+          "facts": [
+            ["NAS to", "AMF, tower ke through"],
+            ["Identity", "SUCI, ECIES profile A"],
+            ["Padhne layak hissa", "Country 001, network 01"]
+          ],
+          "quiz": {
+            "q": "SUCI ka kaunsa hissa sunne wala ab bhi padh sakta hai?",
+            "options": [
+              "Poora IMSI",
+              "Country aur network codes",
+              "Phone number",
+              "Kuch bhi nahi"
+            ],
+            "why": "MCC/MNC clear mein rehte hain taaki koi bhi network request ko sahi home operator tak route kar sake. Subscriber number khud encrypted hota hai."
+          }
+        },
+        {
+          "title": "Dono sides sabit karo",
+          "desc": "5G-AKA challenge aur response",
+          "detail": "AMF home network (AUSF aur UDM) se SUCI decrypt karne aur challenge banane ko kehta hai. Secret key K sirf SIM aur home network ko pata hai. Phone ko random RAND aur AUTN token milta hai: SIM AUTN check karke confirm karta hai ki network ko sach mein K pata hai, phir RAND se RES* compute karta hai, jo sabit karta hai ki SIM ko bhi K pata hai. Key khud kabhi nahi bheji jati.",
+          "facts": [
+            ["Challenge", "RAND (16 bytes)"],
+            ["Network proof", "AUTN, SIM check karta hai"],
+            ["Phone proof", "RES* (16 bytes)"]
+          ],
+          "quiz": {
+            "q": "Phone jawab dene se pehle AUTN kyun check karta hai?",
+            "options": [
+              "Radio channel chunne ke liye",
+              "Yeh pakka karne ke liye ki network asli hai, fake tower nahi",
+              "Apna IP address lene ke liye",
+              "SUCI decrypt karne ke liye"
+            ],
+            "why": "AKA mutual hai. Fake base station ko K nahi pata, isliye woh valid AUTN nahi bana sakta, aur SIM aage badhne se mana kar deta hai."
+          }
+        },
+        {
+          "title": "Encryption on karo",
+          "desc": "NAS Security Mode Command aur Complete",
+          "detail": "Dono sides ab K aur RAND se wahi keys nikalti hain. AMF algorithms chunta hai (yahan encryption ke liye 5G-EA2, integrity ke liye 5G-IA2) aur Security Mode Command bhejta hai, jo pehle se integrity protected hai. Woh phone ki apni capability list wapas dohrata hai taaki phone us attacker ko pakad sake jisne use downgrade karne ki koshish ki. Phone ke reply ke baad se NAS messages encrypted hote hain.",
+          "facts": [
+            ["Ciphering", "5G-EA2 (AES based)"],
+            ["Integrity", "5G-IA2"],
+            ["Ab se", "NAS encrypted"]
+          ]
+        },
+        {
+          "title": "Registered",
+          "desc": "Asli ID ki jagah temporary ID aati hai",
+          "detail": "AMF registration accept karta hai aur phone ko 5G-GUTI deta hai, ek temporary ID jo ab se woh kisi permanent identity ki jagah use karega aur jise network samay-samay par badalta hai. Registration Accept encrypted hai, isliye sunne wale GUTI ko vyakti se jod nahi sakte.",
+          "facts": [
+            ["Message", "Registration Accept (ciphered)"],
+            ["Nayi ID", "5G-GUTI (temporary)"],
+            ["Phone reply karta hai", "Registration Complete"]
+          ]
+        },
+        {
+          "title": "IP lo: PDU session",
+          "desc": "Data session aur tunnel banta hai",
+          "detail": "Data use karne ke liye phone “internet” jaise data network name par PDU session maangta hai. Core ek UPF chunta hai, phone ko IP address 10.45.0.7 deta hai, aur tower aur UPF ke beech tunnel set karta hai. Har side ek tunnel ID (TEID) chunti hai jo dusri side ko usko bheje packets par lagani hoti hai.",
+          "facts": [
+            ["Phone IP", "10.45.0.7"],
+            ["Uplink TEID", "0x0000a1b2 (UPF ka)"],
+            ["Downlink TEID", "0x00c0ffee (gNB ka)"]
+          ],
+          "quiz": {
+            "q": "Downlink packet tower par TEID 0x00c0ffee ke saath aata hai. TEID tower ko kya batata hai?",
+            "options": [
+              "Website ka address",
+              "Packet kaunse phone aur session ke liye hai",
+              "Radio frequency",
+              "Packet ki priority"
+            ],
+            "why": "Andar ka IP packet 10.45.0.7 ke liye hai, lekin tower tunnels ke saath kaam karta hai: is session ke liye usne jo TEID chuni woh seedha ek phone se map hoti hai."
+          }
+        },
+        {
+          "title": "GTP-U se data",
+          "desc": "Phone ka packet, safar ke liye lapeta hua",
+          "detail": "Phone web connection kholta hai. Hawa mein uska IP packet radio layers se protected hai; tower par woh GTP-U mein lapeta jata hai: naya outer IP header (tower se UPF), UDP port 2152, aur TEID wala 8-byte GTP header. UPF wrapper hata deta hai, private address ko public se badalta hai (NAT) aur internet ko bhejta hai. Replies downlink TEID ke saath usi raste se wapas aate hain.",
+          "facts": [
+            ["Outer", "192.0.2.10 → 192.0.2.20, UDP 2152"],
+            ["GTP header", "8 bytes: flags, type 255, length, TEID"],
+            ["Overhead", "36 bytes (IP 20 + UDP 8 + GTP 8)"]
+          ],
+          "quiz": {
+            "q": "Andar ka TCP SYN 60 bytes ka hai. Tower aur UPF ke beech poora packet kitna bada hai?",
+            "options": [
+              "60 bytes",
+              "68 bytes",
+              "96 bytes",
+              "1500 bytes"
+            ],
+            "why": "Outer IPv4 (20) + UDP (8) + GTP-U (8) 60-byte inner packet mein 36 bytes jodte hain: 96 bytes."
+          }
+        }
+      ],
+      "outro": {
+        "title": "5G par online",
+        "text": "Phone ne radio link set kiya, concealed identity se register kiya, AKA se mutual authenticate kiya, NAS encryption on ki, aur IP address paaya. Uske packets phir tower se core tak GTP-U ke andar, tunnel IDs se tag hokar, gaye.",
+        "facts": [
+          ["Signalling", "RRC + NAS"],
+          ["Auth", "5G-AKA (mutual)"],
+          ["Tunnel", "GTP-U, UDP 2152, 8-byte header"],
+          ["Time laga", "Register hone mein lagbhag 0.3 s"]
+        ]
+      }
+    },
+    "imsi-catcher": {
+      "name": "IMSI catcher (fake base station)",
+      "summary": "Fake tower phones se unki identity maangta hai. 4G phones IMSI leak kar sakte the; 5G phones sirf concealed SUCI dete hain aur fake network reject kar dete hain.",
+      "steps": [
+        {
+          "title": "Zyada tez fake tower",
+          "desc": "Phones sabse strong cell par jate hain",
+          "detail": "Attacker ek chhota fake base station chalata hai jo asli operator wala hi network code broadcast karta hai, lekin zyada tez. Paas ke phones ise best cell maante hain aur isse connect ho jate hain. Connection ke shuru mein, jab koi keys nahi hoti, phone ko kuch sawalon ke jawab dene padte hain bina yeh check kiye ki kaun puch raha hai.",
+          "facts": [
+            ["Attacker", "Software radio + laptop"],
+            ["Trick", "Zyada strong signal, asli network code"],
+            ["Goal", "Pata karna paas mein kaun hai"]
+          ]
+        },
+        {
+          "title": "Purana 4G: IMSI clear mein",
+          "desc": "Identity Request, IMSI se jawab",
+          "detail": "4G (aur 2G/3G) mein network security shuru hone se pehle IMSI ke liye Identity Request bhej sakta hai, aur phone ko plain text mein jawab dena padta hai. Fake tower bilkul yahi karta hai aur permanent subscriber ID record kar leta hai, jo kisi vyakti se jodi ja sakti hai. Classic IMSI catchers logon ko isi tarah track karte hain.",
+          "facts": [
+            ["Asked for", "IMSI"],
+            ["Answer", "001010123456789, plain"],
+            ["Weakness", "Security se pehle protection nahi"]
+          ],
+          "quiz": {
+            "q": "4G phone apna IMSI bhejne se seedha mana kyun nahi kar sakta?",
+            "options": [
+              "Use pata hi nahi",
+              "Security shuru hone se pehle woh fake aur asli tower mein fark nahi kar sakta, aur asli networks ko kabhi-kabhi IMSI chahiye hota hai",
+              "SIM ise block karta hai",
+              "Kar sakta hai; woh hamesha mana karta hai"
+            ],
+            "why": "Asli network phone ki temporary ID ka track kho sakta hai aur jayaz taur par IMSI maang sakta hai. Abhi keys nahi hone se phone nahi jaan sakta ki kaun puch raha hai."
+          }
+        },
+        {
+          "title": "5G: sirf SUCI",
+          "desc": "Identity home network ke liye encrypted hai",
+          "detail": "5G phone Identity Request ka jawab SUCI se deta hai. Subscriber part home operator ki public key aur har baar naye random key se encrypt hota hai, isliye fake tower ko aisa blob milta hai jo har request par badalta hai aur na decrypt ho sakta hai na pichhle se jodh sakta hai.",
+          "facts": [
+            ["Answer", "SUCI, har baar naya"],
+            ["Decrypt kar sakta hai", "Sirf home network (UDM)"],
+            ["Attacker ko pata chalta hai", "Sirf country + operator"]
+          ],
+          "quiz": {
+            "q": "Attacker do baar puchta hai aur do SUCIs milte hain. Kya woh bata sakta hai ki yeh ek hi phone hain?",
+            "options": [
+              "Haan, woh identical hain",
+              "Nahi, har ek fresh ephemeral key use karta hai isliye woh unrelated dikhte hain",
+              "Haan, MAC tag se",
+              "Sirf tab jab use phone ki secret key K bhi pata ho"
+            ],
+            "why": "ECIES har SUCI ke liye naya ephemeral key pair use karta hai, isliye encrypted output har baar alag hota hai."
+          }
+        },
+        {
+          "title": "Fake challenge fail hota hai",
+          "desc": "SIM bina key wale network ko reject karta hai",
+          "detail": "Aage badhne ke liye fake tower ko authenticate karna padta. Woh banaye hue RAND aur AUTN ke saath Authentication Request bhejta hai, lekin use SIM ki secret key nahi pata, isliye SIM ka AUTN check fail hota hai. Phone Authentication Failure (MAC failure) se jawab deta hai, fake cell chhod deta hai aur asli tower par chala jata hai.",
+          "facts": [
+            ["Phone kehta hai", "Authentication failure, cause 20"],
+            ["Reason", "AUTN verify nahi hota"],
+            ["Then", "Phone asli cell par jata hai"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "5G IMSI leak band karta hai",
+        "text": "Fake base stations security shuru hone se pehle ke pal ka fayda uthate hain. 4G phones se tab IMSI ugalwaya ja sakta tha; 5G phones sirf home network ke liye encrypted SUCI bhejte hain, aur mutual AKA fake network ko aage badhne se rokta hai.",
+        "facts": [
+          ["4G weakness", "IMSI maangne par, clear mein"],
+          ["5G fix", "SUCI concealment"],
+          ["Also", "AUTN ke saath mutual auth"],
+          ["Bacha risk", "4G/2G par downgrade"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Kaun kya hai",
+      "items": [
+        ["UE", "Phone + SIM"],
+        ["gNB", "5G base station (4G mein eNB)"],
+        ["AMF", "Registration aur mobility sambhalta hai"],
+        ["AUSF / UDM", "Home authentication, subscriber data"],
+        ["UPF", "User data forward karta hai, NAT, charging"]
+      ]
+    },
+    {
+      "title": "Identities",
+      "items": [
+        ["SUPI / IMSI", "Permanent subscriber ID"],
+        ["SUCI", "Concealed SUPI, hawa mein bheji jati hai"],
+        ["5G-GUTI", "Registration ke baad mili temporary ID"],
+        ["TEID", "GTP-U mein tunnel ID"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["GTP-U port", "UDP 2152"],
+        ["GTP-U header", "8 bytes (flags 0x30, type 255)"],
+        ["RAND / RES*", "Har ek 16 bytes"],
+        ["NAS 5GMM EPD", "0x7E"]
+      ]
+    }
+  ]
+}

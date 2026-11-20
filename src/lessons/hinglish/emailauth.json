@@ -1,0 +1,231 @@
+{
+  "tagline": "Mail servers asli bank aur nakli bank mein farak kaise karte hain.",
+  "description": "SMTP mein koi bhi kisi bhi sender address ka claim kar sakta hai. SPF batata hai ki kaun se servers ek domain ke liye mail bhej sakte hain, DKIM ek signature jodta hai jo DNS mein published key se check hota hai, aur DMARC dono ko us From address se jodta hai jo log asal mein dekhte hain aur receivers ko batata hai ki checks fail hone par kya karna hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7), policies DNS mein"],
+    ["SPF", "Domain par TXT, RFC 7208"],
+    ["DKIM", "selector._domainkey par TXT, RFC 6376"],
+    ["DMARC", "_dmarc par TXT, RFC 7489"],
+    ["Checked by", "Receiving mail server"],
+    ["Policies", "none, quarantine, reject"]
+  ],
+  "legend": [
+    "Handshake, pass, accepted",
+    "Asli sender ka mail",
+    "MX replies",
+    "DNS TXT lookups",
+    "Spoofed mail, failures, rejection"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Asli bank ka email saare checks pass karta hai",
+      "summary": "MX bank.example se statement alert ke liye SPF, DKIM aur DMARC check karta hai aur ise accept kar leta hai.",
+      "steps": [
+        {
+          "title": "Bank connect karta hai",
+          "desc": "Port 25 par SMTP connection",
+          "detail": "Bank ka server mail.bank.example (198.51.100.80) statement alert deliver karne ke liye Danish ke provider se connect hota hai. Receiving MX connecting IP address turant note kar leta hai: ye ek cheez hai jo sender TCP connection par fake nahi kar sakta, aur SPF isi ko check karega.",
+          "facts": [
+            ["Connecting IP", "198.51.100.80"],
+            ["Port", "25 (server se server)"],
+            ["Checked later", "SPF ye IP use karta hai"]
+          ]
+        },
+        {
+          "title": "SPF: kya ye IP allowed hai?",
+          "desc": "bank.example TXT lookup karo",
+          "detail": "Envelope mein MAIL FROM:<bounces@bank.example> hai. Jawab dene se pehle MX bank.example ka TXT record fetch karta hai aur SPF policy \"v=spf1 ip4:198.51.100.80/31 include:_spf.mailer.example -all\" paata hai. Connecting IP 198.51.100.80, 198.51.100.80/31 ke andar hai, isliye SPF pass hota hai. Aakhir ka -all ka matlab baaki har IP fail hona chahiye.",
+          "facts": [
+            ["Domain checked", "bank.example (MAIL FROM se)"],
+            ["Policy", "ip4:198.51.100.80/31 … -all"],
+            ["Result", "spf=pass"]
+          ],
+          "quiz": {
+            "q": "SPF record -all par khatam hota hai. List mein na hone wale IP ke mail ka kya hoga?",
+            "options": [
+              "Pass ho jayega",
+              "SPF fail kehta hai (hard fail)",
+              "SPF neutral kehta hai",
+              "DNS lookup fail ho jayega"
+            ],
+            "why": "-all ka matlab \"baaki sab fail\". ~all soft fail hota, ?all neutral."
+          }
+        },
+        {
+          "title": "Signed message",
+          "desc": "DKIM-Signature header mail ke saath jaata hai",
+          "detail": "Bank ke server ne bhejne se pehle message sign kiya. DKIM-Signature header batata hai ki kisne sign kiya (d=bank.example), kaun si key use karni hai (s=mail2026), kaun se headers covered hain (h=from:to:subject:…), body ka hash (bh=) aur khud RSA signature (b=). Ek bhi covered byte badlo to check fail ho jata hai.",
+          "facts": [
+            ["d=", "bank.example (signing domain)"],
+            ["s=", "mail2026 (selector, key chunta hai)"],
+            ["Covers", "From, To, Subject, Date, Message-ID + body"]
+          ],
+          "quiz": {
+            "q": "d=bank.example, s=mail2026 ki public key MX ko kahan milegi?",
+            "options": [
+              "Email attachment mein",
+              "TXT record mail2026._domainkey.bank.example",
+              "TXT record _dmarc.bank.example",
+              "Bank ki website se HTTPS par"
+            ],
+            "why": "DKIM keys DNS mein <selector>._domainkey.<domain> par rehti hain. Selectors se domain keys rotate kar sakta hai ya kai senders use kar sakta hai."
+          }
+        },
+        {
+          "title": "DKIM: key fetch karo",
+          "desc": "TXT mail2026._domainkey",
+          "detail": "MX public key lookup karta hai aur Base64 mein 2048-bit RSA key paata hai. Wo body ko hash karke bh= se compare karta hai, phir listed headers par signature b= check karta hai. Dono match karte hain, isliye bank.example ke liye DKIM pass hota hai. Key record 255 bytes se lamba hai, isliye DNS use do strings mein store karta hai jo jod di jaati hain.",
+          "facts": [
+            ["Query", "mail2026._domainkey.bank.example"],
+            ["Key", "RSA 2048-bit (k=rsa)"],
+            ["Result", "dkim=pass header.d=bank.example"]
+          ]
+        },
+        {
+          "title": "DMARC: ise From se jodo",
+          "desc": "TXT _dmarc.bank.example",
+          "detail": "SPF aur DKIM envelope aur signer ke baare mein cheezein prove karte hain, par reader sirf From header dekhta hai. DMARC poochta hai: kya SPF ya DKIM From wale domain ke liye hi pass hua? Yahan From bank.example hai, DKIM d= bank.example hai aur SPF bank.example hai, isliye dono align hain. Policy p=reject receivers ko batati hai ki ye check fail hone par kya karna hai.",
+          "facts": [
+            ["Policy", "p=reject"],
+            ["Alignment", "From = DKIM d= = SPF domain"],
+            ["Reports", "rua=mailto:dmarc-reports@…"]
+          ],
+          "quiz": {
+            "q": "DMARC tab pass hota hai jab SPF ya DKIM mein se kam se kam ek pass ho aur…",
+            "options": [
+              "message mein koi links na hon",
+              "uska domain From header ke domain se match kare",
+              "IP India mein ho",
+              "message 1 MB se chhota ho"
+            ],
+            "why": "Isse alignment kehte hain. Kisi unrelated domain ka pass count nahi hota; use wahi match karna padta hai jo reader From mein dekhta hai."
+          }
+        },
+        {
+          "title": "Accept karo aur label lagao",
+          "desc": "250 OK aur Authentication-Results header",
+          "detail": "Teeno checks pass hue, isliye MX message ko 250 ke saath accept karta hai aur ek header jodta hai jo record karta hai ki use kya mila: Authentication-Results: mx.mailhost.example; spf=pass smtp.mailfrom=bank.example; dkim=pass header.d=bank.example header.s=mail2026; dmarc=pass (p=REJECT) header.from=bank.example. Danish ki mail app verified badge dikha sakti hai. Bank ko apne rua address par daily aggregate reports bhi milti hain, jisme dikhta hai ki uske naam se kaun mail bhej raha hai.",
+          "facts": [
+            ["Reply", "250 2.0.0 Ok: queued"],
+            ["Added header", "Authentication-Results"],
+            ["Verdict", "spf=pass dkim=pass dmarc=pass"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Verified aur delivered",
+        "text": "Connecting IP bank ki SPF list mein thi, DKIM signature DNS ki key se match hua, aur dono From domain se align the, isliye DMARC pass hua. MX ne ye sab Authentication-Results header mein record kiya.",
+        "facts": [
+          ["SPF", "pass (IP listed)"],
+          ["DKIM", "pass (d=bank.example)"],
+          ["DMARC", "pass (aligned)"],
+          ["DNS lookups", "3 TXT"]
+        ]
+      }
+    },
+    "spoof": {
+      "name": "Bank bankar phishing email",
+      "summary": "Forged bank email SPF fail karta hai, DKIM nahi hai, aur bank ka DMARC p=reject use block kar deta hai.",
+      "steps": [
+        {
+          "title": "Nakli bank email",
+          "desc": "Phisher bank.example hone ka claim karta hai",
+          "detail": "Ek phisher 192.0.2.66 par server kiraye par leta hai aur Danish ke MX se connect hota hai. SMTP koi bhi address MAIL FROM aur From header mein likhne deta hai, isliye wo dono mein security@bank.example claim karta hai. Checks ke bina ye bilkul asli bank jaisa dikhta.",
+          "facts": [
+            ["Connecting IP", "192.0.2.66 (bank nahi)"],
+            ["Claims", "security@bank.example"],
+            ["SMTP itself", "Sender check nahi karta"]
+          ]
+        },
+        {
+          "title": "SPF fail",
+          "desc": "192.0.2.66 bank ki list mein nahi hai",
+          "detail": "MX phir bank.example ka SPF record fetch karta hai. 192.0.2.66 na ip4:198.51.100.80/31 mein hai, na included mailer list mein, isliye -all rule lagta hai: spf=fail. MX abhi reject nahi karta; wo DMARC ko decide karne deta hai, aur message text accept karta hai taaki DKIM bhi check kar sake.",
+          "facts": [
+            ["IP", "192.0.2.66"],
+            ["Matches", "Kuch nahi, isliye -all"],
+            ["Result", "spf=fail"]
+          ],
+          "quiz": {
+            "q": "Agar phisher MAIL FROM:<x@phish.example.net> (apna domain) use karta to kya SPF pass hota?",
+            "options": [
+              "Nahi, kabhi nahi",
+              "Haan, SPF sirf envelope domain check karta hai, jo uske control mein hai",
+              "Sirf Monday ko",
+              "Sirf agar DKIM pass ho"
+            ],
+            "why": "Yahi gap DMARC band karta hai: SPF phish.example.net ke liye pass hota, par wo domain From header se match nahi karta, isliye DMARC phir bhi fail hota."
+          }
+        },
+        {
+          "title": "DKIM nahi, DMARC kehta hai reject",
+          "desc": "bank.example ke saath kuch aligned nahi",
+          "detail": "Message mein koi DKIM-Signature hai hi nahi (phisher ke paas bank ki private key nahi hai, isliye koi bhi nakli signature fail hi hota). SPF fail aur DKIM missing hone se bank.example ke liye kuch pass nahi hota. MX _dmarc.bank.example lookup karta hai aur p=reject paata hai.",
+          "facts": [
+            ["DKIM", "none (signature nahi)"],
+            ["SPF", "fail"],
+            ["DMARC policy", "p=reject"]
+          ],
+          "quiz": {
+            "q": "SPF fail hua aur DKIM signature nahi hai. Policy p=reject hai. MX ko kya karna chahiye?",
+            "options": [
+              "Inbox mein deliver kare",
+              "Spam mein daal de",
+              "SMTP session ke dauran refuse kar de",
+              "Bank ko forward kar de"
+            ],
+            "why": "p=reject receivers se kehta hai ki failing mail seedha refuse karo. p=quarantine ka matlab spam folder; p=none sirf report karta hai."
+          }
+        },
+        {
+          "title": "550 rejected",
+          "desc": "Phish Danish tak kabhi nahi pahunchta",
+          "detail": "MX DATA ke end par 550 5.7.1 rejection se jawab deta hai. Kyunki usne session ke dauran hi message refuse kiya, kuch store nahi hota aur forged address par bounce nahi bheja jaata. Failed attempt bank ki agli DMARC aggregate report mein dikhta hai, isliye bank ko pata chalta hai ki koi uska naam spoof kar raha hai.",
+          "facts": [
+            ["Reply", "550 5.7.1 rejected per DMARC policy"],
+            ["Danish sees", "Kuch nahi"],
+            ["Bank learns", "rua aggregate report se"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Spoof block ho gaya",
+        "text": "Phisher message mein kahin bhi bank.example likh sakta tha, par bank ke IPs se bhej nahi sakta tha aur bank ki private key se sign nahi kar sakta tha. DMARC ko koi aligned pass nahi mila aur bank ki p=reject policy ne use 550 bana diya.",
+        "facts": [
+          ["SPF", "fail"],
+          ["DKIM", "none"],
+          ["DMARC", "fail → p=reject → 550"],
+          ["Domains ke liye defence", "SPF publish karo, DKIM se sign karo, DMARC ko p=reject par le jao"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Records kahan rehte hain",
+      "items": [
+        ["SPF", "bank.example TXT \"v=spf1 … -all\""],
+        ["DKIM key", "<selector>._domainkey.bank.example TXT \"v=DKIM1; p=…\""],
+        ["DMARC", "_dmarc.bank.example TXT \"v=DMARC1; p=reject\""]
+      ]
+    },
+    {
+      "title": "Har ek kya check karta hai",
+      "items": [
+        ["SPF", "Connecting IP vs envelope MAIL FROM domain"],
+        ["DKIM", "Headers + body par signature, domain d="],
+        ["DMARC", "SPF ya DKIM pass, From ke saath aligned"]
+      ]
+    },
+    {
+      "title": "Results aur policies",
+      "items": [
+        ["-all / ~all / ?all", "SPF fail / soft fail / neutral"],
+        ["p=none", "Sirf report"],
+        ["p=quarantine", "Spam mein bhejo"],
+        ["p=reject", "Mail refuse karo"],
+        ["rua=", "Daily aggregate reports kahan bhejni hain"]
+      ]
+    }
+  ]
+}

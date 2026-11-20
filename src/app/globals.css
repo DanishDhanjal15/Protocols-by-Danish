@@ -4,22 +4,22 @@
    Neutral graphite surfaces, off-white text, one soft green accent used sparingly.
    Event colours are muted but distinct, because they carry meaning in the legend. */
 :root {
-  --bg: #0e1116;
-  --panel: #151a21;
-  --panel-2: #1b2129;
-  --panel-3: #232a34;
-  --ink: #e7eaee;
-  --ink-2: #b9c0c9;
-  --muted: #8a93a0;
-  --line: #252c36;
-  --line-2: #323b47;
+  --bg: #0f1114;
+  --panel: #15181c;
+  --panel-2: #1b1e23;
+  --panel-3: #23272d;
+  --ink: #e8e9eb;
+  --ink-2: #b7bbc1;
+  --muted: #868c95;
+  --line: #24282e;
+  --line-2: #31363d;
   --brand: #4cc38a;
   --brand-ink: #07160e;
   --brand-soft: rgba(76, 195, 138, .12);
   --focus: #6ea8fe;
-  --stage: #11151b;
-  --stage-dot: #222a35;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -18px rgba(0, 0, 0, .7);
+  --stage: #121417;
+  --stage-dot: #23272d;
+  --shadow: none;
 
   --c-green: #5cc995;  --c-green-soft: rgba(92, 201, 149, .14);
   --c-amber: #e3b25a;  --c-amber-soft: rgba(227, 178, 90, .14);
@@ -55,20 +55,22 @@
 }
 
 html, body { background: var(--bg); color: var(--ink); }
-body { font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
-h1, h2, h3, .display { font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif; letter-spacing: -.01em; text-wrap: balance; }
+body { font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; font-feature-settings: "ss01"; }
+@layer base {
+  h1, h2, h3, .display { font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif; letter-spacing: -.02em; text-wrap: balance; }
+}
 .mono { font-family: var(--font-mono), ui-monospace, monospace; }
 .tnum { font-variant-numeric: tabular-nums; }
 .glow { text-shadow: none; }
-.eyebrow { font: 600 11px/1.2 var(--font-inter), sans-serif; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.eyebrow { font: 500 12px/1.3 var(--font-inter), sans-serif; color: var(--muted); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
 ::selection { background: rgba(110, 168, 254, .35); }
 
 @layer components {
-  .card, .hud { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
-  .hud-title { font: 600 12.5px/1 var(--font-inter), sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .card, .hud { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .hud-title { font: 600 13px/1 var(--font-inter), sans-serif; color: var(--ink-2); }
 
-  .btn { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 8px; font: 600 13px/1 var(--font-inter), sans-serif; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--ink); transition: background .15s, border-color .15s; cursor: pointer; white-space: nowrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 7px; font: 500 13px/1 var(--font-inter), sans-serif; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--ink); transition: background .15s, border-color .15s; cursor: pointer; white-space: nowrap; }
   .btn:hover { background: var(--panel-3); }
   .btn:disabled { opacity: .5; cursor: default; }
   .btn-primary { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
@@ -78,7 +80,7 @@ h1, h2, h3, .display { font-family: var(--font-display), ui-sans-serif, system-u
   .icon-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--ink-2); cursor: pointer; transition: background .15s; }
   .icon-btn:hover { background: var(--panel-3); color: var(--ink); }
   .icon-btn[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); border-color: rgba(76, 195, 138, .35); }
-  .chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; font: 600 11px/1 var(--font-mono), monospace; background: var(--panel-3); color: var(--ink-2); white-space: nowrap; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 7px; border-radius: 4px; font: 500 11.5px/1 var(--font-mono), monospace; background: transparent; border: 1px solid var(--line-2); color: var(--ink-2); white-space: nowrap; }
   .kbd { font: 600 10.5px/1 var(--font-mono), monospace; padding: 3px 6px; border-radius: 5px; border: 1px solid var(--line-2); border-bottom-width: 2px; background: var(--panel-2); color: var(--ink-2); }
 }
 select, input { font-family: inherit; }

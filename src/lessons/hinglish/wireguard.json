@@ -1,0 +1,202 @@
+{
+  "tagline": "Ek chhota, fast VPN: ek round trip aur aap andar.",
+  "description": "WireGuard ek modern VPN hai jo poore IP packets ko encrypted UDP datagrams ke andar daalta hai. Har side ek Curve25519 public key se pehchani jaati hai, handshake sirf ek round trip leta hai, aur sirf chaar message types hain. Jo server ki public key nahi jaanta, uske liye yeh bilkul chup rehta hai.",
+  "facts": [
+    ["Layer", "Network (Layer 3) tunnel"],
+    ["Transport", "UDP, default port 51820"],
+    ["Handshake", "Noise IK, 1 round trip"],
+    ["Crypto", "Curve25519, ChaCha20-Poly1305, BLAKE2s"],
+    ["Overhead", "32 bytes + outer IP/UDP"],
+    ["Defined in", "WireGuard whitepaper (2017)"]
+  ],
+  "legend": [
+    "Handshake (keys)",
+    "Laptop ka tunnelled data",
+    "Gateway ka tunnelled data",
+    "Office ke andar plain traffic",
+    "Keepalive",
+    "Flood aur cookies"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Tunnel se office NAS tak pahunchna",
+      "summary": "Laptop office gateway se handshake karta hai, tunnel ke zariye NAS ko ping karta hai, aur tunnel ko zinda rakhta hai.",
+      "steps": [
+        {
+          "title": "Handshake Initiation",
+          "desc": "Type 1, exactly 148 bytes",
+          "detail": "Laptop 10.20.0.5 ko packet bhejna chahta hai, jo uske AllowedIPs ke hisaab se office peer ka hai. Abhi koi session nahi hai, to woh pehle Handshake Initiation bhejta hai. Isme ek fresh ephemeral key, laptop ki identity (encrypted) aur ek encrypted timestamp hota hai, sab gateway ki known public key se protected.",
+          "facts": [
+            ["Message", "Type 1, 148 bytes"],
+            ["To", "203.0.113.40:51820 (UDP)"],
+            ["Identity", "Laptop ki static key, encrypted"]
+          ],
+          "quiz": {
+            "q": "Gateway ki public key ke bina koi random initiation bhejta hai. Gateway kya reply karta hai?",
+            "options": [
+              "Ek error message",
+              "Ek cookie reply",
+              "Kuch bhi nahi",
+              "Ek handshake response"
+            ],
+            "why": "MAC1 gateway ki public key se keyed hota hai. Agar woh galat ho to WireGuard packet ko chupchaap drop kar deta hai, isliye port scans ko kuch nahi dikhta."
+          }
+        },
+        {
+          "title": "Handshake Response",
+          "desc": "Type 2, 92 bytes: keys agree ho gayi",
+          "detail": "Gateway MAC1 check karta hai, laptop ki static key decrypt karke apni peer list mein dhoondta hai, aur check karta hai ki timestamp pichle wale se naya hai. Woh apni ephemeral key aur ek khaali encrypted message ke saath jawab deta hai. Ab dono sides chaar Diffie-Hellman results ko mix karke session keys ki ek jodi banate hain, har direction ke liye ek.",
+          "facts": [
+            ["Message", "Type 2, 92 bytes"],
+            ["Round trips", "Poore handshake ke liye 1"],
+            ["Keys", "Har direction ke liye ek"]
+          ]
+        },
+        {
+          "title": "Tunnel ke through ping",
+          "desc": "Type 4 asli IP packet carry karta hai",
+          "detail": "Laptop 10.20.0.5 ko apna ping (84 bytes) leta hai, use 96 tak pad karta hai, ChaCha20-Poly1305 se encrypt karta hai aur Transport Data message mein wrap karta hai. Gateway tag check karta hai, decrypt karta hai, check karta hai ki inner source is peer ke liye allowed hai, aur plain ping office LAN par bhej deta hai. NAS ko kabhi pata nahi chalta ki tunnel involved tha.",
+          "facts": [
+            ["Inner packet", "10.8.0.2 → 10.20.0.5, ICMP echo"],
+            ["Outer packet", "192.168.1.10:48122 → 203.0.113.40:51820"],
+            ["Overhead", "16 header + 16 tag (+ padding)"]
+          ],
+          "quiz": {
+            "q": "Inner packet 84 bytes ka hai. Use carry karne wala WireGuard message kitna bada hai?",
+            "options": [
+              "84 bytes",
+              "100 bytes",
+              "128 bytes",
+              "148 bytes"
+            ],
+            "why": "16-byte header, packet 96 bytes tak padded, aur 16-byte tag: 16 + 96 + 16 = 128."
+          }
+        },
+        {
+          "title": "Keepalive",
+          "desc": "Har 25 s par ek 32-byte khaali packet",
+          "detail": "PersistentKeepalive = 25 ke saath, jab tunnel 25 seconds shaant rehta hai to laptop ek khaali Transport Data message bhejta hai. Isme koi inner packet nahi hota, sirf header aur tag. Yeh ghar ke router ka NAT mapping khula rakhta hai taaki gateway laptop tak pahunch sake.",
+          "facts": [
+            ["Size", "32 bytes (16 header + 16 tag)"],
+            ["Counter", "Badhta rehta hai"],
+            ["Kyun", "NAT mappings zinda rakhna"]
+          ],
+          "quiz": {
+            "q": "Laptop ko keepalives kyun chahiye lekin gateway ko aam taur par nahi?",
+            "options": [
+              "Gateway ke paas keys nahi hain",
+              "Laptop NAT ke peeche hai, jo idle mappings bhool jaata hai",
+              "Keepalives encryption tez karte hain",
+              "Gateway TCP use karta hai"
+            ],
+            "why": "Ghar ke routers idle UDP mappings ek-do minute baad drop kar dete hain. Keepalives ke bina gateway ke packets band darwaze se takrayenge."
+          }
+        },
+        {
+          "title": "Har 2 minutes mein fresh keys",
+          "desc": "Naya handshake, bina interruption",
+          "detail": "Session keys 120 seconds (ya 2^60 messages) ke baad badal di jaati hain. Laptop bas naya Handshake Initiation bhejta hai jabki purani keys chalti rehti hain, isliye traffic kabhi rukta nahi. Purani keys phenk di jaati hain, matlab baad mein chori hui key pehle ke traffic ko decrypt nahi kar sakti (forward secrecy).",
+          "facts": [
+            ["Rekey after", "120 s"],
+            ["Keys rejected after", "180 s"],
+            ["Property", "Forward secrecy"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Ek round trip mein tunnel",
+        "text": "Asli packets chalne se pehle WireGuard ko sirf do handshake messages chahiye the. Phir har IP packet ek chhote UDP datagram ke andar 16-byte header aur 16-byte tag ke saath travel karta raha, aur keepalives ne NAT ka darwaza khula rakha.",
+        "facts": [
+          ["Message types", "1 Init, 2 Response, 3 Cookie, 4 Data"],
+          ["Sizes", "148, 92, 64, 32+ bytes"],
+          ["Port", "UDP 51820"],
+          ["Rekey", "Har 2 minutes"]
+        ]
+      }
+    },
+    "cookie": {
+      "name": "Load ke under: cookie reply",
+      "summary": "Initiations ki flood se gateway mehnge crypto se pehle address ka proof maangta hai.",
+      "steps": [
+        {
+          "title": "Initiations ki flood",
+          "desc": "Har ek gateway ka asli CPU kharch karta hai",
+          "detail": "Attacker jo gateway ki public key jaanta hai, forged addresses se hazaaron Handshake Initiations bhejta hai. Unka MAC1 valid hota hai, isliye gateway ko har ek ke liye mehnga Curve25519 maths karna padta. Yeh capture gateway par liya gaya hai.",
+          "facts": [
+            ["Source IPs", "Forged"],
+            ["Har ek ki cost", "Kai Curve25519 operations"],
+            ["Goal", "Gateway ka CPU khatam karna"]
+          ]
+        },
+        {
+          "title": "Response ke bajaye cookie",
+          "desc": "Type 3, 64 bytes: apna address prove karo",
+          "detail": "Load ke under gateway khaali MAC2 wale initiation ke liye mehnga kaam nahi karta. Woh uski jagah sasta Cookie Reply bhejta hai. Cookie sender ke IP aur port ka MAC hota hai, ek secret ke under jo har do minute mein badalta hai, isliye gateway kuch store nahi karta. Forged senders ko apni cookies kabhi nahi milti.",
+          "facts": [
+            ["Message", "Type 3, 64 bytes"],
+            ["Encrypted with", "XChaCha20-Poly1305"],
+            ["Gateway store karta hai", "Har sender ka kuch nahi"]
+          ],
+          "quiz": {
+            "q": "Forged source addresses wala attacker cookie kyun use nahi kar sakta?",
+            "options": [
+              "Cookie bahut lambi hai",
+              "Cookie forged address par jaati hai, attacker ko nahi",
+              "Cookies 1 ms mein expire ho jaati hain",
+              "Attacker ke paas VPN client nahi hai"
+            ],
+            "why": "Reply packet ke address par bheja jaata hai. Agar woh address fake hai, to attacker ko cookie kabhi nahi dikhti aur woh valid MAC2 nahi bana sakta."
+          }
+        },
+        {
+          "title": "MAC2 ke saath retry",
+          "desc": "Address ka proof, phir normal handshake",
+          "detail": "Laptop cookie decrypt karta hai aur apne retry timer (5 seconds) ka intezaar karta hai. Uska agla initiation cookie se bana MAC2 carry karta hai. Gateway MAC2 sasta check karta hai, dekhta hai ki laptop sach mein us address par rehta hai, aur poora handshake karta hai. Forged floods kisi mehnge kaam se pehle hi drop ho jaate hain.",
+          "facts": [
+            ["Retry after", "5 s (REKEY_TIMEOUT)"],
+            ["MAC2", "Cookie se keyed"],
+            ["Result", "Handshake succeed"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Asli users nikal gaye",
+        "text": "WireGuard ka cookie reply TCP ke SYN cookies jaisa kaam karta hai: load ke under gateway CPU kharch karne se pehle sasta proof maangta hai ki sender apne address ka maalik hai. Forged floods ko cookie kabhi nahi milti, isliye woh jaldi drop ho jaate hain.",
+        "facts": [
+          ["Defence", "Cookie Reply + MAC2"],
+          ["Gateway ki cost", "Har packet par ek sasta MAC"],
+          ["Bina load ke", "MAC2 ignore hota hai"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Message types",
+      "items": [
+        ["1 Handshake Initiation", "148 bytes"],
+        ["2 Handshake Response", "92 bytes"],
+        ["3 Cookie Reply", "64 bytes"],
+        ["4 Transport Data", "32 bytes + padded payload"]
+      ]
+    },
+    {
+      "title": "Building blocks",
+      "items": [
+        ["Curve25519", "Key agreement"],
+        ["ChaCha20-Poly1305", "Encryption + 16-byte tag"],
+        ["BLAKE2s", "Hashing aur MACs"],
+        ["Noise IK", "Handshake pattern"]
+      ]
+    },
+    {
+      "title": "Config and timers",
+      "items": [
+        ["ListenPort", "Default 51820"],
+        ["AllowedIPs", "Kaunse inner addresses peer ke hain"],
+        ["PersistentKeepalive", "NAT ke peeche aksar 25 s"],
+        ["Rekey", "120 s; 180 s ke baad reject"]
+      ]
+    }
+  ]
+}

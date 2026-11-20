@@ -1,0 +1,271 @@
+{
+  "tagline": "Har web page ke peeche plain-text request aur response.",
+  "description": "HTTP woh tarika hai jisse browser web server se page maangta hai aur server jawab deta hai. HTTP/1.1 plain text hai: ek request line, kuch headers, ek khaali line, aur optional body. Ek TCP connection kai requests ek ke baad ek carry kar sakta hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP, port 80"],
+    ["Format", "CRLF par khatam hone wali plain text lines"],
+    ["Model", "Request → response"],
+    ["Reuse", "Keep-alive connections"],
+    ["Defined in", "RFC 9110, RFC 9112"]
+  ],
+  "legend": [
+    "TCP handshake aur ACKs",
+    "Browser ki requests",
+    "Server ke responses",
+    "Redirects",
+    "Errors"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Page aur uska stylesheet load karna",
+      "summary": "Browser ek TCP connection kholta hai, HTML fetch karta hai, phir CSS file ke liye wahi connection reuse karta hai.",
+      "steps": [
+        {
+          "title": "TCP connection kholo",
+          "desc": "Port 80 par three-way handshake",
+          "detail": "DNS example.com ko pehle hi 203.0.113.10 bana chuka hai. HTTP kuch bol sake, usse pehle browser ko port 80 par TCP connection chahiye, jo plain HTTP ka standard port hai. Isme ek round trip lagta hai.",
+          "facts": [
+            ["Server", "203.0.113.10:80"],
+            ["Browser port", "52100 (temporary)"],
+            ["Cost", "1 round trip (34 ms)"]
+          ],
+          "quiz": {
+            "q": "Browser apne bilkul pehle packet mein GET request kyun nahi bhej sakta?",
+            "options": [
+              "HTTP ko pehle TCP connection chahiye",
+              "Server ko pehle welcome message bhejna padta hai",
+              "DNS dobara chalna chahiye",
+              "HTTP requests encrypted honi chahiye"
+            ],
+            "why": "HTTP/1.1 TCP ke upar chalta hai. Koi bhi request byte bhejne se pehle handshake poora hona zaroori hai."
+          }
+        },
+        {
+          "title": "GET request bhejo",
+          "desc": "Request line aur headers, plain text mein",
+          "detail": "Browser apni request padhne layak text mein likhta hai. Pehli line mein GET, path / aur version hota hai. Har header ek Name: value line hai. Ek khaali line headers ko khatam karti hai; GET ki body nahi hoti.",
+          "facts": [
+            ["Method", "GET"],
+            ["Path", "/"],
+            ["Ends with", "Ek khaali line (CRLF CRLF)"]
+          ],
+          "quiz": {
+            "q": "Server ek IP address par 50 websites host karta hai. Use kaise pata chalta hai ki browser kaun si chahta hai?",
+            "options": [
+              "Destination port se",
+              "Host header se",
+              "User-Agent header se",
+              "Woh path se andaza lagata hai"
+            ],
+            "why": "Host header website ka naam batata hai. Isi se kai sites ek hi IP address share kar paati hain."
+          }
+        },
+        {
+          "title": "HTML ke saath 200 OK",
+          "desc": "Status line, headers, khaali line, body",
+          "detail": "Server status 200 OK se jawab deta hai. Uske headers batate hain ki body HTML hai aur theek 248 bytes ki hai. Page khud khaali line ke baad aam text ki tarah aata hai. Browser segment ko ACK karta hai.",
+          "facts": [
+            ["Status", "200 OK"],
+            ["Content-Type", "text/html"],
+            ["Content-Length", "248 bytes"]
+          ],
+          "quiz": {
+            "q": "Is response ke baad connection khula rehta hai. Browser ko kaise pata chalta hai ki HTML poora aa gaya?",
+            "options": [
+              "Server connection band kar deta hai",
+              "Woh Content-Length tak bytes ginta hai",
+              "Woh </html> ka wait karta hai",
+              "Woh ek second wait karta hai"
+            ],
+            "why": "Content-Length browser ko bilkul batata hai ki body kahan khatam hoti hai, isliye wahi connection agla response carry kar sakta hai."
+          }
+        },
+        {
+          "title": "HTML padho, CSS maango",
+          "desc": "Same connection, doosri request",
+          "detail": "HTML padhte waqt browser ko <link rel=\"stylesheet\" href=\"/style.css\"> milta hai. Kyunki server ne keep-alive kaha tha, woh doosri request usi TCP connection par bhejta hai. Naye handshake ki zaroorat nahi, jisse poora ek round trip bachta hai.",
+          "facts": [
+            ["Path", "/style.css"],
+            ["New handshake?", "No: keep-alive"],
+            ["Referer", "http://example.com/"]
+          ],
+          "quiz": {
+            "q": "/style.css fetch karne ke liye browser agla kya bhejta hai?",
+            "options": [
+              "Port 80 par naya SYN",
+              "Same connection par GET /style.css",
+              "style.css ke liye DNS query",
+              "Kuch nahi; CSS HTML ke andar thi"
+            ],
+            "why": "HTTP/1.1 default mein connection khula rakhta hai, isliye browser use turant reuse karta hai."
+          }
+        },
+        {
+          "title": "Stylesheet ke saath 200 OK",
+          "desc": "Ek request, ek response, order mein",
+          "detail": "CSS Content-Type text/css ke saath wapas aati hai. HTTP/1.1 mein ek connection par responses bilkul usi order mein aate hain jis order mein requests bheji gayi thi. Browsers ek site ke liye 6 tak connections kholte hain taaki kai files ek saath fetch ho sakein.",
+          "facts": [
+            ["Status", "200 OK"],
+            ["Content-Type", "text/css"],
+            ["Cache", "max-age=86400 (ek din)"]
+          ]
+        },
+        {
+          "title": "Browser render karta hai",
+          "desc": "HTML plus CSS se page banta hai",
+          "detail": "HTML aur uske stylesheet haath mein aane ke baad browser page banata hai aur screen par paint karta hai. Connection kuch der idle rehta hai agar aur requests aayein; server keep-alive timeout ke baad use band kar deta hai.",
+          "facts": [
+            ["Requests", "2"],
+            ["TCP connections", "1"],
+            ["Page ready after", "~110 ms"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Ek connection, do files",
+        "text": "Browser ne ek TCP connection khola, GET bheja, HTML ke saath 200 OK padha, aur stylesheet ke liye wahi connection reuse kiya. Har byte plain text tha, jo padhna aasaan hai aur raaste mein kisi ke liye bhi padhna aasaan hai, isi wajah se web HTTPS par chala gaya.",
+        "facts": [
+          ["Round trips", "3 (handshake + 2 requests)"],
+          ["Status codes", "200, 200"],
+          ["Encryption", "None"],
+          ["Total", "~110 ms"]
+        ]
+      }
+    },
+    "not-found": {
+      "name": "404 Not Found",
+      "summary": "Browser ek delete ho chuka page maangta hai; server status 404 se batata hai.",
+      "steps": [
+        {
+          "title": "Connect karo aur maango",
+          "desc": "GET /old-page",
+          "detail": "Ek bookmark /old-page ki taraf point karta hai. Browser hamesha ki tarah port 80 se connect karta hai aur us path ke liye GET bhejta hai. Request mein kuch alag nahi dikhta.",
+          "facts": [
+            ["Path", "/old-page"],
+            ["Server", "203.0.113.10:80"],
+            ["Method", "GET"]
+          ]
+        },
+        {
+          "title": "404 Not Found",
+          "desc": "Us path par server ke paas kuch nahi hai",
+          "detail": "Server /old-page dhoondta hai aur kuch nahi milta, isliye status 404 se jawab deta hai. 404 bhi headers aur body ke saath ek poora, normal HTTP response hai; body wahi friendly error page hai jo tum dekhte ho.",
+          "facts": [
+            ["Status", "404 Not Found"],
+            ["Class", "4xx = client ne galat cheez maangi"],
+            ["Body", "142 bytes of HTML"]
+          ],
+          "quiz": {
+            "q": "Kaun sa status code family batata hai ki server khud fail hua, request nahi?",
+            "options": [
+              "2xx",
+              "3xx",
+              "4xx",
+              "5xx"
+            ],
+            "why": "4xx codes request ko galat batate hain (404 Not Found, 403 Forbidden). 5xx codes ka matlab hai server toota (500, 502, 503)."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Ek saaf error",
+        "text": "HTTP errors aam responses ki tarah travel karte hain. TCP connection theek hai aur reuse ho sakta hai; sirf status code batata hai ki kuch galat hua. Pehla digit batata hai ki galti kiski hai.",
+        "facts": [
+          ["Status", "404"],
+          ["Connection", "Still open"],
+          ["Families", "1xx info, 2xx ok, 3xx redirect, 4xx client, 5xx server"]
+        ]
+      }
+    },
+    "redirect": {
+      "name": "HTTPS par 301 redirect",
+      "summary": "Koi https:// ke bina example.com type karta hai; server browser ko secure address par bhej deta hai.",
+      "steps": [
+        {
+          "title": "Pehle plain HTTP",
+          "desc": "Sirf naam type karne ka matlab http://",
+          "detail": "Jab tum bina scheme ke example.com type karte ho, to bahut se browsers pehle port 80 par plain http:// try karte hain. Request unencrypted jaati hai.",
+          "facts": [
+            ["URL", "http://example.com/"],
+            ["Port", "80"],
+            ["Encrypted", "No"]
+          ]
+        },
+        {
+          "title": "301 Moved Permanently",
+          "desc": "Location: https://example.com/",
+          "detail": "Server plain HTTP par page serve karne se mana kar deta hai. Woh 301 ke saath Location header se jawab deta hai jisme naya address hota hai. 301 ka matlab permanent hai, isliye browser use yaad rakh sakta hai aur agli baar HTTP step chhod sakta hai.",
+          "facts": [
+            ["Status", "301 Moved Permanently"],
+            ["Location", "https://example.com/"],
+            ["Temporary version", "302 / 307"]
+          ],
+          "quiz": {
+            "q": "Location header padhne ke baad browser kya karega?",
+            "options": [
+              "User ko 301 page dikhayega",
+              "Port 443 par naya connection kholkar HTTPS use karega",
+              "Port 80 par wahi request dobara bhejega",
+              "DNS se naya IP poochega"
+            ],
+            "why": "Location ke saath 3xx browser ko wahan jaane ko kehta hai. https:// ka matlab port 443 par TLS hai, isliye naya TCP connection chahiye."
+          }
+        },
+        {
+          "title": "HTTPS par jao",
+          "desc": "Port 443 par naya connection",
+          "detail": "Browser port 443 par naya TCP connection kholta hai aur wahan TLS handshake shuru karega. Woh pehli plain request ek kamzor jagah hai: attacker use tamper kar sakta hai. HSTS isse theek karta hai, browser ko batakar ki ab se is site ke liye hamesha HTTPS use karo.",
+          "facts": [
+            ["New port", "443"],
+            ["Next", "TLS handshake"],
+            ["Fix for the weak spot", "HSTS"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Secure darwaze par bheja",
+        "text": "301 redirect poora ek extra round trip leta hai aur pehli request ko unprotected chhod deta hai. Sites HTTPS par HSTS header bhejti hain, aur browsers preload list ke saath aate hain, isliye agli baar browser seedha https:// par jaata hai.",
+        "facts": [
+          ["Redirect codes", "301, 302, 303, 307, 308"],
+          ["Header", "Location"],
+          ["Better", "HSTS + preload"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Methods",
+      "items": [
+        ["GET", "Resource fetch karo"],
+        ["POST", "Data bhejo (forms, uploads)"],
+        ["PUT / PATCH", "Resource replace / change karo"],
+        ["DELETE", "Resource hatao"],
+        ["HEAD", "GET jaisa, sirf headers"]
+      ]
+    },
+    {
+      "title": "Status codes",
+      "items": [
+        ["200 OK", "Yeh lo"],
+        ["204 No Content", "Ho gaya, bhejne ko kuch nahi"],
+        ["301 / 302", "Moved (permanent / temporary)"],
+        ["304 Not Modified", "Tumhari cached copy abhi bhi theek hai"],
+        ["404 Not Found", "Us path par kuch nahi"],
+        ["500 / 502 / 503", "Server error / bad gateway / unavailable"]
+      ]
+    },
+    {
+      "title": "Jaanne wale headers",
+      "items": [
+        ["Host", "Kaun si website (zaroori)"],
+        ["Content-Type", "Body kya hai"],
+        ["Content-Length", "Body kitni lambi hai"],
+        ["Connection: keep-alive", "TCP connection reuse karo"],
+        ["Location", "Kahan jaana hai (redirects)"],
+        ["Cache-Control", "Copy kitni der rakhni hai"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find the SIP messages in the capture", "hinglish": "Capture mein SIP messages dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and list the SIP requests and responses.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur SIP requests aur responses list karo." },
+      "wireshark": "sip",
+      "expect": { "en": "REGISTER, 401, REGISTER, 200 OK, INVITE, 100 Trying, 180 Ringing, 200 OK, ACK and BYE in order. Click one to read the plain-text headers.", "hinglish": "REGISTER, 401, REGISTER, 200 OK, INVITE, 100 Trying, 180 Ringing, 200 OK, ACK aur BYE kram se. Plain-text headers padhne ke liye ek pe click karo." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Follow the voice stream", "hinglish": "Voice stream follow karo" },
+      "why": { "en": "The RTP packets are separate from SIP. This filter shows them; in Wireshark use Telephony > VoIP Calls to play the call.", "hinglish": "RTP packets SIP se alag hain. Ye filter unhe dikhata hai; Wireshark mein Telephony > VoIP Calls se call play karo." },
+      "wireshark": "rtp",
+      "expect": { "en": "About 50 packets per second each way, payload type 0 (PCMU), sequence number +1 and timestamp +160 per packet.", "hinglish": "Har taraf lagbhag 50 packets per second, payload type 0 (PCMU), har packet pe sequence number +1 aur timestamp +160." },
+      "step": 6
+    },
+    {
+      "title": { "en": "Check that a SIP port is reachable on your own network", "hinglish": "Apne network pe SIP port reachable hai ya nahi check karo" },
+      "why": { "en": "Only try this against a SIP server or PBX you own or administer. It tests whether TCP 5060 accepts connections, nothing more.", "hinglish": "Ye sirf aise SIP server ya PBX pe try karo jo aapka ho ya aap administer karte ho. Ye bas test karta hai ki TCP 5060 connections accept karta hai ya nahi." },
+      "windows": "Test-NetConnection 127.0.0.1 -Port 5060",
+      "unix": "nc -vz 127.0.0.1 5060",
+      "expect": { "en": "On a machine with no SIP software you will see 'TcpTestSucceeded : False' (Windows) or 'Connection refused' (nc). With a local PBX running it succeeds. Many SIP servers listen on UDP only, so a TCP failure is not conclusive.", "hinglish": "Jis machine pe SIP software nahi hai wahan 'TcpTestSucceeded : False' (Windows) ya 'Connection refused' (nc) dikhega. Local PBX chal raha ho to succeed hoga. Kai SIP servers sirf UDP pe sunte hain, isliye TCP failure final nahi hai." },
+      "step": 1
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Check if an LDAP port is reachable", "hinglish": "Dekho LDAP port reachable hai ya nahi" },
+      "why": { "en": "Tests TCP 389 on your own domain controller or lab directory (not on machines you don't own).", "hinglish": "Apne khud ke domain controller ya lab directory par TCP 389 test karta hai (aisi machines par nahi jo aapki nahi hain)." },
+      "windows": "Test-NetConnection YOUR-DC-OR-LAB-SERVER -Port 389",
+      "unix": "nc -vz YOUR-DC-OR-LAB-SERVER 389",
+      "expect": { "en": "TcpTestSucceeded True (or 'succeeded') means a directory is listening on 389. If you have no directory of your own, it will fail, which is expected. Output varies.", "hinglish": "TcpTestSucceeded True (ya 'succeeded') ka matlab hai 389 par directory sun rahi hai. Agar aapki apni directory nahi hai to fail hoga, jo expected hai. Output alag ho sakta hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find LDAP servers through DNS", "hinglish": "DNS se LDAP servers dhoondo" },
+      "why": { "en": "Active Directory publishes its LDAP servers as DNS SRV records.", "hinglish": "Active Directory apne LDAP servers ko DNS SRV records ki tarah publish karta hai." },
+      "windows": "nslookup -type=SRV _ldap._tcp.%USERDNSDOMAIN%",
+      "unix": "dig +short SRV _ldap._tcp.example.com",
+      "expect": { "en": "On a domain network you see DC host names and port 389. For example.com the answer is empty. Results vary by network.", "hinglish": "Domain network par DC host names aur port 389 dikhte hain. example.com ke liye answer khaali hota hai. Results network ke hisaab se alag hote hain." }
+    },
+    {
+      "title": { "en": "See the bind and search packets", "hinglish": "Bind aur search packets dekho" },
+      "why": { "en": "Open the downloaded .pcap and filter on LDAP messages.", "hinglish": "Download kiya .pcap kholo aur LDAP messages par filter lagao." },
+      "wireshark": "ldap",
+      "expect": { "en": "You see bindRequest, searchRequest, searchResEntry, searchResDone and unbindRequest in order. In the plain scenario the bind password is readable in the packet details.", "hinglish": "bindRequest, searchRequest, searchResEntry, searchResDone aur unbindRequest order mein dikhte hain. Plain scenario mein bind password packet details mein padha ja sakta hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Find failed binds", "hinglish": "Failed binds dhoondo" },
+      "why": { "en": "resultCode 49 means invalidCredentials.", "hinglish": "resultCode 49 ka matlab invalidCredentials hai." },
+      "wireshark": "ldap.resultCode == 49",
+      "expect": { "en": "Only the bindResponse packets with a wrong-password result remain, as in the wrong-password scenario capture.", "hinglish": "Sirf woh bindResponse packets bachte hain jinka result galat password wala hai, jaise wrong-password scenario ke capture mein." }
+    }
+  ]
+}

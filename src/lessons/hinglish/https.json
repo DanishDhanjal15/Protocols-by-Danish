@@ -1,0 +1,254 @@
+{
+  "tagline": "Wahi HTTP, TLS mein sealed, taaki raaste mein koi use padh na sake.",
+  "description": "HTTPS aam HTTP hi hai jo TLS connection ke andar carry hota hai. TLS 1.3 ek round trip mein fresh keys par agree hota hai, certificate se server ki identity prove karta hai, aur phir har request aur response ko encrypt karta hai. Padlock ka matlab hai ki teeno cheezein kaam kar gayi.",
+  "facts": [
+    ["Layer", "Application over TLS (5–7)"],
+    ["Transport", "TCP, port 443"],
+    ["Handshake", "1 round trip (TLS 1.3)"],
+    ["Key exchange", "Ephemeral x25519"],
+    ["Identity", "X.509 certificate"],
+    ["Defined in", "RFC 9110, RFC 8446"]
+  ],
+  "legend": [
+    "TCP handshake aur ACKs",
+    "TLS handshake (keys)",
+    "Encrypted request",
+    "Encrypted response",
+    "Attack ya alert"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "https://example.com kholna",
+      "summary": "TCP, ek-round-trip TLS 1.3 handshake, phir encrypted request aur response.",
+      "steps": [
+        {
+          "title": "Port 443 par TCP",
+          "desc": "Same handshake, alag port",
+          "detail": "HTTPS ab bhi TCP par chalta hai. Browser port 443 se connect karta hai, jo standard HTTPS port hai. Abhi kuch encrypted nahi hai; woh agle step mein aata hai.",
+          "facts": [
+            ["Server", "203.0.113.10:443"],
+            ["Browser port", "52310"],
+            ["Cost", "1 round trip"]
+          ]
+        },
+        {
+          "title": "Client Hello",
+          "desc": "Ciphers, site ka naam aur key share",
+          "detail": "Browser sab kuch ek saath bhejta hai: jo cipher suites woh support karta hai, jo site chahiye (SNI), jo versions woh bolta hai, aur ek fresh x25519 key exchange ka apna hissa. Key share pehle hi bhej dena hi wajah hai ki TLS 1.3 ko sirf ek round trip chahiye.",
+          "facts": [
+            ["SNI", "example.com (visible)"],
+            ["Versions", "TLS 1.3, 1.2"],
+            ["ALPN", "h2, http/1.1"]
+          ],
+          "quiz": {
+            "q": "Café Wi-Fi par koi sniffing kar raha hai aur use yeh packet dikhta hai. Woh kya seekh sakta hai?",
+            "options": [
+              "Kuch bhi nahi",
+              "Site ka naam example.com, lekin page ya data nahi",
+              "Poora URL aur cookies",
+              "Password"
+            ],
+            "why": "Client Hello ka SNI clear mein bheja jaata hai. Paths, headers aur bodies baad mein aate hain aur encrypted hote hain."
+          }
+        },
+        {
+          "title": "Server Hello + certificate",
+          "desc": "Keys agree ho gayi; baaki sab pehle se encrypted",
+          "detail": "Server ek cipher chunta hai aur Server Hello mein apna key share bhejta hai. Ab dono sides same secret compute kar leti hain. Uske baad sab kuch encrypted hai: server ka certificate, uska signature jo prove karta hai ki certificate usi ka hai, aur uska Finished message. Yeh ek segment ke liye bahut bada hai, isliye do mein aata hai.",
+          "facts": [
+            ["Cipher", "TLS_AES_128_GCM_SHA256"],
+            ["In clear", "Server Hello only"],
+            ["Encrypted", "Certificate, CertificateVerify, Finished"]
+          ],
+          "quiz": {
+            "q": "TLS 1.3 mein kya eavesdropper server ka certificate padh sakta hai?",
+            "options": [
+              "Haan, woh hamesha clear mein bheja jaata hai",
+              "Nahi, woh handshake keys se encrypted hota hai",
+              "Sirf expiry date",
+              "Sirf agar server RSA use kare"
+            ],
+            "why": "TLS 1.3 Server Hello ke baad sab kuch encrypt karta hai, certificate samet. TLS 1.2 mein woh dikhta tha."
+          }
+        },
+        {
+          "title": "Certificate check karo",
+          "desc": "Kya yeh sach mein example.com hai?",
+          "detail": "Browser certificate decrypt karke teen cheezein check karta hai: naam example.com se match karta hai, expire nahi hua, aur signatures ki chain ek aise root authority tak jaati hai jispar browser bharosa karta hai. Woh server ka signature bhi check karta hai, jo prove karta hai ki server ke paas private key hai. Phir woh apna Finished bhejta hai.",
+          "facts": [
+            ["Name", "Must match example.com"],
+            ["Chain", "Must end at a trusted root"],
+            ["Signature", "Proves the private key"]
+          ],
+          "quiz": {
+            "q": "Agar certificate kisi aur naam ka hota to kya hota?",
+            "options": [
+              "Browser use ignore kar deta",
+              "Browser certificate error ke saath ruk jaata",
+              "Server doosra bhej deta",
+              "TLS 1.2 par fall back ho jaata"
+            ],
+            "why": "Naam mismatch ka matlab hai browser pakka nahi kar sakta ki woh kisse baat kar raha hai, isliye woh aage badhne se mana kar deta hai."
+          }
+        },
+        {
+          "title": "Encrypted request",
+          "desc": "GET / Application Data ke roop mein jaata hai",
+          "detail": "Ab browser apni request bhejta hai. Wire par yeh bas random dikhne wale bytes ka Application Data record hai. Andar GET / apne saare headers aur cookies ke saath hai, jise raaste mein koi bhi na padh sakta hai na badal sakta hai bina tag check fail hue.",
+          "facts": [
+            ["Record type", "23 (Application Data)"],
+            ["Inside", "GET / with headers"],
+            ["Tamper check", "16-byte GCM tag"]
+          ]
+        },
+        {
+          "title": "Encrypted response",
+          "desc": "200 OK, aur session tickets",
+          "detail": "Server pehle do session tickets bhejta hai jinhe browser baad mein tezi se reconnect karne ke liye use kar sakta hai, phir page ke saath 200 OK response. Sab kuch encrypted hai. Response headers mein Strict-Transport-Security hai, jo wire par dikhta nahi lekin ab browser use yaad rakhta hai.",
+          "facts": [
+            ["Tickets", "2 NewSessionTicket"],
+            ["Status", "200 OK (inside)"],
+            ["HSTS", "max-age=31536000"]
+          ]
+        },
+        {
+          "title": "Padlock aur HSTS",
+          "desc": "Secure, aur yaad rakha gaya",
+          "detail": "Page padlock ke saath dikhta hai. Header Strict-Transport-Security: max-age=31536000; includeSubDomains ki wajah se, agle ek saal browser koi bhi http://example.com link kuch bhejne se pehle https:// bana dega, aur tumhe certificate errors ke paar click karne nahi dega.",
+          "facts": [
+            ["Padlock", "Encrypted + verified"],
+            ["HSTS lasts", "1 year"],
+            ["Effect", "No plain HTTP, no bypass"]
+          ],
+          "quiz": {
+            "q": "Agle hafte tum http://example.com type karte ho. Browser pehle kya bhejta hai?",
+            "options": [
+              "Port 80 par plain GET",
+              "Seedha port 443 par connection",
+              "http.example.com ke liye DNS query",
+              "Tumhare confirm karne tak kuch nahi"
+            ],
+            "why": "HSTS browser ko URL ko internally https:// mein badalne par majboor karta hai, isliye laptop se koi plain request kabhi nikalti hi nahi."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Private aur proven",
+        "text": "TCP connect hua, TLS 1.3 ne ek round trip mein keys agree ki, certificate ne prove kiya ki server example.com hai, aur uske baad har HTTP byte encrypted tha. HSTS ensure karta hai ki aage ki visits plain HTTP ko poori tarah skip karein.",
+        "facts": [
+          ["Round trips before data", "2 (TCP + TLS)"],
+          ["Visible to the network", "IP, port, SNI, sizes, timing"],
+          ["Hidden", "URL path, headers, cookies, body"],
+          ["Total", "~106 ms"]
+        ]
+      }
+    },
+    "mitm": {
+      "name": "Café Wi-Fi par man in the middle",
+      "summary": "Wahi Wi-Fi par ek attacker connection intercept karke fake certificate dikhata hai. Browser mana kar deta hai.",
+      "steps": [
+        {
+          "title": "Traffic hijack hota hai",
+          "desc": "ARP spoofing packets attacker ko bhejti hai",
+          "detail": "Café Wi-Fi par attacker fake ARP replies se laptop ko bolta hai \"main router hoon\". Ab laptop ke frames attacker ke MAC address par jaate hain, bhale andar ka IP address abhi bhi 203.0.113.10 kehta hai. Attacker server ban kar TCP handshake ka jawab deta hai.",
+          "facts": [
+            ["Frame goes to", "02:a7:7a:c6:00:66"],
+            ["IP still says", "203.0.113.10"],
+            ["Trick", "ARP spoofing"]
+          ],
+          "quiz": {
+            "q": "Kya laptop TCP handshake se jaan sakta hai ki kuch galat hai?",
+            "options": [
+              "Haan, IP address alag hai",
+              "Nahi, TCP mein prove karne ka koi tarika nahi ki jawab kisne diya",
+              "Haan, SYN-ACK missing hai",
+              "Haan, port badal jaata hai"
+            ],
+            "why": "TCP aur IP identity ka koi proof carry nahi karte. Raaste mein koi bhi jawab de sakta hai. Woh proof TLS ka kaam hai."
+          }
+        },
+        {
+          "title": "Attacker ko Client Hello",
+          "desc": "Browser example.com maangta hai",
+          "detail": "Bekhabar browser apna normal Client Hello bhejta hai. Attacker SNI padhta hai aur jaan jaata hai ki victim example.com chahta hai. Traffic padhne ke liye ab use example.com banne ka natak karna padega.",
+          "facts": [
+            ["SNI", "example.com"],
+            ["Received by", "Attacker"],
+            ["Attacker's goal", "Decrypt and relay"]
+          ]
+        },
+        {
+          "title": "Fake certificate",
+          "desc": "Khud banaya hua, trusted authority ne sign nahi kiya",
+          "detail": "Attacker apne key share ke saath key exchange poora karta hai, isliye woh laptop ka bheja hua decrypt kar sakta hai. Lekin use example.com ka certificate bhi bhejna hai, aur koi trusted authority use woh issue nahi karegi. Woh apna khud sign kiya hua certificate bhejta hai.",
+          "facts": [
+            ["Key exchange", "Works (attacker's key)"],
+            ["Certificate", "Self-signed, example.com"],
+            ["Signed by", "No trusted root"]
+          ],
+          "quiz": {
+            "q": "Attacker example.com ka asli certificate copy kyun nahi kar leta?",
+            "options": [
+              "Certificates encrypted hote hain",
+              "Handshake sign karne ke liye use asli server ki private key bhi chahiye",
+              "Certificates har minute expire hote hain",
+              "Browser use cache kar leta hai"
+            ],
+            "why": "Certificate public hota hai. CertificateVerify signature ke liye matching private key chahiye, jo sirf asli server ke paas hai."
+          }
+        },
+        {
+          "title": "Browser use block kar deta hai",
+          "desc": "Alert, phir reset",
+          "detail": "Browser is certificate se kisi bhi trusted root tak chain nahi bana paata. Woh ek encrypted alert (unknown_ca) bhejta hai aur connection drop kar deta hai. Koi HTTP request kabhi bheji hi nahi gayi, isliye koi cookies ya passwords leak nahi hue. Kyunki example.com HSTS use karta hai, warning page par \"proceed anyway\" button hota hi nahi.",
+          "facts": [
+            ["Alert", "unknown_ca (48), encrypted"],
+            ["Browser shows", "NET::ERR_CERT_AUTHORITY_INVALID"],
+            ["HTTP sent", "Nothing"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Certificate ne attack roka",
+        "text": "Attacker packets intercept kar sakta tha aur key exchange bhi poora kar sakta tha, lekin woh prove nahi kar saka ki woh example.com hai. Certificate checks ek chhupi interception ko zor ke error mein badal dete hain, aur HSTS woh button hata deta hai jo users ko jaal mein jaane deta hai.",
+        "facts": [
+          ["Attack", "ARP spoofing + fake certificate"],
+          ["Defence", "Certificate chain to a trusted root"],
+          ["HSTS adds", "No click-through"],
+          ["Data leaked", "Only the SNI"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "TLS 1.3 handshake",
+      "items": [
+        ["Client Hello", "Suites, SNI, key share"],
+        ["Server Hello", "Chosen suite, key share"],
+        ["EncryptedExtensions", "ALPN aur doosri settings"],
+        ["Certificate + Verify", "Identity aur key ka proof"],
+        ["Finished", "Dono sides handshake confirm karti hain"]
+      ]
+    },
+    {
+      "title": "Network kya dekh sakta hai",
+      "items": [
+        ["IP + port", "Haan"],
+        ["SNI (site name)", "Haan (ECH ke bina)"],
+        ["URL path, headers", "Nahi"],
+        ["Cookies, body", "Nahi"],
+        ["Sizes and timing", "Haan"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["Port", "443"],
+        ["Record header", "5 bytes"],
+        ["GCM tag", "16 bytes"],
+        ["HSTS typical", "max-age=31536000 (1 year)"]
+      ]
+    }
+  ]
+}

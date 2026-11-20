@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Send a real HTTP request", "hinglish": "Asli HTTP request bhejo" },
+      "why": { "en": "curl -i prints the status line and headers followed by the body, exactly the text the lesson shows.", "hinglish": "curl -i status line aur headers ke baad body print karta hai, bilkul wahi text jo lesson dikhata hai." },
+      "windows": "curl.exe -i http://example.com/",
+      "unix": "curl -i http://example.com/",
+      "expect": { "en": "A status line like HTTP/1.1 200 OK, headers such as Content-Type and Content-Length, a blank line, then HTML. Exact headers vary by time.", "hinglish": "HTTP/1.1 200 OK jaisi status line, Content-Type aur Content-Length jaise headers, ek khaali line, phir HTML. Exact headers waqt ke saath badalte hain." },
+      "step": 3
+    },
+    {
+      "title": { "en": "See a 404", "hinglish": "404 dekho" },
+      "why": { "en": "Ask for a page that does not exist and read only the headers.", "hinglish": "Ek aisa page maango jo exist nahi karta aur sirf headers padho." },
+      "windows": "curl.exe -sI http://example.com/old-page",
+      "unix": "curl -sI http://example.com/old-page",
+      "expect": { "en": "A first line with a 4xx status such as 404 Not Found. The exact code may vary by server.", "hinglish": "Pehli line mein 404 Not Found jaisa 4xx status. Exact code server ke hisaab se alag ho sakta hai." }
+    },
+    {
+      "title": { "en": "Watch a redirect to HTTPS", "hinglish": "HTTPS par redirect dekho" },
+      "why": { "en": "Many sites answer plain HTTP with a 301 and a Location header.", "hinglish": "Bahut si sites plain HTTP ka jawab 301 aur Location header se deti hain." },
+      "windows": "curl.exe -sI http://github.com/",
+      "unix": "curl -sI http://github.com/",
+      "expect": { "en": "A 301 (or similar 3xx) status and a Location: https://github.com/ header. Varies by site and over time.", "hinglish": "301 (ya milta-julta 3xx) status aur Location: https://github.com/ header. Site aur waqt ke hisaab se badal sakta hai." }
+    },
+    {
+      "title": { "en": "Find requests and responses in the capture", "hinglish": "Capture mein requests aur responses dhoondo" },
+      "why": { "en": "Wireshark's http filter shows only the readable HTTP messages, hiding the TCP handshake.", "hinglish": "Wireshark ka http filter sirf padhne layak HTTP messages dikhata hai, TCP handshake chhupa deta hai." },
+      "wireshark": "http",
+      "expect": { "en": "GET requests and 200 OK responses. Right-click one and choose Follow, TCP Stream to read the whole conversation as text.", "hinglish": "GET requests aur 200 OK responses. Kisi par right-click karke Follow, TCP Stream chuno taaki poori baat text mein padh sako." },
+      "step": 2
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find the IGMP messages in the capture", "hinglish": "Capture mein IGMP messages dhoondo" },
+      "why": { "en": "Open the .pcap in Wireshark and show only IGMP: queries, reports, joins and leaves.", "hinglish": ".pcap Wireshark mein kholo aur sirf IGMP dikhao: queries, reports, joins aur leaves." },
+      "wireshark": "igmp",
+      "expect": { "en": "Membership Reports to 224.0.0.22, General Queries to 224.0.0.1 every 125 s, and group-specific queries after a leave. All have TTL 1.", "hinglish": "224.0.0.22 ko Membership Reports, har 125 s 224.0.0.1 ko General Queries, aur leave ke baad group-specific queries. Sabka TTL 1 hota hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Look at one group's stream", "hinglish": "Ek group ki stream dekho" },
+      "why": { "en": "Filter the multicast video stream sent to group 239.1.1.5.", "hinglish": "Group 239.1.1.5 ko bheji gayi multicast video stream filter karo." },
+      "wireshark": "ip.dst == 239.1.1.5",
+      "expect": { "en": "UDP packets to port 5000 carrying RTP with MPEG-TS, destination MAC 01:00:5e:01:01:05, appearing only while someone is joined.", "hinglish": "Port 5000 par UDP packets jo MPEG-TS ke saath RTP carry karte hain, destination MAC 01:00:5e:01:01:05, jo sirf tab dikhte hain jab koi joined ho." },
+      "step": 2
+    },
+    {
+      "title": { "en": "See which multicast groups your own PC has joined", "hinglish": "Dekho tumhare apne PC ne kaunse multicast groups join kiye hain" },
+      "why": { "en": "Read-only list of multicast group memberships on your machine; they are the groups IGMP reports for you.", "hinglish": "Tumhari machine par multicast group memberships ki read-only list; yeh wahi groups hain jinke liye IGMP tumhari taraf se report karta hai." },
+      "windows": "netsh interface ip show joins",
+      "unix": "netstat -g",
+      "expect": { "en": "You will usually see 224.0.0.1 (all hosts) and 224.0.0.251 (mDNS), maybe 239.255.255.250 (SSDP). Output varies by machine.", "hinglish": "Aam taur par 224.0.0.1 (all hosts) aur 224.0.0.251 (mDNS) dikhega, shayad 239.255.255.250 (SSDP) bhi. Output machine ke hisaab se alag hota hai." }
+    },
+    {
+      "title": { "en": "Spot the Router Alert option", "hinglish": "Router Alert option pehchano" },
+      "why": { "en": "IGMP packets carry the IP Router Alert option so routers look at them.", "hinglish": "IGMP packets IP Router Alert option carry karte hain taaki routers unhe dekhein." },
+      "wireshark": "ip.opt.type.number == 20",
+      "expect": { "en": "Matches IGMP packets that include the 4-byte option 94 04 00 00 in the IP header.", "hinglish": "Un IGMP packets se match karta hai jinke IP header mein 4-byte option 94 04 00 00 hai." },
+      "step": 1
+    }
+  ]
+}

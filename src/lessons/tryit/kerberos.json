@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "List your Kerberos tickets", "hinglish": "Apne Kerberos tickets dekho" },
+      "why": { "en": "Shows the TGT and service tickets your machine currently holds.", "hinglish": "Dikhata hai ki aapki machine ke paas abhi kaunse TGT aur service tickets hain." },
+      "windows": "klist",
+      "unix": "klist",
+      "expect": { "en": "On a domain-joined PC you see a krbtgt/DOMAIN ticket and tickets like cifs/server with start and end times (about 10 hours). On a non-domain machine it says there are no tickets. Output varies by machine.", "hinglish": "Domain-joined PC par krbtgt/DOMAIN ticket aur cifs/server jaise tickets start aur end time (lagbhag 10 hours) ke saath dikhte hain. Non-domain machine par bolta hai ki tickets nahi hain. Output machine ke hisaab se alag hota hai." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Find your domain controller", "hinglish": "Apna domain controller dhoondo" },
+      "why": { "en": "Kerberos clients locate the KDC through DNS SRV records on port 88.", "hinglish": "Kerberos clients KDC ko DNS SRV records se dhoondte hain, port 88 ke liye." },
+      "windows": "nslookup -type=SRV _kerberos._tcp.%USERDNSDOMAIN%",
+      "unix": "dig +short SRV _kerberos._tcp.example.com",
+      "expect": { "en": "On a domain network you get the DC host names and port 88. For example.com the answer is usually empty, which is fine. Results vary.", "hinglish": "Domain network par DC ke host names aur port 88 milte hain. example.com ke liye answer aksar khaali hota hai, jo theek hai. Results alag ho sakte hain." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Filter Kerberos in the capture", "hinglish": "Capture mein Kerberos filter karo" },
+      "why": { "en": "Open the downloaded .pcap and see the AS, TGS and AP messages.", "hinglish": "Download kiya .pcap kholo aur AS, TGS aur AP messages dekho." },
+      "wireshark": "kerberos",
+      "expect": { "en": "You see AS-REQ, KRB-ERROR (25), AS-REP, TGS-REQ and TGS-REP packets in the same order as the lesson steps.", "hinglish": "Aapko AS-REQ, KRB-ERROR (25), AS-REP, TGS-REQ aur TGS-REP packets lesson ke steps ke order mein dikhte hain." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Spot pre-auth errors", "hinglish": "Pre-auth errors pakdo" },
+      "why": { "en": "Filters only the error replies such as 25 and 24.", "hinglish": "Sirf error replies filter karta hai jaise 25 aur 24." },
+      "wireshark": "kerberos.error_code",
+      "expect": { "en": "Packets with KRB-ERROR show the error code, for example 25 PREAUTH_REQUIRED in the normal flow and 24 PREAUTH_FAILED in the wrong-password flow.", "hinglish": "KRB-ERROR wale packets error code dikhate hain, jaise normal flow mein 25 PREAUTH_REQUIRED aur wrong-password flow mein 24 PREAUTH_FAILED." }
+    }
+  ]
+}

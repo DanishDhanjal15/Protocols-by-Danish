@@ -1,0 +1,27 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Look for proxy hints in response headers", "hinglish": "Response headers mein proxy ke hints dekho" },
+      "why": { "en": "Sites behind a reverse proxy or CDN often reveal it in headers such as Server, Via or X-Cache.", "hinglish": "Reverse proxy ya CDN ke peeche wali sites aksar Server, Via ya X-Cache jaise headers mein khud ko bata deti hain." },
+      "windows": "curl.exe -sI https://www.google.com",
+      "unix": "curl -sI https://www.google.com",
+      "expect": { "en": "Response headers such as 'Server: gws' or 'Via'. You see one front address, not the many servers behind it. Output varies by site and location.", "hinglish": "'Server: gws' ya 'Via' jaise response headers. Aapko ek front address dikhta hai, uske peeche ke kai servers nahi. Output site aur location ke hisaab se alag hota hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "See which address you really talk to", "hinglish": "Dekho aap asal mein kis address se baat karte ho" },
+      "why": { "en": "A big site resolves to the address of its proxy or load balancer, not of an individual app server.", "hinglish": "Badi site ka naam uske proxy ya load balancer ke address pe resolve hota hai, kisi individual app server ke nahi." },
+      "windows": "nslookup example.com",
+      "unix": "dig +short example.com",
+      "expect": { "en": "One or a few public IP addresses. They belong to the front door, like 203.0.113.10 in the lesson. Addresses vary.", "hinglish": "Ek ya kuch public IP addresses. Ye front door ke hote hain, jaise lesson ka 203.0.113.10. Addresses alag ho sakte hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Find the health checks and the 502 in the capture", "hinglish": "Capture mein health checks aur 502 dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and filter for the health-check requests and the gateway error.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur health-check requests aur gateway error filter karo." },
+      "wireshark": "http.request.uri contains \"/healthz\" || http.response.code == 502 || http.x_forwarded_for",
+      "expect": { "en": "GET /healthz requests on the private network, requests carrying an X-Forwarded-For header, and in the bad-gateway capture a 502 Bad Gateway response.", "hinglish": "Private network pe GET /healthz requests, X-Forwarded-For header wali requests, aur bad-gateway capture mein 502 Bad Gateway response." },
+      "step": 1
+    }
+  ]
+}

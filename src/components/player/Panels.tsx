@@ -6,13 +6,13 @@ import type { Lesson, Quiz, Step } from "@/lib/lesson";
 import { OSI_NAMES } from "@/lib/lesson";
 import { useApp } from "../Providers";
 
-export function Facts({ facts, cols = 3 }: { facts: [string, string][]; cols?: number }) {
+export function Facts({ facts }: { facts: [string, string][]; cols?: number }) {
   return (
-    <dl className={`grid gap-px bg-line rounded-lg overflow-hidden border border-line`} style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${cols === 3 ? 150 : 180}px, 1fr))` }}>
+    <dl className="border-t border-line">
       {facts.map(([k, v]) => (
-        <div key={k} className="bg-panel px-3 py-2.5 min-w-0">
-          <dt className="eyebrow !text-[10px]">{k}</dt>
-          <dd className="text-[14px] font-semibold mt-0.5 break-words">{v}</dd>
+        <div key={k} className="grid grid-cols-[minmax(0,38%)_minmax(0,1fr)] gap-3 py-2 border-b border-line text-[13.5px]">
+          <dt className="text-muted">{k}</dt>
+          <dd className="text-ink font-medium break-words">{v}</dd>
         </div>
       ))}
     </dl>

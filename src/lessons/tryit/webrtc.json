@@ -1,0 +1,54 @@
+{
+  "commands": [
+    {
+      "title": {
+        "en": "See your own ICE candidates in the browser",
+        "hinglish": "Browser mein apne ICE candidates dekho"
+      },
+      "why": {
+        "en": "Open the browser developer console (F12, Console tab) on any page and paste this. It asks Google's public STUN server who you are and prints your candidates (host and srflx). It makes no call.",
+        "hinglish": "Kisi bhi page pe browser developer console (F12, Console tab) kholo aur ye paste karo. Ye Google ke public STUN server se poochta hai ki aap kaun ho aur aapke candidates (host aur srflx) print karta hai. Koi call nahi hoti."
+      },
+      "unix": "# paste in the browser console: pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});pc.createDataChannel('x');pc.onicecandidate=e=>e.candidate&&console.log(e.candidate.candidate);pc.createOffer().then(o=>pc.setLocalDescription(o))",
+      "expect": {
+        "en": "Lines such as 'candidate:... typ host' with your private address and 'typ srflx' with your public address learned from STUN. Modern browsers may hide the private address behind a .local name. Output varies.",
+        "hinglish": "'candidate:... typ host' aapke private address ke saath aur 'typ srflx' STUN se mile public address ke saath jaisi lines. Modern browsers private address ko .local name ke peeche chhupa sakte hain. Output alag ho sakta hai."
+      },
+      "step": 1,
+      "windows": "# paste in the browser console: pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});pc.createDataChannel('x');pc.onicecandidate=e=>e.candidate&&console.log(e.candidate.candidate);pc.createOffer().then(o=>pc.setLocalDescription(o))"
+    },
+    {
+      "title": {
+        "en": "Inspect a live call in the browser",
+        "hinglish": "Browser mein live call inspect karo"
+      },
+      "why": {
+        "en": "Chrome and Edge show every WebRTC session with its candidate pairs, DTLS state and RTP stats. Open the page while a call is running, for example a Google Meet or any WebRTC demo.",
+        "hinglish": "Chrome aur Edge har WebRTC session ko uske candidate pairs, DTLS state aur RTP stats ke saath dikhate hain. Call chalte hue ye page kholo, jaise Google Meet ya koi WebRTC demo."
+      },
+      "unix": "chrome://webrtc-internals",
+      "expect": {
+        "en": "A list of peer connections; expand one to see the selected candidate pair (host, srflx or relay), the DTLS state and graphs of packets sent. Works on any OS; on Windows type the same address in Chrome or Edge (edge://webrtc-internals).",
+        "hinglish": "Peer connections ki list; ek expand karo to selected candidate pair (host, srflx ya relay), DTLS state aur bheje packets ke graphs dikhenge. Har OS pe chalta hai; Windows pe wahi address Chrome ya Edge mein type karo (edge://webrtc-internals)."
+      },
+      "step": 4,
+      "windows": "chrome://webrtc-internals"
+    },
+    {
+      "title": {
+        "en": "Find STUN, DTLS and RTP in the capture",
+        "hinglish": "Capture mein STUN, DTLS aur RTP dhoondo"
+      },
+      "why": {
+        "en": "Open the lesson's .pcap in Wireshark and filter for each stage of the call.",
+        "hinglish": "Lesson ka .pcap Wireshark mein kholo aur call ke har stage ko filter karo."
+      },
+      "wireshark": "stun || dtls || rtp",
+      "expect": {
+        "en": "STUN Binding Requests and responses first, then the DTLS handshake, then RTP packets (shown as SRTP payload) in both directions. In the TURN capture you also see Allocate and ChannelBind.",
+        "hinglish": "Pehle STUN Binding Requests aur responses, phir DTLS handshake, phir dono directions mein RTP packets (SRTP payload ki tarah). TURN capture mein Allocate aur ChannelBind bhi dikhte hain."
+      },
+      "step": 1
+    }
+  ]
+}

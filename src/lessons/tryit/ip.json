@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Watch the TTL drop hop by hop", "hinglish": "TTL ko hop by hop ghatte dekho" },
+      "why": { "en": "Traceroute sends packets with TTL 1, 2, 3 and so on, and each router that drops one reveals itself.", "hinglish": "Traceroute TTL 1, 2, 3 waghera ke packets bhejta hai, aur jo router unhe drop karta hai woh apna address bata deta hai." },
+      "windows": "tracert -d example.com",
+      "unix": "traceroute -n example.com",
+      "expect": { "en": "A numbered list of router addresses with round-trip times, starting with your home router. Some hops may show * if they do not answer. The path differs per network.", "hinglish": "Router addresses ki numbered list round-trip times ke saath, tumhare home router se shuru. Kuch hops * dikha sakte hain agar woh jawab na dein. Path har network par alag hota hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Check the TTL in a reply", "hinglish": "Reply mein TTL check karo" },
+      "why": { "en": "The reply TTL is the server's starting TTL minus the routers crossed, so it hints at distance.", "hinglish": "Reply ka TTL server ke starting TTL minus crossed routers hota hai, isliye yeh distance ka hint deta hai." },
+      "windows": "ping -n 4 example.com",
+      "unix": "ping -c 4 example.com",
+      "expect": { "en": "Lines like 'TTL=54' (Windows) or 'ttl=54' (Linux/macOS). The value varies by server and path.", "hinglish": "'TTL=54' (Windows) ya 'ttl=54' (Linux/macOS) jaisi lines. Value server aur path ke hisaab se badalti hai." },
+      "step": 5
+    },
+    {
+      "title": { "en": "See your routing table", "hinglish": "Apna routing table dekho" },
+      "why": { "en": "Your laptop uses it to decide between local delivery and the default gateway.", "hinglish": "Laptop ise use karke decide karta hai ki local delivery karni hai ya default gateway ko bhejna hai." },
+      "windows": "route print -4",
+      "unix": "ip route",
+      "expect": { "en": "A default route (0.0.0.0/0) via your router plus a route for your local network such as 192.168.1.0/24. On macOS use netstat -rn.", "hinglish": "Tumhare router se default route (0.0.0.0/0) aur local network ka route jaise 192.168.1.0/24. macOS par netstat -rn use karo." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Inspect IP header fields in the capture", "hinglish": "Capture mein IP header fields dekho" },
+      "why": { "en": "Open the .pcap in Wireshark and filter to see TTL, DF and fragment flags.", "hinglish": ".pcap Wireshark mein kholo aur TTL, DF aur fragment flags dekhne ke liye filter lagao." },
+      "wireshark": "ip.ttl < 64 || ip.flags.mf == 1 || ip.frag_offset > 0",
+      "expect": { "en": "Packets with a lowered TTL and, in the fragment scenario, the two fragments with MF and a fragment offset.", "hinglish": "Kam hue TTL wale packets aur, fragment scenario mein, MF aur fragment offset wale do fragments." }
+    }
+  ]
+}

@@ -1,0 +1,234 @@
+{
+  "tagline": "Bade addresses, aur hosts jo khud ko set up kar lete hain.",
+  "description": "IPv6 128-bit addresses use karta hai, isliye har device ko public address mil sakta hai. Naye host ko DHCP server ki zaroorat nahi: woh router ka advertisement sunta hai, network prefix se apna address khud banata hai (SLAAC), check karta hai ki kisi aur ke paas toh nahi, aur neighbours ke MAC addresses ARP ki jagah ICMPv6 se dhoondhta hai.",
+  "facts": [
+    ["Layer", "Network (Layer 3)"],
+    ["Address size", "128 bits (16 bytes)"],
+    ["Header", "40 bytes, fixed"],
+    ["Auto setup", "SLAAC (RFC 4862)"],
+    ["ARP ki jagah", "Neighbor Discovery (RFC 4861)"],
+    ["Defined in", "RFC 8200"]
+  ],
+  "legend": [
+    "Group ko multicast",
+    "Neighbor Discovery",
+    "Laptop se data",
+    "Replies",
+    "Conflicts"
+  ],
+  "scenarios": {
+    "slaac": {
+      "name": "Plug in karo, address lo, ping karo",
+      "summary": "Laptop network se judta hai, apna IPv6 address khud banata hai, use check karta hai, router ka MAC dhoondhta hai aur ek server ko ping karta hai.",
+      "steps": [
+        {
+          "title": "Yahan koi router hai?",
+          "desc": "ff02::2 ko Router Solicitation",
+          "detail": "Laptop ne apne MAC se pehle hi ek link-local address, fe80::3e22:fbff:fe7a:910e, bana liya hai. Woh sirf isi cable par kaam karta hai. Router dhoondhne ke liye woh ff02::2, all-routers group, ko Router Solicitation bhejta hai. Ethernet par yeh group MAC 33:33:00:00:00:02 se map hota hai: 33:33 ke baad IPv6 address ke last 32 bits.",
+          "facts": [
+            ["ICMPv6 type", "133 (Router Solicitation)"],
+            ["To", "ff02::2 → 33:33:00:00:00:02"],
+            ["Hop limit", "255"]
+          ],
+          "quiz": {
+            "q": "All-nodes group ff02::1 hai. Ethernet par yeh kaunsa MAC address use karta hai?",
+            "options": [
+              "ff:ff:ff:ff:ff:ff",
+              "33:33:00:00:00:01",
+              "01:00:5e:00:00:01",
+              "00:00:00:00:00:01"
+            ],
+            "why": "IPv6 multicast 33:33 plus group address ke last four bytes se map hota hai. IPv6 mein broadcast hota hi nahi."
+          }
+        },
+        {
+          "title": "Router Advertisement",
+          "desc": "Yeh raha prefix: 2001:db8:1::/64",
+          "detail": "Router sabko (ff02::1) Router Advertisement se jawab deta hai. Woh kehta hai: main 30 minutes ke liye default gateway hoon, network prefix 2001:db8:1::/64 hai, MTU 1500 hai, aur yeh raha ek DNS server. Prefix par A flag ka matlab hai ki hosts isse apna address khud bana sakte hain.",
+          "facts": [
+            ["ICMPv6 type", "134 (Router Advertisement)"],
+            ["Prefix", "2001:db8:1::/64, A flag set"],
+            ["Router lifetime", "1800 s"]
+          ],
+          "quiz": {
+            "q": "Prefix pehle 64 bits deta hai. Laptop ke address ke last 64 bits kahan se aate hain?",
+            "options": [
+              "Router assign karta hai",
+              "Laptop khud banata hai",
+              "DHCP server",
+              "DNS server"
+            ],
+            "why": "SLAAC ka yahi point hai: host apna interface ID khud banata hai, yahan apne MAC se (EUI-64). Modern systems aksar privacy ke liye random wala use karte hain."
+          }
+        },
+        {
+          "title": "Kya yeh le liya gaya hai? (DAD)",
+          "desc": ":: se Neighbor Solicitation",
+          "detail": "Laptop 2001:db8:1::3e22:fbff:fe7a:910e banata hai lekin ise “tentative” rakhta hai. Woh poochta hai ki koi pehle se ise use kar raha hai kya, unspecified address :: se address ke solicited-node group ff02::1:ff7a:910e ko Neighbor Solicitation bhejkar. Wahan sirf woh devices sunte hain jinka address 7a:91:0e par khatam hota hai.",
+          "facts": [
+            ["ICMPv6 type", "135 (Neighbor Solicitation)"],
+            ["From", ":: (abhi address nahi)"],
+            ["To", "ff02::1:ff7a:910e → 33:33:ff:7a:91:0e"]
+          ],
+          "quiz": {
+            "q": "Laptop DAD apne naye address ki jagah :: se kyun bhejta hai?",
+            "options": [
+              "Bytes bachane ke liye",
+              "Jab tak pata na chale ki kisi aur ke paas nahi hai, woh address use nahi kar sakta",
+              "Routers dusre sources ignore karte hain",
+              "Address bahut lamba hai"
+            ],
+            "why": "Tentative address ko source ke roop mein use nahi karna chahiye. Agar koi aur host uska maalik hota, to replies galat jagah jate."
+          }
+        },
+        {
+          "title": "Khamoshi matlab haan",
+          "desc": "Ek second mein koi jawab nahi: address hamara hai",
+          "detail": "Ek second ke andar koi jawab nahi deta, isliye address unique hai. Laptop ke paas ab ek global address hai jo usne khud banaya, aur advertisement se mila default gateway (fe80::1). Kisi server ne kuch diya nahi.",
+          "facts": [
+            ["Address", "2001:db8:1::3e22:fbff:fe7a:910e"],
+            ["Gateway", "fe80::1 (link-local)"],
+            ["DHCP used", "Koi nahi"]
+          ]
+        },
+        {
+          "title": "Router ka MAC dhoondo",
+          "desc": "Neighbor Solicitation aur Advertisement",
+          "detail": "Network ke bahar kuch bhejne ke liye laptop ko fe80::1 ka MAC chahiye. Kai routers use RA mein daal dete hain; yeh wala nahi daala, isliye laptop poochta hai. Woh router ke solicited-node group ko Neighbor Solicitation bhejta hai, aur router seedha Neighbor Advertisement se jawab deta hai jisme uska MAC hota hai. Yeh IPv6 ka ARP wala version hai.",
+          "facts": [
+            ["Ask", "NS to ff02::1:ff00:1"],
+            ["Answer", "NA, flags R S O"],
+            ["Router MAC", "b0:be:76:12:4c:01"]
+          ],
+          "quiz": {
+            "q": "IPv4 ke ARP se yeh kaise alag hai?",
+            "options": [
+              "Yeh sabko broadcast use karta hai",
+              "Yeh aise multicast group use karta hai jise sirf target sunta hai",
+              "Ise DHCP server chahiye",
+              "Bilkul alag nahi hai"
+            ],
+            "why": "ARP requests har device ko jati hain. NS solicited-node group ko jata hai, isliye lagbhag sirf target ke network card ko ise dekhna padta hai."
+          }
+        },
+        {
+          "title": "Server ko ping6",
+          "desc": "IPv6 par echo request aur reply",
+          "detail": "Ab laptop internet tak pahunch sakta hai. Woh apne naye global address se 2001:db8:ab::10 ko ICMPv6 Echo Request (type 128) se ping karta hai, router ke MAC ke frame mein. Server Echo Reply (type 129) se jawab deta hai. Kahin NAT nahi: server ko laptop ka asli address dikhta hai.",
+          "facts": [
+            ["Request / reply", "Type 128 / 129"],
+            ["Round trip", "28 ms"],
+            ["NAT", "Koi nahi"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Bina server ke set up",
+        "text": "Laptop ne routers ke baare mein poocha, advertisement se prefix seekha, apna address banaya, check kiya ki woh unique hai aur router ka MAC dhoondha, sab ICMPv6 se. Phir usne ek asli, public address ke saath ek server ko ping kiya, bina NAT ke.",
+        "facts": [
+          ["RS / RA", "133 / 134"],
+          ["NS / NA", "135 / 136"],
+          ["Multicast MACs", "33:33:xx:xx:xx:xx"],
+          ["Header", "40 bytes"]
+        ]
+      }
+    },
+    "dad-fail": {
+      "name": "Duplicate address pakda gaya",
+      "summary": "Kisi ne ek static address type kar diya jo NAS pehle se use karta hai. DAD kuch bigadne se pehle ise pakad leta hai.",
+      "steps": [
+        {
+          "title": "Haath se type kiya address",
+          "desc": "Laptop 2001:db8:1::10 try karta hai",
+          "detail": "Koi laptop ka address haath se 2001:db8:1::10 set karta hai. Static addresses bhi DAD se guzarte hain. Laptop :: se ff02::1:ff00:10 ko Neighbor Solicitation bhejta hai, jo 00:00:10 par khatam hone wale addresses ka group hai.",
+          "facts": [
+            ["Tentative", "2001:db8:1::10"],
+            ["Group", "ff02::1:ff00:10 → 33:33:ff:00:00:10"],
+            ["Sun raha hai", "NAS, jo ::10 ka maalik hai"]
+          ]
+        },
+        {
+          "title": "NAS aitraaz karta hai",
+          "desc": "All nodes ko Neighbor Advertisement",
+          "detail": "NAS pehle se 2001:db8:1::10 use kar raha hai, isliye woh Neighbor Advertisement se jawab deta hai. Poochne wale ke paas abhi address nahi, isliye NAS use seedha reply nahi kar sakta. Woh ff02::1, all nodes, ko bhejta hai, aur laptop sun leta hai.",
+          "facts": [
+            ["ICMPv6 type", "136 (Neighbor Advertisement)"],
+            ["To", "ff02::1 (asker ke paas address nahi tha)"],
+            ["Flags", "Sirf O (not solicited)"]
+          ],
+          "quiz": {
+            "q": "NAS apna jawab laptop ki jagah ff02::1 ko kyun bhejta hai?",
+            "options": [
+              "Use laptop ka MAC nahi pata",
+              "Sawaal :: se aaya tha, isliye reply karne ke liye koi address nahi hai",
+              "Saare NAs ff02::1 ko jate hain",
+              "Router ko warn karne ke liye"
+            ],
+            "why": "DAD probe unspecified address :: se aaya tha. Poochne wale tak pahunchne ka ek hi tareeka hai: all-nodes group."
+          }
+        },
+        {
+          "title": "Address refuse hua",
+          "desc": "Duplicate mark hua, kabhi use nahi hua",
+          "detail": "Laptop 2001:db8:1::10 ko duplicate mark karta hai aur uss se kabhi nahi bhejta, isliye NAS chalta rehta hai. Linux log karta hai “IPv6 duplicate address 2001:db8:1::10 used by 00:11:32:c4:5e:07 detected!”. Fix hai doosra static address chunna ya SLAAC ko chunne dena.",
+          "facts": [
+            ["State", "dadfailed"],
+            ["NAS affected?", "Nahi"],
+            ["Fix", "Alag address, ya SLAAC"]
+          ],
+          "quiz": {
+            "q": "IPv4 mein agar do hosts ka same address ho aur koi check na chale to kya hoga?",
+            "options": [
+              "Kuch nahi, theek chalta hai",
+              "Dono ARP par ladte aur traffic galat wale ke paas jata",
+              "Router ek ko renumber kar deta",
+              "Switch ek ko block kar deta"
+            ],
+            "why": "Check ke bina dono hosts ARP ka jawab dete hain aur doosre devices unke beech badalte rehte hain. DAD address use hone se pehle hi yeh rok deta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Nuksan se pehle pakda gaya",
+        "text": "Duplicate Address Detection har naye IPv6 address ko, haath se type kiye hue ko bhi, use hone se pehle check karta hai. :: se ek NS aur wapas ek NA kaafi the taaki laptop NAS ka address na chura sake.",
+        "facts": [
+          ["Probe", "NS from ::"],
+          ["Objection", "NA to ff02::1"],
+          ["Wait", "Default 1 s"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "ICMPv6 Neighbor Discovery",
+      "items": [
+        ["133", "Router Solicitation"],
+        ["134", "Router Advertisement"],
+        ["135", "Neighbor Solicitation"],
+        ["136", "Neighbor Advertisement"],
+        ["137", "Redirect"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale addresses",
+      "items": [
+        ["fe80::/10", "Link-local, har interface ke paas hota hai"],
+        ["ff02::1", "All nodes"],
+        ["ff02::2", "All routers"],
+        ["ff02::1:ffXX:XXXX", "Solicited-node group"],
+        ["::", "Unspecified (abhi address nahi)"],
+        ["2001:db8::/32", "Documentation"]
+      ]
+    },
+    {
+      "title": "Numbers",
+      "items": [
+        ["Header", "40 bytes fixed"],
+        ["SLAAC ke liye prefix", "/64"],
+        ["Multicast MAC", "33:33 + last 32 bits"],
+        ["ND hop limit", "Hamesha 255"]
+      ]
+    }
+  ]
+}

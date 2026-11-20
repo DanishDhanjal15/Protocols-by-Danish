@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { compactLesson } from "@/lib/catalog";
-import { getLesson } from "@/lessons";
+import { getHinglish, getLesson, getTryIt } from "@/lessons";
 import { Player } from "@/components/player/Player";
 
 export const metadata: Metadata = {
@@ -12,5 +12,5 @@ export const metadata: Metadata = {
 export default async function Home() {
   const lesson = await getLesson("ip");
   if (!lesson) return null;
-  return <Player lesson={compactLesson(lesson)} />;
+  return <Player lesson={compactLesson(lesson)} hinglish={await getHinglish("ip")} tryit={await getTryIt("ip")} />;
 }

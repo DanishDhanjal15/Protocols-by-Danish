@@ -1,0 +1,232 @@
+{
+  "tagline": "Mail jo server par rehta hai aur har device par sync hota hai.",
+  "description": "IMAP mail apps ko un mailboxes ke saath kaam karne deta hai jo server par rehte hain, isliye aapka phone aur laptop same folders, flags aur messages dekhte hain. Commands tagged hote hain taaki replies match kiye ja sakein, aur IDLE server ko naya mail aate hi push karne deta hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP 143 (STARTTLS), 993 (IMAPS)"],
+    ["Defined in", "RFC 9051 (IMAP4rev2), RFC 3501"],
+    ["Style", "Tagged commands, untagged data"],
+    ["Push", "IDLE (RFC 2177)"],
+    ["Model", "Mail server par rehta hai"]
+  ],
+  "legend": [
+    "Handshake aur success",
+    "TLS aur encrypted IMAP",
+    "Server replies (clear mein)",
+    "Login refused",
+    "Logging out"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Inbox sync karo aur push pao",
+      "summary": "STARTTLS, LOGIN, SELECT, FETCH headers, phir IDLE jab tak naya mail push na ho.",
+      "steps": [
+        {
+          "title": "Port 143 se connect karo",
+          "desc": "Server apni capabilities ke saath greet karta hai",
+          "detail": "Danish ki mail app port 143 se connect hoti hai. Server ki greeting * se shuru hoti hai, jo untagged response ka nishaan hai: wo information jo client ne seedha nahi maangi. Isme capabilities list hain, jaise IDLE aur STARTTLS, aur LOGINDISABLED, jiska matlab hai TLS chalne tak passwords refuse honge.",
+          "facts": [
+            ["Server", "203.0.113.25 port 143"],
+            ["*", "Untagged: server information"],
+            ["LOGINDISABLED", "STARTTLS se pehle login nahi"]
+          ]
+        },
+        {
+          "title": "STARTTLS",
+          "desc": "Tagged command, tagged reply, phir TLS",
+          "detail": "Har IMAP command ek tag se shuru hota hai jo client khud banata hai, jaise a0. Server ka final jawab wahi tag repeat karta hai, taaki client replies match kar sake chahe kai commands ek saath chal rahe hon. a0 OK ke baad usi TCP connection par TLS 1.3 handshake chalta hai. Iske baad sab kuch encrypted hai.",
+          "facts": [
+            ["Command", "a0 STARTTLS"],
+            ["Reply", "a0 OK Begin TLS negotiation now."],
+            ["After", "Same connection par TLS 1.3"]
+          ],
+          "quiz": {
+            "q": "Har IMAP command ke saath a0 ya a1 jaisa tag kyun hota hai?",
+            "options": [
+              "Command ko encrypt karne ke liye",
+              "Taaki replies commands se match ho sakein, chahe kai ek saath chal rahe hon",
+              "Messages gine jaane ke liye",
+              "Kyunki TCP ko chahiye"
+            ],
+            "why": "Final reply tag repeat karta hai. Untagged * lines kabhi bhi aa sakti hain, isliye tags sab kuch match rakhte hain."
+          }
+        },
+        {
+          "title": "a1 LOGIN",
+          "desc": "Username aur password, TLS ke andar",
+          "detail": "Decrypt hone par client bhejta hai: a1 LOGIN danish \"correct-horse-42\". Server \"a1 OK [CAPABILITY …] Logged in\" se jawab deta hai aur ab jab Danish pehchana ja chuka hai to aur capabilities list karta hai, jaise MOVE aur CONDSTORE. Wire par eavesdropper ko sirf do TLS records dikhte hain, lagbhag 53 aur 121 bytes ke.",
+          "facts": [
+            ["Decrypted", "a1 LOGIN danish \"correct-horse-42\""],
+            ["Reply", "a1 OK … Logged in"],
+            ["On the wire", "Sirf TLS Application Data"]
+          ]
+        },
+        {
+          "title": "a2 SELECT INBOX",
+          "desc": "Mailbox kholo aur uski state pao",
+          "detail": "SELECT ek folder kholta hai. Decrypt hone par server pehle kai untagged lines bhejta hai: allowed flags, * 4 EXISTS (chaar messages), pehla unseen message, aur UIDVALIDITY aur UIDNEXT, jo app ko messages ko unke permanent UID se cache karne dete hain. Tagged a2 OK [READ-WRITE] reply band karta hai.",
+          "facts": [
+            ["Decrypted", "a2 SELECT INBOX"],
+            ["* 4 EXISTS", "INBOX mein 4 messages"],
+            ["UIDNEXT", "105: agle message ko UID 105 milega"]
+          ],
+          "quiz": {
+            "q": "Server untagged lines bhejta hai aur phir \"a2 OK\". App ko kaise pata chalta hai ki SELECT reply poora ho gaya?",
+            "options": [
+              "Connection close ho jata hai",
+              "Tagged line a2 OK aati hai",
+              "Theek 8 lines ke baad",
+              "Ek single dot wali line se"
+            ],
+            "why": "Command ke tag wala tagged response hamesha us command ko khatam karta hai. Usse pehle sab untagged data tha."
+          }
+        },
+        {
+          "title": "a3 FETCH headers",
+          "desc": "List ke liye sirf From, Subject aur Date",
+          "detail": "Message list banane ke liye app poore mails download nahi karti. Decrypted: \"a3 FETCH 1:4 (UID FLAGS BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])\". Har answer header text ko literal ki tarah deta hai: {n} batata hai ki theek n bytes aage aa rahe hain. PEEK ka matlab \"read mark mat karo\". Bodies server par rehti hain jab tak Danish message nahi kholta.",
+          "facts": [
+            ["Range", "1:4 (chaaron)"],
+            ["Literal", "{n} = n bytes header text aage aayega"],
+            ["BODY.PEEK", "\\Seen set kiye bina fetch"]
+          ],
+          "quiz": {
+            "q": "Yahan BODY[…] ki jagah BODY.PEEK[…] kyun use karte hain?",
+            "options": [
+              "PEEK zyaada fast hai",
+              "BODY[…] messages ko read mark kar deta",
+              "PEEK encrypted hai",
+              "BODY[…] sirf POP3 par chalta hai"
+            ],
+            "why": "BODY[…] fetch karne se \\Seen flag set ho jata hai. List dikhane se mail read mark nahi hona chahiye, isliye PEEK use hota hai."
+          }
+        },
+        {
+          "title": "a4 IDLE",
+          "desc": "Line khuli rakho, khabar ka wait karo",
+          "detail": "Har kuch minute naya mail poochne ki jagah app a4 IDLE bhejti hai. Server continuation line \"+ idling\" se jawab deta hai, aur phir connection bas shaant rehta hai. App IDLE kam se kam har 29 minutes mein dobara bhejti hai taaki routers connection bhool na jayein.",
+          "facts": [
+            ["Command", "a4 IDLE"],
+            ["Reply", "+ idling (continuation)"],
+            ["Refresh", "Har < 29 minutes"]
+          ]
+        },
+        {
+          "title": "Naya mail push hota hai",
+          "desc": "* 5 EXISTS, phir DONE aur ek FETCH",
+          "detail": "Barah second baad Priya ka naya mail aata hai. Server turant untagged line * 5 EXISTS push karta hai. App DONE (bina tag) se IDLE khatam karti hai, server a4 OK se use close karta hai, aur app sirf message 5 ke headers fetch karti hai. Danish ko lagbhag turant notification dikhta hai.",
+          "facts": [
+            ["Push", "* 5 EXISTS"],
+            ["End idle", "DONE → a4 OK Idle completed."],
+            ["Then", "a5 FETCH 5 (headers)"]
+          ],
+          "quiz": {
+            "q": "App 4 messages ke saath idle hai. Untagged line \"* 5 EXISTS\" use kya batati hai?",
+            "options": [
+              "Message 5 delete ho gaya",
+              "Mailbox mein ab 5 messages hain: ek naya aaya",
+              "5 messages unread hain",
+              "Server 5-second ka break chahta hai"
+            ],
+            "why": "EXISTS naya message count deta hai. 4 se 5 hone ka matlab ek message add hua."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Inbox sync mein",
+        "text": "App ne TLS par upgrade kiya, login kiya, INBOX kholi, sirf zaroori headers fetch kiye, phir IDLE ke saath wait kiya. Mail aate hi server ne * 5 EXISTS push kiya aur app ne milliseconds mein naye headers fetch kar liye.",
+        "facts": [
+          ["Tags used", "a0 se a5"],
+          ["Messages", "4, phir 5"],
+          ["Push delay", "Instant (IDLE)"],
+          ["Bodies downloaded", "Abhi koi nahi"]
+        ]
+      }
+    },
+    "auth-failed": {
+      "name": "Purana password: NO [AUTHENTICATIONFAILED]",
+      "summary": "Phone ka saved password out of date hai aur server login refuse karta hai.",
+      "steps": [
+        {
+          "title": "Connect aur STARTTLS",
+          "desc": "Hamesha jaisa shuruaat",
+          "detail": "Danish ke phone mein abhi bhi uska purana password hai. Wo port 143 se connect hota hai, STARTTLS se upgrade karta hai aur login ke liye ready hai. Abhi kuch galat nahi lagta.",
+          "facts": [
+            ["Port", "143 + STARTTLS"],
+            ["TLS", "1.3"],
+            ["Saved password", "Out of date"]
+          ]
+        },
+        {
+          "title": "a1 NO [AUTHENTICATIONFAILED]",
+          "desc": "Tagged reply NO kehta hai",
+          "detail": "Decrypt hone par app a1 LOGIN danish \"old-password-1\" bhejti hai aur \"a1 NO [AUTHENTICATIONFAILED] Authentication failed.\" pati hai. IMAP ke teen result words hain: OK (chal gaya), NO (refuse hua, command theek tha) aur BAD (command khud hi toota hua tha). Square brackets ka code software ko theek-theek batata hai ki kyun, isliye app vague error dikhane ki jagah naya password maang sakti hai.",
+          "facts": [
+            ["Reply", "a1 NO [AUTHENTICATIONFAILED] Authentication failed."],
+            ["NO vs BAD", "Refused vs malformed command"],
+            ["Delay", "Server guessing slow karne ke liye ~2 s rukta hai"]
+          ],
+          "quiz": {
+            "q": "Agar app \"a1 LOGN danish x\" (command mein typo) bhejti to server kya reply deta?",
+            "options": [
+              "a1 NO [AUTHENTICATIONFAILED]",
+              "a1 BAD Error in IMAP command",
+              "* BYE",
+              "a1 OK"
+            ],
+            "why": "BAD un commands ke liye hai jo server samajh nahi sakta. NO ka matlab usne samjha par refuse kiya."
+          }
+        },
+        {
+          "title": "Tameez se log out karo",
+          "desc": "a2 LOGOUT, * BYE, a2 OK",
+          "detail": "App log out karti hai aur Danish se password maangti hai. LOGOUT par untagged * BYE aata hai (server band hone wala hai) aur phir tagged a2 OK. Kai servers baar-baar NO replies ke baad account kuch der ke liye lock kar dete hain.",
+          "facts": [
+            ["Command", "a2 LOGOUT"],
+            ["Replies", "* BYE, phir a2 OK"],
+            ["Next", "Naye password ka prompt"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Login refuse ho gaya",
+        "text": "LOGIN command samjha gaya par refuse hua, isliye server ne AUTHENTICATIONFAILED code ke saath NO kaha. App ne saaf tareeke se log out kiya aur Danish se uska naya password manga.",
+        "facts": [
+          ["Reply", "a1 NO [AUTHENTICATIONFAILED]"],
+          ["Result words", "OK, NO, BAD"],
+          ["Fix", "Saved password update karo"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Commands",
+      "items": [
+        ["LOGIN / AUTHENTICATE", "Login"],
+        ["SELECT / EXAMINE", "Folder kholo (read-write / read-only)"],
+        ["FETCH", "Flags, headers, bodies lo"],
+        ["STORE", "Flags badlo (\\Seen, \\Flagged…)"],
+        ["SEARCH", "Server par messages dhoondo"],
+        ["IDLE / DONE", "Push ka wait / wait band karo"],
+        ["LOGOUT", "Session close karo"]
+      ]
+    },
+    {
+      "title": "Responses",
+      "items": [
+        ["a1 OK / NO / BAD", "Tagged: success / refused / malformed"],
+        ["*", "Untagged data (EXISTS, FETCH, FLAGS…)"],
+        ["+", "Continuation: aage badho"],
+        ["{n}", "Theek n bytes ka literal aage aayega"]
+      ]
+    },
+    {
+      "title": "Ports",
+      "items": [
+        ["143", "IMAP, STARTTLS se upgrade"],
+        ["993", "IMAPS: pehle byte se TLS"]
+      ]
+    }
+  ]
+}

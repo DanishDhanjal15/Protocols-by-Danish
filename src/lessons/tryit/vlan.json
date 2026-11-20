@@ -1,0 +1,31 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find tagged frames in the capture", "hinglish": "Capture mein tagged frames dhoondo" },
+      "why": { "en": "Open the .pcap in Wireshark and show only frames that carry an 802.1Q tag.", "hinglish": ".pcap Wireshark mein kholo aur sirf woh frames dikhao jinme 802.1Q tag hai." },
+      "wireshark": "vlan",
+      "expect": { "en": "Frames on the trunk show an 802.1Q Virtual LAN layer with the ID (10 or 20) and priority. Frames on access ports have no such layer.", "hinglish": "Trunk ke frames mein ID (10 ya 20) aur priority ke saath 802.1Q Virtual LAN layer dikhti hai. Access ports ke frames mein aisi layer nahi hoti." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Filter one VLAN", "hinglish": "Ek VLAN filter karo" },
+      "why": { "en": "Show only traffic tagged VLAN 20 to follow the guest network.", "hinglish": "Guest network follow karne ke liye sirf VLAN 20 tag wala traffic dikhao." },
+      "wireshark": "vlan.id == 20",
+      "expect": { "en": "Only the guest-side frames on the trunk, such as the ARP broadcast and the routed packet leaving the router.", "hinglish": "Trunk par sirf guest-side frames, jaise ARP broadcast aur router se nikalta routed packet." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Spot the ICMP prohibited message", "hinglish": "ICMP prohibited message pehchano" },
+      "why": { "en": "In the ACL scenario the router answers with ICMP type 3, code 13.", "hinglish": "ACL scenario mein router ICMP type 3, code 13 se jawab deta hai." },
+      "wireshark": "icmp.type == 3 && icmp.code == 13",
+      "expect": { "en": "One Destination Unreachable (Communication administratively prohibited) packet from 192.168.20.1.", "hinglish": "192.168.20.1 se ek Destination Unreachable (Communication administratively prohibited) packet." }
+    },
+    {
+      "title": { "en": "See which VLAN your own adapters use", "hinglish": "Dekho tumhare adapters kaunsa VLAN use karte hain" },
+      "why": { "en": "Home PCs normally sit untagged on one network; this lists adapters and any VLAN setting (read-only).", "hinglish": "Home PCs aam taur par ek network par untagged hote hain; yeh adapters aur koi bhi VLAN setting list karta hai (read-only)." },
+      "windows": "Get-NetAdapter | Select-Object Name, Status, VlanID",
+      "unix": "ip -d link show | grep -E 'vlan|^[0-9]+:'",
+      "expect": { "en": "Usually VlanID is blank or 0 (no tag) and Linux shows no vlan lines. Output varies by machine.", "hinglish": "Aam taur par VlanID khali ya 0 hota hai (tag nahi) aur Linux mein koi vlan line nahi dikhti. Output machine ke hisaab se alag hota hai." }
+    }
+  ]
+}

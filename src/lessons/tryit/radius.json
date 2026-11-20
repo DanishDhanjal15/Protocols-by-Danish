@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "title": { "en": "See your Wi-Fi security type", "hinglish": "Apne Wi-Fi ka security type dekho" },
+      "why": { "en": "Shows whether the network you are on uses WPA2/WPA3-Enterprise (802.1X) or a shared password.", "hinglish": "Dikhata hai ki aap jis network par ho woh WPA2/WPA3-Enterprise (802.1X) use karta hai ya shared password." },
+      "windows": "netsh wlan show interfaces",
+      "unix": "nmcli -f IN-USE,SSID,SECURITY dev wifi",
+      "expect": { "en": "Look at the Authentication line (Windows) or SECURITY column (Linux). 'WPA2-Enterprise' or '802.1X' means RADIUS is behind it; 'WPA2-Personal' or 'WPA2' alone means a shared key. Output varies by network. On macOS use the Wi-Fi menu with Option held.", "hinglish": "Authentication line (Windows) ya SECURITY column (Linux) dekho. 'WPA2-Enterprise' ya '802.1X' ka matlab peeche RADIUS hai; 'WPA2-Personal' ya akela 'WPA2' ka matlab shared key. Output network ke hisaab se alag hota hai. macOS par Option dabakar Wi-Fi menu use karo." }
+    },
+    {
+      "title": { "en": "Filter RADIUS packets", "hinglish": "RADIUS packets filter karo" },
+      "why": { "en": "Open the downloaded .pcap and see the Access-Request, Challenge and Accept.", "hinglish": "Download kiya .pcap kholo aur Access-Request, Challenge aur Accept dekho." },
+      "wireshark": "radius",
+      "expect": { "en": "You see Access-Request (1), several Access-Challenge (11) packets, and finally Access-Accept (2) or Access-Reject (3), all on UDP 1812.", "hinglish": "Access-Request (1), kai Access-Challenge (11) packets, aur aakhir mein Access-Accept (2) ya Access-Reject (3) dikhte hain, sab UDP 1812 par." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Look at the EAP exchange", "hinglish": "EAP exchange dekho" },
+      "why": { "en": "Shows the identity, PEAP start and TLS fragments carried inside EAP.", "hinglish": "Identity, PEAP start aur EAP ke andar carry hone wale TLS fragments dikhata hai." },
+      "wireshark": "eap || eapol",
+      "expect": { "en": "EAPOL-Start, EAP Request/Identity, EAP type 25 (PEAP) rounds, then EAP Success or Failure, followed by the 4 EAPOL-Key frames on success.", "hinglish": "EAPOL-Start, EAP Request/Identity, EAP type 25 (PEAP) rounds, phir EAP Success ya Failure, aur success par uske baad 4 EAPOL-Key frames." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find the VLAN attribute", "hinglish": "VLAN attribute dhoondo" },
+      "why": { "en": "The Access-Accept carries Tunnel-Private-Group-ID, the VLAN for this user.", "hinglish": "Access-Accept mein Tunnel-Private-Group-ID hota hai, yaani is user ka VLAN." },
+      "wireshark": "radius.code == 2",
+      "expect": { "en": "Open the Access-Accept and expand its attributes: you should see Tunnel-Private-Group-Id 20 and the MS-MPPE key attributes.", "hinglish": "Access-Accept kholo aur uske attributes expand karo: Tunnel-Private-Group-Id 20 aur MS-MPPE key attributes dikhne chahiye." },
+      "step": 5
+    }
+  ]
+}

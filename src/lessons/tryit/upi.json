@@ -1,0 +1,26 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Peek at the HTTPS layer UPI relies on", "hinglish": "Us HTTPS layer ko dekho jis par UPI tika hai" },
+      "why": { "en": "UPI never sends data in the clear: every hop is HTTPS. This reads only the public response headers of a public website, which is the same TLS layer.", "hinglish": "UPI kabhi data clear mein nahi bhejta: har hop HTTPS hai. Yeh ek public website ke sirf public response headers padhta hai, jo wahi TLS layer hai." },
+      "windows": "curl.exe -sI https://www.npci.org.in",
+      "unix": "curl -sI https://www.npci.org.in",
+      "expect": { "en": "Prints HTTP response headers such as 'HTTP/2 200' (or a redirect 301/302) and Server or Content-Type lines. The https:// scheme means the TLS handshake succeeded first. Headers vary and the site may change them. This is a normal website, not UPI payment traffic.", "hinglish": "'HTTP/2 200' (ya redirect 301/302) jaise HTTP response headers aur Server ya Content-Type lines print hoti hain. https:// scheme ka matlab hai pehle TLS handshake succeed hua. Headers alag ho sakte hain aur site unhe badal sakti hai. Yeh normal website hai, UPI payment traffic nahi." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Look up the DNS name of a hub", "hinglish": "Hub ka DNS name look up karo" },
+      "why": { "en": "Every hop starts with a DNS lookup of the other side's name. Read-only.", "hinglish": "Har hop doosri taraf ke naam ke DNS lookup se shuru hota hai. Read-only." },
+      "windows": "nslookup www.npci.org.in 8.8.8.8",
+      "unix": "dig +short www.npci.org.in @8.8.8.8",
+      "expect": { "en": "One or more IP addresses (or a CNAME chain first). The actual addresses vary by time and location.", "hinglish": "Ek ya zyada IP addresses (ya pehle CNAME chain). Asli addresses time aur location ke hisaab se alag hote hain." }
+    },
+    {
+      "title": { "en": "See the encrypted hops in the capture", "hinglish": "Capture mein encrypted hops dekho" },
+      "why": { "en": "Open the downloaded .pcap (a simplified teaching model) and look at the TLS handshakes and sizes.", "hinglish": "Download kiya .pcap (ek simplified teaching model) kholo aur TLS handshakes aur sizes dekho." },
+      "wireshark": "tls.handshake.type == 1",
+      "expect": { "en": "You see one Client Hello per hop (phone to PSP, PSP to switch, and so on). After that only encrypted Application Data is visible, which is why the PIN and amounts are hidden.", "hinglish": "Har hop ke liye ek Client Hello dikhta hai (phone se PSP, PSP se switch, waghera). Uske baad sirf encrypted Application Data dikhta hai, isiliye PIN aur amounts chhupe rehte hain." },
+      "step": 1
+    }
+  ]
+}

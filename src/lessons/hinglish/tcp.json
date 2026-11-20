@@ -1,0 +1,249 @@
+{
+  "tagline": "Unreliable internet par reliable, ordered delivery.",
+  "description": "TCP internet ki best-effort packet delivery ko ek reliable, ordered byte stream mein badal deta hai. Woh har byte ko number deta hai, jo aaya uska acknowledge karta hai, jo kho gaya use dobara bhejta hai, aur sender ki speed control karta hai taaki na receiver par aur na network par zyada load pade.",
+  "facts": [
+    ["Layer", "Transport (Layer 4)"],
+    ["Connection", "Three-way handshake"],
+    ["Reliability", "Sequence numbers + ACKs"],
+    ["Recovery", "Retransmission, SACK"],
+    ["Header", "20–60 bytes"],
+    ["Defined in", "RFC 9293"]
+  ],
+  "legend": [
+    "Handshake aur ACKs",
+    "Laptop se data",
+    "Server se data",
+    "Closing (FIN)",
+    "Reset ya attack"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Ek packet kho jane ke saath page download",
+      "summary": "curl ek page laata hai; ek segment raste mein kho jata hai aur TCP chupchap use theek kar deta hai.",
+      "steps": [
+        {
+          "title": "Connection kholo",
+          "desc": "Three-way handshake: SYN, SYN-ACK, ACK",
+          "detail": "Data bhejne se pehle dono sides apna starting sequence number chunte hain aur ek doosre ka confirm karte hain. Laptop SYN bhejta hai, server SYN-ACK se jawab deta hai, laptop ACK se confirm karta hai. Yahan dikhaye numbers relative hain; asli numbers random value se shuru hote hain taaki attackers unhe guess na kar sakein.",
+          "facts": [
+            ["Server", "203.0.113.10, port 80"],
+            ["Laptop port", "51234 (temporary)"],
+            ["Time lagta hai", "1 round trip (34 ms)"]
+          ],
+          "quiz": {
+            "q": "Laptop ke SYN ke jawab mein server kya bhejta hai?",
+            "options": [
+              "ACK",
+              "SYN-ACK",
+              "FIN",
+              "Seedha data"
+            ],
+            "why": "Server laptop ke SYN ko acknowledge karta hai aur usi segment mein apna SYN bhi bhejta hai: SYN-ACK."
+          }
+        },
+        {
+          "title": "Request bhejo",
+          "desc": "Har byte ko number milta hai",
+          "detail": "curl apni 74-byte HTTP request bytes 1 se 74 ke roop mein bhejta hai. Server ka ACK number, 75, woh agla byte hai jiska woh intezaar kar raha hai, jo laptop ko batata hai ki uske pehle ka sab kuch pahunch gaya.",
+          "facts": [
+            ["Sent", "74 bytes (seq 1–74)"],
+            ["ACK", "75 = next byte expected"],
+            ["Flags", "PSH, ACK"]
+          ],
+          "quiz": {
+            "q": "Laptop bytes 1–74 bhejta hai. Server kaunsa ACK number wapas bhejega?",
+            "options": [
+              "74",
+              "75",
+              "1",
+              "0"
+            ],
+            "why": "TCP us agle byte ko acknowledge karta hai jiska use intezaar hai, yaani last received byte se ek aage."
+          }
+        },
+        {
+          "title": "Do segments wapas, ek kho gaya",
+          "desc": "Internet par packets gayab ho sakte hain",
+          "detail": "Server do full segments se jawab deta hai, har ek 1460 bytes ka, peeche-peeche bheje hue. Pehla internet par kahin ek busy router ne drop kar diya; doosra pahunch gaya.",
+          "facts": [
+            ["Segment 1", "bytes 1–1460 (lost)"],
+            ["Segment 2", "bytes 1461–2920"],
+            ["Segment size", "1460 bytes (MSS)"]
+          ]
+        },
+        {
+          "title": "Gap ka pata chala",
+          "desc": "SACK block ke saath duplicate ACK",
+          "detail": "Bytes 1461–2920 pahunch gaye lekin 1–1460 nahi. Normal ACK sirf order mein aaye bytes gin sakta hai, isliye laptop turant ACK 1 phir bhejta hai aur ek SACK block jodta hai jo kehta hai “mere paas 1461–2920 pehle se hai”.",
+          "facts": [
+            ["ACK", "1 (still waiting for byte 1)"],
+            ["SACK", "holds 1461–2920"],
+            ["Sent", "Turant, delay nahi"]
+          ],
+          "quiz": {
+            "q": "Server kaunse bytes dobara bhejega?",
+            "options": [
+              "Byte 1 se sab kuch",
+              "Sirf bytes 1–1460",
+              "Sirf bytes 1461–2920",
+              "Kuch nahi; laptop baad mein phir poochta hai"
+            ],
+            "why": "SACK server ko exactly batata hai ki kaunse bytes pahunch chuke hain, isliye sirf gap dobara bheja jata hai."
+          }
+        },
+        {
+          "title": "Sirf gap dobara bhejo",
+          "desc": "Fast retransmission",
+          "detail": "SACK ki wajah se server sirf segment 1 dobara bhejta hai, aur laptop sab kuch ek saath acknowledge kar deta hai. Agar koi ACK wapas aata hi nahi, to retransmission timer (Linux par kam se kam 200 ms) fire hota, jo bahut slow hai.",
+          "facts": [
+            ["Resent", "bytes 1–1460 only"],
+            ["Next ACK", "2921 (everything)"],
+            ["curl ne dekha", "Har byte, order mein"]
+          ]
+        },
+        {
+          "title": "Connection band karo",
+          "desc": "Har side alag se alvida kehti hai",
+          "detail": "Har direction apne aap band hoti hai. Laptop FIN bhejta hai aur server use acknowledge karta hai; phir server apna FIN bhejta hai aur laptop use acknowledge karta hai. Uske baad laptop connection ki details kuch der (TIME-WAIT) rakhta hai, kya pata koi late packet aa jaye.",
+          "facts": [
+            ["Order", "FIN → ACK → FIN → ACK"],
+            ["Phir", "Laptop wait karta hai (TIME-WAIT)"],
+            ["Total time", "0.141 s"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Connection band",
+        "text": "TCP ne connection khola, har byte ko number aur acknowledge kiya, gap pakda aur sirf missing segment dobara bheja, phir dono directions band kiye. curl ko har byte order mein mila aur use kabhi pata nahi chala ki ek packet kho gaya tha.",
+        "facts": [
+          ["Segments", "13 (1 lost, 1 resent)"],
+          ["Bytes delivered", "74 up, 2920 down"],
+          ["Loss kaise mila", "Duplicate ACK + SACK"],
+          ["Total time", "0.141 s"]
+        ]
+      }
+    },
+    "closed-port": {
+      "name": "Koi sun nahi raha (RST)",
+      "summary": "Laptop ek aise port par dastak deta hai jiske peeche koi service nahi, aur turant reset milta hai.",
+      "steps": [
+        {
+          "title": "Port 8080 par dastak",
+          "desc": "Closed port par SYN",
+          "detail": "Is baar curl port 8080 try karta hai, jahan server par kuch nahi chal raha. SYN bilkul normal wale jaisa dikhta hai.",
+          "facts": [
+            ["Server", "203.0.113.10, port 8080"],
+            ["Laptop port", "51240"],
+            ["Flags", "SYN"]
+          ]
+        },
+        {
+          "title": "Reset",
+          "desc": "RST, ACK: yahan kuch nahi",
+          "detail": "Server ke operating system ke paas 8080 par koi program listen nahi kar raha, isliye woh turant RST se jawab deta hai. curl “Connection refused” report karta hai. Agar firewall SYN ko chupchap drop kar deta, to curl wait karta aur retry karta jab tak timeout na ho jaye, isi se dono mein fark pata chalta hai.",
+          "facts": [
+            ["Flags", "RST, ACK"],
+            ["curl kehta hai", "Connection refused"],
+            ["Laga", "17 ms"]
+          ],
+          "quiz": {
+            "q": "Agar firewall SYN ko chupchap drop kar deta, to curl kya dekhta?",
+            "options": [
+              "Turant Connection refused",
+              "Kai retries ke baad timeout",
+              "HTTP 404",
+              "TLS error"
+            ],
+            "why": "Koi jawab na aane par laptop SYN ko badhte gaps ke saath dobara bhejta hai aur aakhir timeout ke saath haar maan leta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Ek round trip mein refused",
+        "text": "Closed port SYN ka jawab turant RST se deta hai. Port scanners isi fark ka use karte hain (RST = closed, SYN-ACK = open, khamoshi = filtered) server ka map banane ke liye.",
+        "facts": [
+          ["Packets", "2"],
+          ["Result", "Connection refused"],
+          ["Closed vs filtered", "RST vs khamoshi"]
+        ]
+      }
+    },
+    "syn-flood": {
+      "name": "SYN flood attack aur SYN cookies",
+      "summary": "Attacker fake addresses se hazaron SYNs bhejta hai; SYN cookies server ko zinda rakhte hain.",
+      "steps": [
+        {
+          "title": "Flood shuru hota hai",
+          "desc": "Aise addresses se SYNs jo exist hi nahi karte",
+          "detail": "Attacker forged source addresses ke saath SYN par SYN bhejta hai. Har ek server se ek half-open connection yaad rakhne ko kehta hai jab tak final ACK ka intezaar ho, jo kabhi nahi aata kyunki forged senders ne kabhi kuch maanga hi nahi tha.",
+          "facts": [
+            ["Rate", "Hazaron per second"],
+            ["Source IPs", "Forged (random)"],
+            ["Goal", "Half-open queue bhar do"]
+          ]
+        },
+        {
+          "title": "SYN cookies on",
+          "desc": "Kuch yaad mat rakho, sequence number mein encode kar do",
+          "detail": "Queue bhar jane par server half-open connections store karna band kar deta hai. Uski jagah woh apna starting sequence number connection ke addresses, ports aur time ke secret hash se banata hai: ek SYN cookie. Woh SYN-ACK bhejta hai aur use bhool jata hai.",
+          "facts": [
+            ["Har SYN ke liye stored", "Kuch nahi"],
+            ["Cookie", "Sequence number mein hash"],
+            ["Defined in", "RFC 4987"]
+          ]
+        },
+        {
+          "title": "Asli users ab bhi andar aate hain",
+          "desc": "Cookie ACK mein wapas aati hai",
+          "detail": "Ek asli visitor handshake poora karta hai. Uska ACK number cookie plus one hota hai, isliye server hash dobara nikaal kar check kar sakta hai, aur sirf usi se connection wapas bana leta hai. Flood server ko lagbhag kuch nahi kharch karata.",
+          "facts": [
+            ["Check", "ACK − 1 = valid cookie?"],
+            ["Result", "Asli users connect hote hain"],
+            ["Attacker ko milta hai", "Kuch nahi"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Server bach gaya",
+        "text": "SYN flood half-open connections ki memory khatam karne ki koshish karta hai. SYN cookies woh state sequence number mein daal dete hain, isliye server kuch store nahi karta jab tak asli ACK prove na kar de ki sender genuine hai.",
+        "facts": [
+          ["Attack", "SYN flood (DoS)"],
+          ["Defence", "SYN cookies, rate limits, upstream scrubbing"],
+          ["Har fake SYN ke liye stored", "0 bytes"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Flags",
+      "items": [
+        ["SYN", "Start, sequence numbers sync karo"],
+        ["ACK", "Acknowledgment field valid hai"],
+        ["PSH", "Data abhi app ko do"],
+        ["FIN", "Mere taraf se aur data nahi"],
+        ["RST", "Connection abort karo"],
+        ["URG", "Urgent pointer valid (rare)"]
+      ]
+    },
+    {
+      "title": "States",
+      "items": [
+        ["LISTEN", "Server intezaar kar raha hai"],
+        ["SYN-SENT / SYN-RCVD", "Handshake chal raha hai"],
+        ["ESTABLISHED", "Data beh raha hai"],
+        ["FIN-WAIT / CLOSE-WAIT", "Ek side band ho rahi hai"],
+        ["TIME-WAIT", "Close ke baad 2×MSL wait"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["Header", "20 bytes min, 60 max"],
+        ["Typical MSS", "Ethernet par 1460 bytes"],
+        ["Min RTO (Linux)", "200 ms"],
+        ["Port range", "0–65535; ephemeral 32768–60999 (Linux)"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,219 @@
+{
+  "tagline": "Kai devices, ek public address: tumhara home router ise kaise share karta hai.",
+  "description": "Ghar ke devices 192.168.1.10 jaise private addresses use karte hain jinka internet par koi matlab nahi. Home router har outgoing packet ko apne ek public address aur apne chune hue port ke saath rewrite karta hai, is badlav ko table mein likh leta hai, aur replies ke liye ulta kar deta hai. Jo packets kisi ne maange hi nahi, unki table entry nahi hoti, isliye woh drop ho jate hain.",
+  "facts": [
+    ["Layer", "Network + transport (IP aur ports rewrite karta hai)"],
+    ["Where", "Home router, firewall, carrier (CGNAT)"],
+    ["Private ranges", "10/8, 172.16/12, 192.168/16"],
+    ["Key idea", "Translation table"],
+    ["Inbound by default", "Dropped"],
+    ["Defined in", "RFC 3022, RFC 4787"]
+  ],
+  "legend": [
+    "Inside, translation se pehle",
+    "Outside, translation ke baad",
+    "Replies",
+    "Dropped"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Do devices ek address share karte hain",
+      "summary": "Laptop aur phone dono ek hi public IP se same server tak pahunchte hain; router unhe port se alag rakhta hai.",
+      "steps": [
+        {
+          "title": "Laptop se nikalte hue",
+          "desc": "Private source: 192.168.1.10:51234",
+          "detail": "Laptop web server se connection kholta hai. Laptop se nikalte waqt packet mein laptop ka private address aur uska apna temporary port, 51234, hota hai. Agar yeh aise hi internet par jaye, to server kabhi jawab nahi de sakta: 192.168.1.10 laakhon gharon mein exist karta hai.",
+          "facts": [
+            ["Source", "192.168.1.10:51234"],
+            ["Destination", "203.0.113.10:443"],
+            ["Address type", "Private (RFC 1918)"]
+          ]
+        },
+        {
+          "title": "Translate hua",
+          "desc": "198.51.100.7:40001 ban jata hai",
+          "detail": "Router source address ko apne public address se aur source port ko ek free port, 40001, se badal deta hai. Woh apni NAT table mein ek line likhta hai: 192.168.1.10:51234 ↔ 198.51.100.7:40001, to 203.0.113.10:443. Kyunki addresses aur port badal gaye, woh IP aur TCP checksums bhi dobara nikalta hai.",
+          "facts": [
+            ["New source", "198.51.100.7:40001"],
+            ["Table entry", "192.168.1.10:51234 ↔ 198.51.100.7:40001"],
+            ["Aur badla", "TTL, IP + TCP checksums"]
+          ],
+          "quiz": {
+            "q": "Router ne kaunse fields badle?",
+            "options": [
+              "Sirf destination address",
+              "Source address, source port, TTL aur checksums",
+              "Kuch nahi, bas forward kiya",
+              "TCP sequence number"
+            ],
+            "why": "Port address translation source address aur port rewrite karta hai. TTL kisi bhi router ki tarah ek kam hota hai, aur dono checksums theek karne padte hain kyunki woh badle hue fields ko cover karte hain."
+          }
+        },
+        {
+          "title": "Reply, wapas translate hua",
+          "desc": "198.51.100.7:40001 ko, phir laptop ko",
+          "detail": "Server ko hamesha sirf 198.51.100.7:40001 dikhta hai, isliye woh wahin reply karta hai. Router table mein port 40001 dekhta hai, laptop ko dhoondh leta hai, aur andar bhejne se pehle destination ko wapas 192.168.1.10:51234 mein rewrite kar deta hai.",
+          "facts": [
+            ["Arrives for", "198.51.100.7:40001"],
+            ["Table says", "192.168.1.10:51234"],
+            ["Server laptop ko jaanta hai?", "Nahi, sirf public address"]
+          ],
+          "quiz": {
+            "q": "SYN-ACK 198.51.100.7:40001 ke liye aata hai. Router use kahan bhejta hai?",
+            "options": [
+              "Ghar ke har device ko",
+              "192.168.1.10:51234",
+              "192.168.1.23:51234",
+              "Drop kar deta hai"
+            ],
+            "why": "Pichhle step mein bani table entry outside port 40001 ko wapas laptop ke address aur port se map karti hai."
+          }
+        },
+        {
+          "title": "Phone bhi judta hai",
+          "desc": "Same server, same inside port, alag outside port",
+          "detail": "Phone bhi port 51234 hi chun leta hai aur same server se connect karta hai. 40001 dobara use karne se dono connections gadbad ho jate, isliye router 40002 chunta hai. Yahi PAT ka “port” hissa hai: ek public address, port number se alag pehchane gaye.",
+          "facts": [
+            ["Phone", "192.168.1.23:51234"],
+            ["Ban jata hai", "198.51.100.7:40002"],
+            ["Up to", "Lagbhag 64,000 flows per protocol aur server"]
+          ],
+          "quiz": {
+            "q": "Router phone ke liye port 40001 dobara kyun nahi use kar sakta?",
+            "options": [
+              "Ports kabhi reuse nahi ho sakte",
+              "40001 ke replies ambiguous hote: laptop ya phone?",
+              "Phone UDP use karta hai",
+              "Server ise refuse kar deta"
+            ],
+            "why": "Dono connections same server aur port par ja rahe hain. Sirf outside port unke replies ko alag batata hai, isliye har ek ko apna chahiye."
+          }
+        },
+        {
+          "title": "Entries expire hoti hain",
+          "desc": "FIN band karta hai, timer safai karta hai",
+          "detail": "Jab laptop FIN se apna connection band karta hai, router use kisi bhi aur packet ki tarah translate karta hai aur phir entry ki umar kuch seconds kar deta hai. Idle connections ki entries apne aap expire hoti hain: UDP ke liye minutes, khule TCP connection ke liye ghante. Phir port 40001 dobara free ho jata hai.",
+          "facts": [
+            ["After FIN", "Seconds mein hata di jati hai"],
+            ["Idle UDP", "Aam taur par 30–180 s"],
+            ["Idle TCP", "Aksar 2 h ya zyada"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Ek address, kai devices",
+        "text": "Router ne har private address aur port ko apne public address aur ek unique port se badla, badlav yaad rakha, aur replies ke liye ulta kiya. Server ne kabhi private address nahi dekha, aur laptop aur phone ko translation ka pata hi nahi chala.",
+        "facts": [
+          ["Laptop", "192.168.1.10:51234 ↔ 198.51.100.7:40001"],
+          ["Phone", "192.168.1.23:51234 ↔ 198.51.100.7:40002"],
+          ["Public addresses used", "1"]
+        ]
+      }
+    },
+    "inbound": {
+      "name": "Unsolicited inbound aur port forwarding",
+      "summary": "Ek dost bahar se NAS tak pahunchne ki koshish karta hai. Table entry na hone se woh drop ho jata hai, jab tak port forward na jode.",
+      "steps": [
+        {
+          "title": "Bahar se dastak",
+          "desc": "198.51.100.7:8443 ko SYN",
+          "detail": "Ek dost home NAS ki photo site kholna chahta hai. Use sirf public address pata hai, isliye woh 198.51.100.7 port 8443 se connect karta hai. Router ke paas port 8443 ki koi table entry nahi hai: andar kisi ne yeh baat-cheet shuru hi nahi ki thi.",
+          "facts": [
+            ["From", "203.0.113.40:52011"],
+            ["To", "198.51.100.7:8443"],
+            ["Table entry", "Koi nahi"]
+          ],
+          "quiz": {
+            "q": "Router is SYN ka kya karta hai?",
+            "options": [
+              "Andar ke har device ko bhejta hai",
+              "Drop kar deta hai: koi mapping nahi hai",
+              "Jo pehla device mile use bhejta hai",
+              "Khud web page se reply karta hai"
+            ],
+            "why": "NAT ko sirf andar se shuru hue connections ke replies ka rasta pata hota hai. Entry aur rule ke bina packet ke jaane ki koi jagah nahi."
+          }
+        },
+        {
+          "title": "Port forward jodo",
+          "desc": "8443 outside → 192.168.1.50:443 inside",
+          "detail": "Router ki settings mein owner ek port forwarding rule jodta hai: TCP port 8443 par jo bhi aaye woh NAS ko, 192.168.1.50 port 443 par, jata hai. Yeh ek permanent table entry hai jo ulti direction mein kaam karti hai: bahar se andar.",
+          "facts": [
+            ["Rule", "TCP 8443 → 192.168.1.50:443"],
+            ["Chalta hai", "Hataye jane tak"],
+            ["Risk", "NAS ab poore internet ke liye khula hai"]
+          ]
+        },
+        {
+          "title": "Andar forward hua",
+          "desc": "Destination NAS ke liye rewrite hua",
+          "detail": "Dost ka browser dobara try karta hai. Is baar router rule se match karta hai, destination ko 192.168.1.50:443 mein rewrite karta hai, aur connection ko apni table mein record karta hai taaki replies wapas ka rasta dhoondh sakein. Source dost ka asli address hi rehta hai.",
+          "facts": [
+            ["Arrives for", "198.51.100.7:8443"],
+            ["Rewritten to", "192.168.1.50:443"],
+            ["Source", "203.0.113.40 (unchanged)"]
+          ],
+          "quiz": {
+            "q": "Port forwarding mein andar aate waqt kaunsa address rewrite hota hai?",
+            "options": [
+              "Source address",
+              "Destination address aur port",
+              "Dono addresses",
+              "Koi nahi"
+            ],
+            "why": "Inbound forwarding destination NAT hai: public destination andar ka device ban jata hai. Outgoing NAT iske bajaye source rewrite karta hai."
+          }
+        },
+        {
+          "title": "Reply wapas bahar jata hai",
+          "desc": "Source 198.51.100.7:8443 mein rewrite hua",
+          "detail": "NAS 192.168.1.50:443 se jawab deta hai. Router badlav ulta kar deta hai taaki dost ko reply 198.51.100.7:8443 se aata dikhe, bilkul wahin jahan usne dastak di thi. Connection chal jata hai.",
+          "facts": [
+            ["NAS sends from", "192.168.1.50:443"],
+            ["Dost ko dikhta hai", "198.51.100.7:8443"],
+            ["Connection", "Established"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Default mein band, rule se khula",
+        "text": "NAT un packets ko drop kar deta hai jo andar se shuru hue connection se match nahi karte, jo ek basic firewall jaisa kaam karta hai. Port forward ek fixed rule hai jo ek outside port ko ek inside device tak pahunchne deta hai. Sirf wahi kholo jo zaroori ho, aur us device ko updated rakho.",
+        "facts": [
+          ["Rule ke bina", "Dropped"],
+          ["Rule ke saath", "8443 → 192.168.1.50:443"],
+          ["Inbound NAT", "Destination rewrite karta hai"],
+          ["Outbound NAT", "Source rewrite karta hai"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "NAT ke kinds",
+      "items": [
+        ["SNAT / masquerade", "Bahar jate waqt source rewrite karo"],
+        ["PAT / NAPT", "Kai inside hosts port se ek IP share karte hain"],
+        ["DNAT / port forward", "Andar aate waqt destination rewrite karo"],
+        ["CGNAT", "Tumhara ISP ek aur NAT layer jodta hai (100.64.0.0/10)"]
+      ]
+    },
+    {
+      "title": "NAT table columns",
+      "items": [
+        ["Inside", "Private IP:port"],
+        ["Outside", "Public IP:port jo router ne chuna"],
+        ["Remote", "Server IP:port"],
+        ["Timer", "Entry kab expire hogi"]
+      ]
+    },
+    {
+      "title": "Jaanne layak",
+      "items": [
+        ["Breaks", "Inbound connections, kuch VoIP aur games"],
+        ["Workarounds", "Port forwarding, UPnP, STUN/TURN"],
+        ["IPv6", "Aam taur par NAT nahi: har device ke paas public address"]
+      ]
+    }
+  ]
+}

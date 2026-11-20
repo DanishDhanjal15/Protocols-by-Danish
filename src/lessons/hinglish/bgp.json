@@ -1,0 +1,308 @@
+{
+  "tagline": "Internet ke networks ek doosre ko kaise batate hain ki kaun kahan rehta hai.",
+  "description": "Internet lagbhag 75,000 alag networks se bana hai jinhe Autonomous Systems kehte hain. BGP woh tareeka hai jisse woh apne padosiyon ko batate hain ki woh kaunse address blocks tak pahunch sakte hain aur networks ki kaunsi chain ke through. Kisi website tak pahunchne ke liye tum jo bhi route use karte ho woh BGP se seekha gaya hota hai.",
+  "facts": [
+    ["Layer", "Application (TCP ke upar chalta hai)"],
+    ["Port", "TCP 179"],
+    ["Messages", "OPEN, UPDATE, KEEPALIVE, NOTIFICATION"],
+    ["Header", "19 bytes (16-byte marker + length + type)"],
+    ["Route choice", "Pehle policy, phir sabse chhota AS_PATH"],
+    ["Defined in", "RFC 4271"]
+  ],
+  "legend": [
+    "TCP setup aur KEEPALIVEs",
+    "OPEN: session settings",
+    "UPDATE: routes announce hue",
+    "Errors aur hijacks",
+    "RPKI data"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Do ISPs transit ke through route seekhte hain",
+      "summary": "ISP A apne transit provider ke saath BGP session up karta hai aur 203.0.113.0/24 announce karta hai; transit use ISP B ko aage pass karta hai.",
+      "steps": [
+        {
+          "title": "TCP session kholo",
+          "desc": "ISP A port 179 par transit se connect hota hai",
+          "detail": "BGP ki apni reliability nahi hoti. Yeh TCP par chalta hai, isliye kho gaye messages dobara bheje jate hain aur order mein aate hain. ISP A ke router mein transit ka address neighbour ke roop mein configured hai aur woh port 179 par connection kholta hai. IP TTL 1 hai kyunki external BGP neighbours aam taur par directly connected hote hain.",
+          "facts": [
+            ["From", "192.0.2.2 (AS64500)"],
+            ["To", "192.0.2.1:179 (AS64496)"],
+            ["IP TTL", "1 (neighbour ek hop door hai)"]
+          ],
+          "quiz": {
+            "q": "BGP har route sirf ek baar kyun bhej sakta hai, har kuch seconds mein dohrane ki jagah?",
+            "options": [
+              "Routes kabhi nahi badalte",
+              "TCP guarantee karta hai ki har message pahunche",
+              "Routers routes disk par save karte hain",
+              "UDP itna tez hai ki dohra sakte hain"
+            ],
+            "why": "Kyunki TCP har byte reliably deliver karta hai, route tab hi bhejna padta hai jab woh badle. Isi wajah se BGP lagbhag ek million routes tak scale karta hai."
+          }
+        },
+        {
+          "title": "OPEN badlo",
+          "desc": "Tum kaun ho, aur kya kar sakte ho?",
+          "detail": "Har router apne AS number, hold time, router ID aur capabilities ki list ke saath OPEN bhejta hai. Yahan dono sides IPv4 unicast routes, route refresh aur 4-byte AS numbers support karti hain. Agar AS number woh nahi hai jo dusri side ne configure kiya hai, to woh session turant reject kar deti hai.",
+          "facts": [
+            ["ISP A kehta hai", "AS64500, hold 90 s"],
+            ["Transit kehta hai", "AS64496, hold 180 s"],
+            ["OPEN size", "Har ek 49 bytes"]
+          ],
+          "quiz": {
+            "q": "ISP A 90 s hold time offer karta hai aur transit 180 s. Session kaunsa hold time use karta hai?",
+            "options": [
+              "180 s",
+              "90 s",
+              "135 s (average)",
+              "Har side apna use karti hai"
+            ],
+            "why": "Dono sides chhoti value leti hain, isliye session 90 s use karta hai. KEEPALIVEs phir aam taur par uska ek tihai, yaani 30 s par bheje jate hain."
+          }
+        },
+        {
+          "title": "KEEPALIVE: Established",
+          "desc": "19-byte ka message jo kehta hai “main agree hoon”",
+          "detail": "KEEPALIVE sirf type 4 wala 19-byte header hota hai. Pehla wala dusri side ke OPEN ko confirm karta hai. Dono aa jane par session Established state mein chala jata hai aur routes bah sakte hain.",
+          "facts": [
+            ["Size", "19 bytes"],
+            ["Type", "4 (KEEPALIVE)"],
+            ["State", "OpenConfirm → Established"]
+          ]
+        },
+        {
+          "title": "203.0.113.0/24 announce karo",
+          "desc": "UPDATE: address ka yeh block mere paas rehta hai",
+          "detail": "ISP A apne address block ke liye UPDATE bhejta hai. Path attributes route ko describe karte hain: ORIGIN kehta hai ki yeh jaan-boojh kar announce hua, AS_PATH un networks ko list karta hai jinse woh guzra hai (abhi tak sirf 64500), aur NEXT_HOP batata hai ki traffic kahan bhejna hai. Prefix khud aakhir mein NLRI ke roop mein aata hai.",
+          "facts": [
+            ["Prefix", "203.0.113.0/24"],
+            ["AS_PATH", "64500"],
+            ["NEXT_HOP", "192.0.2.2"]
+          ],
+          "quiz": {
+            "q": "Transit yeh route ISP B ko aage pass karta hai. ISP B ko kaunsa AS_PATH dikhega?",
+            "options": [
+              "64500",
+              "64496 64500",
+              "64500 64496",
+              "64510 64496 64500"
+            ],
+            "why": "Har AS route ko dusre AS ko bhejte waqt apna number aage jodta hai. ISP B ko 64496 64500 dikhta hai aur woh 64510 tabhi jodega jab route ko phir aage pass kare."
+          }
+        },
+        {
+          "title": "ISP B ko aage pass karo",
+          "desc": "Transit apna AS aur apna next hop jodta hai",
+          "detail": "Transit ka ISP B ke saath session pehle se up hai. Woh route ko AS_PATH ke aage 64496 jodkar aur apna address NEXT_HOP banakar aage bhejta hai. ISP B use install karta hai, aur uske customers ab transit ke through 203.0.113.0/24 tak pahunch sakte hain.",
+          "facts": [
+            ["AS_PATH", "64496 64500"],
+            ["NEXT_HOP", "192.0.2.5 (transit)"],
+            ["Path length", "2 AS hops"]
+          ],
+          "quiz": {
+            "q": "Agar ISP B ko yeh route AS_PATH mein 64510 pehle se hone ke saath milta, to woh kya karta?",
+            "options": [
+              "Use best route ke roop mein install karta",
+              "Reject karta, kyunki yeh loop hota",
+              "Transit ko wapas forward karta",
+              "Transit se refresh maangta"
+            ],
+            "why": "Apna hi AS number dikhne ka matlab hai ki route pehle hi uske through guzar chuka hai. Aise routes ko reject karna hi BGP networks ke beech loops rokta hai."
+          }
+        },
+        {
+          "title": "Sampark mein raho",
+          "desc": "Har 30 seconds mein KEEPALIVEs",
+          "detail": "Kehne ko kuch naya na ho to routers bas KEEPALIVEs bhejte hain, yahan har 30 seconds mein (90 s hold time ka ek tihai). Agar 90 seconds tak kisi bhi tarah ka message nahi aata, to session tod diya jata hai aur uske through seekhe gaye saare routes hata diye jate hain.",
+          "facts": [
+            ["Interval", "30 s"],
+            ["Hold time", "90 s"],
+            ["Routes", "Sirf badalne par dobara bheje jate hain"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Route bahar hai",
+        "text": "Do routers ne TCP session banaya, OPEN se settings agree ki, KEEPALIVE se confirm kiya aur ek UPDATE mein route badla. Transit ne use apna AS jodkar aage pass kiya, aur isi tarah internet ka har network har dusre tak ka path seekhta hai.",
+        "facts": [
+          ["BGP messages", "8"],
+          ["Route", "203.0.113.0/24 via 64496 64500"],
+          ["Zinda rakhta hai", "Har 30 s"],
+          ["Port", "TCP 179"]
+        ]
+      }
+    },
+    "hold-timer": {
+      "name": "Hold timer expire ho jata hai",
+      "summary": "ISP A ka router freeze ho jata hai aur baat karna band kar deta hai. 90 seconds baad transit haar maan leta hai aur route withdraw kar deta hai.",
+      "steps": [
+        {
+          "title": "ISP A se chuppi",
+          "desc": "Transit bhejta rehta hai, wapas kuch nahi aata",
+          "detail": "ISP A ke router ka BGP process atak gaya hai: link up hai, lekin ab woh KEEPALIVEs nahi bhejta. Transit apne KEEPALIVEs har 30 seconds mein bhejta rehta hai aur apna hold timer ginna shuru karta hai.",
+          "facts": [
+            ["Link", "Up"],
+            ["A se KEEPALIVEs", "Koi nahi"],
+            ["Hold timer", "90 s se ginti ghat rahi hai"]
+          ]
+        },
+        {
+          "title": "NOTIFICATION",
+          "desc": "Error code 4: Hold Timer Expired",
+          "detail": "90 seconds tak kuch na milne par transit error code 4 ke saath NOTIFICATION bhejta hai aur TCP connection band kar deta hai. NOTIFICATION hamesha session khatam karta hai. ISP A se seekhe saare routes phenk diye jate hain.",
+          "facts": [
+            ["Error code", "4 (Hold Timer Expired)"],
+            ["Size", "21 bytes"],
+            ["Then", "TCP FIN, session Idle"]
+          ],
+          "quiz": {
+            "q": "Ab transit ki routing table mein 203.0.113.0/24 ka kya hota hai?",
+            "options": [
+              "Jab tak koi delete na kare tab tak rehta hai",
+              "Hata diya jata hai, aur neighbours ko bata diya jata hai",
+              "24 ghante ke liye rakha jata hai",
+              "ISP B ke paas chala jata hai"
+            ],
+            "why": "Routes sirf utni der jeete hain jitni der unka session. Transit unhe hata deta hai aur apne dusre neighbours ko withdrawal se batata hai."
+          }
+        },
+        {
+          "title": "Route withdraw karo",
+          "desc": "Withdrawn prefix wala UPDATE",
+          "detail": "Transit ISP B ko aisa UPDATE bhejta hai jisme koi path attributes nahi, sirf ek withdrawn route. ISP B 203.0.113.0/24 hata deta hai. Agar ISP A ka doosra provider hota, to traffic ab us taraf se jata; sirf ek hone par web server tab tak unreachable hai jab tak session wapas nahi aata.",
+          "facts": [
+            ["Withdrawn", "203.0.113.0/24"],
+            ["Path attributes", "Koi nahi"],
+            ["UPDATE size", "27 bytes"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Recover hone tak unreachable",
+        "text": "Hold timer woh tareeka hai jisse BGP us neighbour ko pakadta hai jo chupchap mar gaya. Iski keemat hai 90 seconds tak black-hole hota traffic, isliye kai networks BFD bhi chalate hain, ek chhota hello protocol jo failures ek second se kam mein detect karta hai.",
+        "facts": [
+          ["Detected after", "90 s"],
+          ["Error", "NOTIFICATION code 4"],
+          ["Faster option", "BFD (RFC 5880)"]
+        ]
+      }
+    },
+    "hijack": {
+      "name": "Route hijack aur RPKI",
+      "summary": "Bura network ISP A ke addresses ke liye zyada specific /25 announce karta hai; RPKI route origin validation ise rok deta hai.",
+      "steps": [
+        {
+          "title": "Ek jhootha announcement",
+          "desc": "AS64511 203.0.113.0/25 ka claim karta hai",
+          "detail": "Jo network in addresses ka maalik nahi woh 203.0.113.0/25 announce karta hai, jo ISP A ke block ka pehla aadha hissa hai. Aisa galti se hota hai (filter mein typo) ya jaan-boojh kar (traffic churane ke liye). BGP ke paas yeh check karne ka koi tareeka nahi ki address block ka maalik kaun hai.",
+          "facts": [
+            ["Announced by", "AS64511"],
+            ["Prefix", "203.0.113.0/25"],
+            ["Asli maalik", "AS64500 (/24)"]
+          ],
+          "quiz": {
+            "q": "Routers ab 203.0.113.0/24 via AS64500 aur 203.0.113.0/25 via AS64511 jaante hain. 203.0.113.10 ka traffic kahan jata hai?",
+            "options": [
+              "AS64500, woh pehle se tha",
+              "AS64511, lamba prefix jeet jata hai",
+              "Dono ke beech barabar baant jata hai",
+              "Kahin nahi, routes conflict karte hain"
+            ],
+            "why": "Routers hamesha sabse specific matching prefix use karte hain. /25 /24 se zyada specific hai, isliye woh AS_PATH kitna bhi lamba ho tab bhi jeet jata hai."
+          }
+        },
+        {
+          "title": "Checks ke bina: hijacked",
+          "desc": "Transit yakeen karke use phaila deta hai",
+          "detail": "Validation ke bina transit route accept karta hai aur ISP B ko pass kar deta hai. Laptop ka 203.0.113.10 ka connection ab AS64511 ki taraf jata hai, jo use drop kar sakta hai, padh sakta hai ya server banne ka natak kar sakta hai.",
+          "facts": [
+            ["ISP B ko dikhta hai", "203.0.113.0/25 via 64496 64511"],
+            ["Traffic jata hai", "AS64511 ko"],
+            ["Asli server", "Ise kabhi nahi dekhta"]
+          ]
+        },
+        {
+          "title": "Seekho kiska kya hai",
+          "desc": "RPKI: signed Route Origin Authorisations",
+          "detail": "ISP A ne ROA publish kiya hai, RPKI mein ek certificate-signed statement jo kehta hai “203.0.113.0/24, max length 24, sirf AS64500 originate kar sakta hai”. Ek validator saare ROAs download karke check karta hai aur results TCP 323 par RPKI-to-Router protocol se routers ko deta hai.",
+          "facts": [
+            ["ROA", "203.0.113.0/24, max /24, AS64500"],
+            ["Signed by", "Regional internet registry"],
+            ["Routers tak via", "RPKI-RTR, TCP 323"]
+          ]
+        },
+        {
+          "title": "Wahi attack, ab rejected",
+          "desc": "Route origin validation ise Invalid mark karta hai",
+          "detail": "AS64511 /25 phir announce karta hai. Transit use ROA se compare karta hai: origin AS galat hai aur /25 allowed max length se lamba hai, isliye route Invalid hai aur drop ho jata hai. Woh kabhi ISP B ko pass nahi hota.",
+          "facts": [
+            ["Origin AS", "64511 (64500 hona chahiye)"],
+            ["Length", "/25 (max allowed /24)"],
+            ["Result", "Invalid → dropped"]
+          ],
+          "quiz": {
+            "q": "Agar AS64511 uske bajaye 203.0.113.0/24 ko AS_PATH “64511 64500” ke saath announce karta, AS64500 ko origin ke roop mein fake karke?",
+            "options": [
+              "ROV ise pakad leta",
+              "ROV ise Valid mark karta, kyunki sirf origin check hota hai",
+              "BGP duplicate prefix reject kar deta",
+              "ROA expire ho jata"
+            ],
+            "why": "ROV sirf path ka aakhri AS check karta hai. Origin fake karne se woh nikal jata hai, halanki route asli se lamba hota hai. BGPsec aur ASPA naye tools hain jo poora path check karte hain."
+          }
+        },
+        {
+          "title": "Traffic ghar lautta hai",
+          "desc": "Sirf asli /24 bacha hai",
+          "detail": "ISP B ko /25 ke baare mein kabhi pata nahi chalta, isliye laptop ka traffic transit ke through asli route se AS64500 tak jata hai aur asli web server tak pahunchta hai.",
+          "facts": [
+            ["Route used", "203.0.113.0/24 via 64496 64500"],
+            ["Pahunchta hai", "Asli server tak"],
+            ["Protected by", "ROA + ROV"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Hijack block ho gaya",
+        "text": "BGP wahi maanta hai jo neighbours kehte hain, isliye ek galat announcement duniya bhar ka traffic kheench sakta hai. RPKI address owners ko sign karne deta hai ki unke prefixes kaun originate kar sakta hai, aur route origin validation un rules ko todne wale announcements drop kar deta hai.",
+        "facts": [
+          ["Attack", "More-specific prefix hijack"],
+          ["Defence", "ROA + ROV (RFC 6811)"],
+          ["Abhi bhi khula", "Forged paths: BGPsec, ASPA"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Message types",
+      "items": [
+        ["1 OPEN", "Session shuru karo: AS, hold time, router ID, capabilities"],
+        ["2 UPDATE", "Routes announce ya withdraw karo"],
+        ["3 NOTIFICATION", "Fatal error, session band hota hai"],
+        ["4 KEEPALIVE", "Main zinda hoon / main tumhara OPEN accept karta hoon"]
+      ]
+    },
+    {
+      "title": "Path attributes",
+      "items": [
+        ["1 ORIGIN", "IGP, EGP ya incomplete"],
+        ["2 AS_PATH", "Jin networks se route guzra"],
+        ["3 NEXT_HOP", "Traffic kahan bhejna hai"],
+        ["4 MED", "Neighbour ko hint ki kaunsi entry use kare"],
+        ["5 LOCAL_PREF", "Ek AS ke andar preference"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["Port", "TCP 179"],
+        ["Header", "19 bytes; max message 4096"],
+        ["Default timers", "Keepalive 60 s, hold 180 s (Cisco)"],
+        ["Doc AS numbers", "64496–64511, 65536–65551"],
+        ["Private AS numbers", "64512–65534"]
+      ]
+    }
+  ]
+}

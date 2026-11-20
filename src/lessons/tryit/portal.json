@@ -1,0 +1,27 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Run the captive-portal probe yourself", "hinglish": "Captive-portal probe khud chalao" },
+      "why": { "en": "This is the same plain HTTP request your phone sends after joining Wi-Fi. On open internet it returns 204.", "hinglish": "Ye wahi plain HTTP request hai jo aapka phone Wi-Fi join karne ke baad bhejta hai. Khule internet pe ye 204 deta hai." },
+      "windows": "curl.exe -i http://connectivitycheck.gstatic.com/generate_204",
+      "unix": "curl -i http://connectivitycheck.gstatic.com/generate_204",
+      "expect": { "en": "'HTTP/1.1 204 No Content' with an empty body. Behind a captive portal you would see 302 and a Location header pointing at the login page instead. Headers vary.", "hinglish": "'HTTP/1.1 204 No Content' khali body ke saath. Captive portal ke peeche aap 302 aur login page ki taraf point karta Location header dekhoge. Headers alag ho sakte hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Show the redirect on a plain HTTP page", "hinglish": "Plain HTTP page pe redirect dekho" },
+      "why": { "en": "A 302 with a Location header is what the gateway sends to trap you. Any plain HTTP redirect looks like it.", "hinglish": "Location header ke saath 302 wahi hai jo gateway aapko trap karne ke liye bhejta hai. Koi bhi plain HTTP redirect aisa hi dikhta hai." },
+      "windows": "curl.exe -sI http://google.com",
+      "unix": "curl -sI http://google.com",
+      "expect": { "en": "Usually '301 Moved Permanently' with a Location header. A captive portal sends a 302 with its own login URL. Output varies.", "hinglish": "Aam taur pe Location header ke saath '301 Moved Permanently'. Captive portal apne login URL ke saath 302 bhejta hai. Output alag ho sakta hai." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Find the probe, 302 and POST in the capture", "hinglish": "Capture mein probe, 302 aur POST dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and filter for the portal conversation.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur portal ki baat-cheet filter karo." },
+      "wireshark": "http.response.code == 302 || http.response.code == 204 || http.request.method == \"POST\" || dhcp.option.type == 114",
+      "expect": { "en": "The 302 from the gateway, the POST /accept, the final 204, and the DHCP option 114 (may show as unknown option 114).", "hinglish": "Gateway ka 302, POST /accept, aakhri 204, aur DHCP option 114 (unknown option 114 ki tarah dikh sakta hai)." },
+      "step": 3
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Send one UDP query and get an answer", "hinglish": "Ek UDP query bhejo aur jawab lo" },
+      "why": { "en": "A normal DNS lookup is a single UDP datagram to port 53 with no handshake.", "hinglish": "Normal DNS lookup port 53 par ek single UDP datagram hota hai, bina handshake ke." },
+      "windows": "nslookup example.com 1.1.1.1",
+      "unix": "dig @1.1.1.1 example.com",
+      "expect": { "en": "The IP address(es) of example.com, answered by 1.1.1.1. It comes back in one round trip because there is no connection setup. Addresses may vary.", "hinglish": "example.com ke IP address(es), 1.1.1.1 ke jawab ke saath. Yeh ek round trip mein aa jata hai kyunki connection setup nahi hota. Addresses alag ho sakte hain." },
+      "step": 1
+    },
+    {
+      "title": { "en": "List UDP sockets on your machine", "hinglish": "Apni machine ke UDP sockets list karo" },
+      "why": { "en": "UDP sockets have no state like ESTABLISHED; they are just ports waiting for datagrams.", "hinglish": "UDP sockets ka ESTABLISHED jaisa koi state nahi hota; woh bas datagrams ka intezaar karte ports hain." },
+      "windows": "netstat -an -p UDP",
+      "unix": "ss -uan",
+      "expect": { "en": "A list of local UDP ports (for example 53, 123 or 5353) with no state column. Entries differ per machine; on macOS use netstat -an -p udp.", "hinglish": "Local UDP ports ki list (jaise 53, 123 ya 5353), state column ke bina. Entries har machine par alag hoti hain; macOS par netstat -an -p udp use karo." }
+    },
+    {
+      "title": { "en": "Find the UDP datagrams in the capture", "hinglish": "Capture mein UDP datagrams dhoondo" },
+      "why": { "en": "Open the .pcap in Wireshark and filter on UDP and the ICMP error.", "hinglish": ".pcap Wireshark mein kholo aur UDP aur ICMP error par filter lagao." },
+      "wireshark": "udp || icmp.type == 3",
+      "expect": { "en": "The 20 ms voice datagrams with an 8-byte UDP header, and in the second scenario an ICMP Destination Unreachable (port unreachable).", "hinglish": "8-byte UDP header wale 20 ms ke voice datagrams, aur doosre scenario mein ICMP Destination Unreachable (port unreachable)." },
+      "step": 2
+    }
+  ]
+}

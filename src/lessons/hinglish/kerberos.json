@@ -1,0 +1,268 @@
+{
+  "tagline": "Ek baar login karo, tickets lo, password kabhi mat bhejo.",
+  "description": "Kerberos woh system hai jisse Windows domain proof karta hai ki aap kaun ho. Aap domain controller ko apna password sirf ek baar prove karte ho aur ticket-granting ticket milta hai; uske baad us se service tickets lete ho jo file servers, mail aur databases accept karte hain, aur password network par kabhi nahi jaata.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP/UDP 88"],
+    ["Encoding", "ASN.1 DER"],
+    ["Encryption", "AES256-CTS-HMAC-SHA1 (RC4 purana hai)"],
+    ["Ticket lifetime", "10 hours (Windows default)"],
+    ["Defined in", "RFC 4120"]
+  ],
+  "legend": [
+    "Workstation se requests",
+    "KDC se tickets aur keys",
+    "Access mil gaya",
+    "Pre-authentication hints",
+    "Errors aur attacks"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Login karo aur \\\\fs01\\share kholo",
+      "summary": "danish Windows mein sign in karta hai, TGT leta hai, usse file-server ticket leta hai aur share kholta hai.",
+      "steps": [
+        {
+          "title": "TGT maango",
+          "desc": "AS-REQ bina proof ke, KDC pre-auth maangta hai",
+          "detail": "danish apna password type karta hai, phir Windows domain controller ko AS-REQ bhejta hai krbtgt, yaani ticket-granting service, ke ticket ke liye. Pehli try mein password ka koi proof nahi hota, to KDC KRB-ERROR 25 (pre-authentication required) se jawab deta hai aur methods aur salt batata hai jo client ko use karna hai. Yeh extra round trip normal hai aur harmless hai.",
+          "facts": [
+            ["Server", "DC01 192.0.2.10, TCP 88"],
+            ["Maang rahe hain", "krbtgt/CORP.EXAMPLE.COM"],
+            ["Reply", "KDC_ERR_PREAUTH_REQUIRED (25)"]
+          ],
+          "quiz": {
+            "q": "KDC seedha reply bhejne ke bajaye pre-authentication par zor kyun deta hai?",
+            "options": [
+              "Taaki koi bhi aapke password key se locked replies maangkar offline crack na kar sake",
+              "Kyunki reply ek packet mein fit nahi hota",
+              "Client ka IP address check karne ke liye",
+              "Kyunki clocks sync mein nahi hain"
+            ],
+            "why": "Pre-auth ke bina koi bhi kisi bhi user ke liye AS-REP maang sakta hai aur password offline guess kar sakta hai (is attack ko AS-REP roasting kehte hain)."
+          }
+        },
+        {
+          "title": "Password prove karo",
+          "desc": "Encrypted timestamp andar, TGT bahar",
+          "detail": "Windows password aur salt se AES key banata hai aur usse current time encrypt karta hai (PA-ENC-TIMESTAMP). KDC stored password hash se wahi key banata hai; agar time decrypt ho jaye aur 5 minutes ke andar ho, to password sahi hai. Woh AS-REP se reply karta hai jisme TGT (krbtgt key se locked) aur session key (danish ki key se locked) hoti hai.",
+          "facts": [
+            ["Proof", "AES-encrypted timestamp"],
+            ["Mila", "TGT, valid 10 hours"],
+            ["Wire par password", "Kabhi nahi"]
+          ],
+          "quiz": {
+            "q": "AS-REP ke andar TGT kis key se encrypted hota hai?",
+            "options": [
+              "danish ki password key",
+              "krbtgt account ki key",
+              "File server ki key",
+              "Yeh encrypted nahi hota"
+            ],
+            "why": "krbtgt key sirf domain controllers ko pata hoti hai, isliye client TGT le ja sakta hai lekin usse padh ya forge nahi kar sakta."
+          }
+        },
+        {
+          "title": "Service ticket maango",
+          "desc": "cifs/fs01 ke liye TGS-REQ",
+          "detail": "danish \\\\fs01\\share kholta hai. Windows ko service name cifs/fs01.corp.example.com ka ticket chahiye, to woh TGS-REQ bhejta hai jisme TGT aur TGT session key se encrypted ek fresh authenticator hota hai. KDC dono check karta hai aur TGS-REP mein service ticket deta hai jo fs01 ki apni key se locked hai.",
+          "facts": [
+            ["Service name (SPN)", "cifs/fs01.corp.example.com"],
+            ["Proof", "TGT + authenticator"],
+            ["Password chahiye", "Nahi, TGT kaafi hai"]
+          ],
+          "quiz": {
+            "q": "Kya workstation ko yeh ticket lene ke liye danish ka password phir se chahiye?",
+            "options": [
+              "Haan, har ticket ke liye password chahiye",
+              "Nahi, TGT aur uski session key hi proof hain",
+              "Sirf agar file server doosri building mein ho",
+              "Haan, lekin sirf hash"
+            ],
+            "why": "TGT ka yehi point hai: ek baar password check, phir expire hone tak kai services ke liye tickets."
+          }
+        },
+        {
+          "title": "fs01 ko ticket dikhao",
+          "desc": "SMB2 Session Setup ke andar AP-REQ",
+          "detail": "Workstation service ticket ko file server ko AP-REQ ki tarah deta hai, jo SPNEGO mein wrap hokar SMB2 Session Setup ke andar jaata hai. fs01 ticket ko apni key se decrypt karta hai, authenticator ka time check karta hai, aur ticket ke PAC se danish ke groups padhta hai. Woh AP-REP se jawab deta hai taaki client ko pata chale ki server bhi genuine hai, aur share khul jaata hai. DC se contact hua hi nahi.",
+          "facts": [
+            ["Carried in", "SMB2 over TCP 445"],
+            ["Wrapped as", "SPNEGO → GSS-API → AP-REQ"],
+            ["Mutual auth", "AP-REP server ko prove karta hai"]
+          ],
+          "quiz": {
+            "q": "fs01 domain controller se pooche bina ticket kaise check karta hai?",
+            "options": [
+              "Woh LDAP par DC ko phone karta hai",
+              "Woh ticket ko apne computer-account key se decrypt karta hai",
+              "Woh jo bhi ticket mile use trust karta hai",
+              "Woh user ka password compare karta hai"
+            ],
+            "why": "fs01 ki key sirf KDC aur fs01 ko pata hai. Agar ticket decrypt ho jaye aur authenticator match kare, to woh KDC se hi aaya hoga."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Ek baar sign in, sab ke liye tickets",
+        "text": "danish ne KDC ko apna password sirf ek baar encrypted timestamp se prove kiya. Phir TGT se file server ka service ticket mila, jise fs01 ne khud check kiya. Password kabhi travel nahi hua, aur har ticket apne aap expire ho jaata hai.",
+        "facts": [
+          ["Messages", "AS-REQ/REP, TGS-REQ/REP, AP-REQ/REP"],
+          ["DC ke round trips", "3 (ek pre-auth hint tha)"],
+          ["Password bheja", "Kabhi nahi"],
+          ["Total time", "13 ms"]
+        ]
+      }
+    },
+    "wrong-password": {
+      "name": "Galat password",
+      "summary": "Password mein typo se encrypted timestamp KDC ke liye unreadable ho jaata hai.",
+      "steps": [
+        {
+          "title": "Galat key se timestamp",
+          "desc": "Galat type kiye password se bana AS-REQ",
+          "detail": "danish password type karta hai jisme ek letter galat hai. Windows ko pata nahi chalta, to woh galat password se AES key banata hai aur usse timestamp encrypt karta hai, bilkul pehle ki tarah.",
+          "facts": [
+            ["Key bani", "Galat type kiye password se"],
+            ["Bheja", "AS-REQ with PA-ENC-TIMESTAMP"],
+            ["Server", "DC01 192.0.2.10"]
+          ],
+          "quiz": {
+            "q": "Jab KDC timestamp decrypt karne ki koshish karega to usse kya milega?",
+            "options": [
+              "5 minutes off wala timestamp",
+              "Garbage: integrity check fail ho jaata hai",
+              "Plain password",
+              "Kuch nahi, woh check hi nahi karta"
+            ],
+            "why": "HMAC ke saath AES galat key pakad leta hai: checksum fail hota hai, isliye KDC ko pata chal jaata hai ki password galat tha."
+          }
+        },
+        {
+          "title": "Pre-auth fail",
+          "desc": "KRB-ERROR 24",
+          "detail": "KDC KDC_ERR_PREAUTH_FAILED se jawab deta hai aur danish ke bad-password count mein ek add karta hai. Windows dikhata hai “The user name or password is incorrect.” Lagataar bahut zyada failures ke baad account policy account ko lock kar deti hai, jisse online guessing slow ho jaati hai.",
+          "facts": [
+            ["Error", "24 KDC_ERR_PREAUTH_FAILED"],
+            ["DC par event", "4771 (pre-auth failed)"],
+            ["Side effect", "badPwdCount + 1"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Password kabhi hile bina reject",
+        "text": "KDC ne sirf encrypted timestamp dekha. Woh usse decrypt nahi kar paya, isliye usse pata chal gaya ki key, aur isliye password, galat tha. Clock skew par alag error (37) aata hai, isliye domain clocks sync rakho.",
+        "facts": [
+          ["Error", "24 PREAUTH_FAILED"],
+          ["Clock bahut off", "37 KRB_AP_ERR_SKEW"],
+          ["Lockout", "Domain policy se set hota hai"]
+        ]
+      }
+    },
+    "kerberoasting": {
+      "name": "Kerberoasting aur ise kaise roka jaye",
+      "summary": "Ek low-privilege user service ticket maangta hai aur service account ka password offline crack karta hai.",
+      "steps": [
+        {
+          "title": "Target chuno",
+          "desc": "Service account ke liye RC4 ticket maango",
+          "detail": "Attacker ke paas ek normal user account hai, intern. Koi bhi domain user kisi bhi service name ka ticket maang sakta hai, to attacker MSSQLSvc/sql01 maangta hai, jo ek insaan ke banaye account, svc_sql, ke under chalta hai. Request mein sirf RC4 (etype 23) hota hai kyunki RC4 keys password ka plain hash hoti hain aur guess karna tez hota hai.",
+          "facts": [
+            ["Requester", "intern (koi bhi domain user)"],
+            ["Target SPN", "MSSQLSvc/sql01.corp.example.com:1433"],
+            ["Maanga gaya etype", "sirf 23 (rc4-hmac)"]
+          ],
+          "quiz": {
+            "q": "Service ticket ka encrypted part kis key se locked hota hai?",
+            "options": [
+              "intern ki password key",
+              "krbtgt key",
+              "svc_sql ki password key",
+              "Ek random key jo attacker use nahi kar sakta"
+            ],
+            "why": "Service tickets service account ki key se locked hote hain, jo uske password se banti hai. Yehi weak point hai."
+          }
+        },
+        {
+          "title": "KDC maan leta hai",
+          "desc": "Ek legitimate TGS-REP, RC4 encrypted",
+          "detail": "KDC apna kaam karta hai: woh svc_sql ki RC4 key se encrypted service ticket deta hai. Is request mein akele kuch unusual nahi dikhta, isliye yeh attack popular hai. Attacker ko sql01 se contact karna bhi nahi padta.",
+          "facts": [
+            ["Ticket etype", "23 (rc4-hmac)"],
+            ["Locked with", "svc_sql ke password ka MD4 hash"],
+            ["Log hota hai", "Event 4769, type 0x17"]
+          ]
+        },
+        {
+          "title": "Offline crack karo",
+          "desc": "Billions of guesses, koi lockout nahi",
+          "detail": "Attacker ticket ko ek fast GPU machine par copy karta hai aur passwords guess karta hai. Har guess ke liye woh RC4 key banata hai aur ticket decrypt karne ki koshish karta hai; sahi guess par valid checksum milta hai. Koi lockout nahi kyunki DC involved hi nahi hai. Summer2019! jaisa chhota, insaan ka chuna service password minutes mein toot jaata hai.",
+          "facts": [
+            ["Speed", "Billions of guesses per second (RC4)"],
+            ["Lockout", "Koi nahi, yeh offline hai"],
+            ["Prize", "svc_sql ka password, aksar admin"]
+          ],
+          "quiz": {
+            "q": "Kaunsa change chori hua ticket crack karne laayak nahi rehne deta?",
+            "options": [
+              "Chhota ticket lifetime",
+              "Service account ke liye 120-character random password",
+              "Switch par port 88 block karna",
+              "SMB signing on karna"
+            ],
+            "why": "Offline cracking tabhi chalti hai jab password guess ho sake. Lamba random password (jaise gMSA accounts use karte hain) kisi realistic time mein guess nahi ho sakta."
+          }
+        },
+        {
+          "title": "Defence",
+          "desc": "Sirf AES, gMSA, aur monitoring",
+          "detail": "Admins svc_sql ko group managed service account (gMSA) par switch karte hain jiska 120-character random password har 30 days mein rotate hota hai, aur use sirf AES par set karte hain. Ab sirf-RC4 request KDC_ERR_ETYPE_NOSUPP se fail hoti hai, aur AES ticket bhi crack karna impossible hai. RC4 wale 4769 events ke bursts par alerts un logon ko pakad lete hain jo ab bhi koshish kar rahe hain.",
+          "facts": [
+            ["Error", "14 KDC_ERR_ETYPE_NOSUPP"],
+            ["Account", "gMSA, 120 random chars, auto-rotated"],
+            ["Aur", "RC4 domain-wide disable karo, 4769 par alert lagao"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Tickets utne hi strong jitne passwords",
+        "text": "Kerberoasting ko koi special rights nahi chahiye: koi bhi user service ticket maang kar usse offline attack kar sakta hai. Fix yeh hai ki service keys ko gMSA ya lambe random passwords se unguessable banao, RC4 refuse karo, aur unusual ticket requests par nazar rakho.",
+        "facts": [
+          ["Attack", "Kerberoasting (offline cracking)"],
+          ["Chahiye", "Koi bhi domain account"],
+          ["Defence", "gMSA, sirf AES, monitoring"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Messages",
+      "items": [
+        ["AS-REQ / AS-REP (10/11)", "Login karo, TGT lo"],
+        ["TGS-REQ / TGS-REP (12/13)", "TGT ke badle service ticket lo"],
+        ["AP-REQ / AP-REP (14/15)", "Service ko ticket dikhao"],
+        ["KRB-ERROR (30)", "Kuch galat hua; error-code batata hai kya"]
+      ]
+    },
+    {
+      "title": "Error codes",
+      "items": [
+        ["6 C_PRINCIPAL_UNKNOWN", "Aisa koi user nahi"],
+        ["14 ETYPE_NOSUPP", "Koi common encryption type nahi"],
+        ["18 CLIENT_REVOKED", "Account disabled ya locked"],
+        ["24 PREAUTH_FAILED", "Galat password"],
+        ["25 PREAUTH_REQUIRED", "Pehle encrypted timestamp bhejo"],
+        ["37 KRB_AP_ERR_SKEW", "Clocks 5 minutes se zyada alag"]
+      ]
+    },
+    {
+      "title": "Numbers to know",
+      "items": [
+        ["Port", "88 TCP/UDP"],
+        ["Encryption types", "18 AES256, 17 AES128, 23 RC4 (avoid)"],
+        ["TGT lifetime", "10 h, 7 days tak renewable"],
+        ["Max clock skew", "5 minutes"]
+      ]
+    }
+  ]
+}

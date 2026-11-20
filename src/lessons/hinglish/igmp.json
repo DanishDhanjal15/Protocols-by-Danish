@@ -1,0 +1,222 @@
+{
+  "tagline": "TV box network ko kaise batata hai ki use kaunsa channel bhejna hai.",
+  "description": "IPTV har channel ko ek hi baar multicast stream ke roop mein bhejta hai, aur network use sirf un gharon ki taraf copy karta hai jo dekh rahe hain. IGMP woh tareeka hai jisse set-top box apne local router ko kehta hai “mujhe channel 239.1.1.5 chahiye” ya “main iske saath khatam”. Router har do-teen minute mein check karta hai ki kaun abhi bhi dekh raha hai, aur jis stream ko koi nahi chahta use band kar deta hai.",
+  "facts": [
+    ["Layer", "Network (Layer 3)"],
+    ["IP protocol", "2"],
+    ["Reports jate hain", "224.0.0.22 (IGMPv3)"],
+    ["Queries jate hain", "224.0.0.1 (all hosts)"],
+    ["TTL", "1, Router Alert option ke saath"],
+    ["Defined in", "RFC 3376 (IGMPv3)"]
+  ],
+  "legend": [
+    "IGMP reports (join, leave, still here)",
+    "Router ki queries",
+    "Multicast TV stream",
+    "Unwanted flooding"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Channel dekho, phir badlo",
+      "summary": "Set-top box TV channel join karta hai, router ke periodic check ka jawab deta hai, aur ek group chhodkar dusra join karke channel badalta hai.",
+      "steps": [
+        {
+          "title": "Channel join karo",
+          "desc": "224.0.0.22 ko IGMPv3 Membership Report",
+          "detail": "Tum remote par channel 1 chunte ho. Channel 1 multicast group 239.1.1.5 hai, isliye box ek group record ke saath IGMPv3 Membership Report bhejta hai: CHANGE_TO_EXCLUDE_MODE bina sources ke, jiska matlab hai “239.1.1.5 kisi se bhi bhejo”. Yeh 224.0.0.22 ko jata hai, jis address par har IGMPv3 router sunta hai, TTL 1 ke saath taaki yeh local network se kabhi bahar na jaye.",
+          "facts": [
+            ["Group", "239.1.1.5 (channel 1)"],
+            ["Sent to", "224.0.0.22, MAC 01:00:5e:00:00:16"],
+            ["IP options", "Router Alert (94 04 00 00)"]
+          ],
+          "quiz": {
+            "q": "IGMP message ka TTL 1 kyun set hota hai?",
+            "options": [
+              "Bandwidth bachane ke liye",
+              "IGMP sirf local router se baat karta hai; ise kabhi aage forward nahi hona chahiye",
+              "TTL 1 ka matlab high priority",
+              "Routers IGMP ke liye TTL ignore karte hain"
+            ],
+            "why": "IGMP hosts aur unke pehle router ke beech ki baatcheet hai. TTL 1 guarantee karta hai ki koi router ise aage pass na kare."
+          }
+        },
+        {
+          "title": "Stream shuru hoti hai",
+          "desc": "Group address par UDP/RTP",
+          "detail": "Router box ke network ko 239.1.1.5 ki apni list mein jodta hai aur, agar woh channel abhi receive nahi kar raha, to upstream se maangta hai (PIM ke saath). Packets bahne lagte hain: 239.1.1.5, port 5000 par UDP, har ek mein RTP header aur saat 188-byte MPEG-TS packets. HD channel lagbhag 8 Mbit/s ka hota hai, yaani ek second mein lagbhag 750 aise packets.",
+          "facts": [
+            ["Destination", "239.1.1.5:5000"],
+            ["Ethernet dst", "01:00:5e:01:01:05"],
+            ["Payload", "RTP + 7 × 188-byte TS"]
+          ],
+          "quiz": {
+            "q": "Group 239.1.1.5 ke frame ke liye destination MAC kaunsa hota hai?",
+            "options": [
+              "ff:ff:ff:ff:ff:ff",
+              "Set-top box ka apna MAC",
+              "01:00:5e:01:01:05",
+              "01:00:5e:00:00:01"
+            ],
+            "why": "IPv4 multicast MACs 01:00:5e hote hain, uske baad group address ke low 23 bits: 1.1.5 → 01:01:05."
+          }
+        },
+        {
+          "title": "Kya koi abhi bhi dekh raha hai?",
+          "desc": "224.0.0.1 ko General Query",
+          "detail": "Har 125 seconds mein router, querier ban kar, 224.0.0.1 ko General Query bhejta hai, jo all-hosts group hai. Har multicast-capable device ise receive karta hai. Group address 0.0.0.0 ka matlab hai “jis bhi group ko chahte ho uske baare mein batao”. Max resp code 100 sabko jawab dene ke liye 10 seconds tak ka time deta hai.",
+          "facts": [
+            ["Sent to", "224.0.0.1 (all hosts)"],
+            ["Max response", "10 s"],
+            ["Interval", "125 s"]
+          ]
+        },
+        {
+          "title": "Haan, abhi bhi yahin hoon",
+          "desc": "Report: MODE_IS_EXCLUDE",
+          "detail": "Box ek random time (yahan 3.4 s) wait karta hai taaki bahut saare boxes ek saath jawab na dein, phir apni current state report karta hai: 239.1.1.5 ke liye MODE_IS_EXCLUDE, matlab “abhi bhi kisi bhi source se chahiye”. Router group ka apna timer reset kar deta hai.",
+          "facts": [
+            ["Record type", "2 (MODE_IS_EXCLUDE)"],
+            ["Random delay", "3.4 s"],
+            ["Timer", "260 s par reset"]
+          ],
+          "quiz": {
+            "q": "Agar box band kar diya gaya hota, to router stream kitni der mein rokta?",
+            "options": [
+              "Turant",
+              "Lagbhag 260 s (2 queries × 125 s + 10 s)",
+              "Kabhi nahi",
+              "Ek din"
+            ],
+            "why": "Group membership interval = robustness × query interval + max response time: 2 × 125 + 10 = 260 seconds."
+          }
+        },
+        {
+          "title": "Channel badlo",
+          "desc": "Ek group chhodo, dusra join karo, ek hi report mein",
+          "detail": "Tum channel up dabate ho. Box do records wali ek report bhejta hai: 239.1.1.5 ke liye CHANGE_TO_INCLUDE_MODE bina sources ke (leave) aur 239.1.1.7 ke liye CHANGE_TO_EXCLUDE_MODE (join). Naya channel milliseconds mein aane lagta hai, isliye IPTV mein channel change tez lagta hai.",
+          "facts": [
+            ["Leave", "239.1.1.5 (record type 3)"],
+            ["Join", "239.1.1.7 (record type 4)"],
+            ["Records", "Ek message mein 2"]
+          ]
+        },
+        {
+          "title": "Aakhri nikalne wala?",
+          "desc": "Group-specific query, phir chuppi",
+          "detail": "239.1.1.5 ko rokne se pehle router check karta hai ki is network par koi aur ise abhi bhi dekh raha to nahi. Woh sirf 239.1.1.5 ke liye ek second ke gap se do baar query bhejta hai. Koi jawab nahi deta, isliye router yahan channel 1 forward karna band kar deta hai aur upstream ko batata hai ki ab use iski zaroorat nahi.",
+          "facts": [
+            ["Query to", "239.1.1.5"],
+            ["Max response", "1 s"],
+            ["Then", "Stream 1 ruk jati hai"]
+          ],
+          "quiz": {
+            "q": "Router leave sunte hi channel 1 turant kyun nahi rokta?",
+            "options": [
+              "Woh slow hai",
+              "Usi network par koi aur device ise abhi bhi dekh raha ho sakta hai",
+              "Leaves aksar forged hote hain",
+              "Stream ko apna current show khatam karna hota hai"
+            ],
+            "why": "Dusre members ki reports suppress ho gayi ho sakti hain ya abhi bheji nahi gayi, isliye router group kaatne se pehle us group ke baare mein khaas taur par puchta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Sirf wahi channels jo dekhe ja rahe hain",
+        "text": "Box ne report se group join kiya, router ki queries ka jawab dekar use zinda rakha, aur ek hi report se channel badla jisme ek group chhoda aur dusra join kiya. Router har channel sirf wahin forward karta hai jahan kisi ko chahiye.",
+        "facts": [
+          ["Join / leave", "224.0.0.22 ko Membership Report"],
+          ["Keep-alive", "Har 125 s General Query"],
+          ["Channel change", "Ek report, do records"],
+          ["Stream", "239.x.x.x par UDP ke upar RTP"]
+        ]
+      }
+    },
+    "snooping-off": {
+      "name": "Snooping off: TV LAN ko flood karta hai",
+      "summary": "IGMP snooping ke bina switch multicast ko broadcast ki tarah treat karta hai aur 8 Mbit/s channel har port se bhej deta hai.",
+      "steps": [
+        {
+          "title": "Box hamesha ki tarah join karta hai",
+          "desc": "Wahi report, lekin switch sun nahi raha",
+          "detail": "Set-top box wahi join report bhejta hai. Is sasta switch mein IGMP snooping band hai, isliye woh IGMP ko bilkul nahi padhta. Woh report ko kisi bhi dusre frame ki tarah router ko forward kar deta hai.",
+          "facts": [
+            ["Group", "239.1.1.5"],
+            ["Switch", "Snooping off"],
+            ["Router", "Stream shuru karta hai"]
+          ]
+        },
+        {
+          "title": "Har jagah flood",
+          "desc": "Multicast ko broadcast ki tarah treat kiya gaya",
+          "detail": "Stream aane par switch ke paas aisi table nahi hai jo bataye ki kaunsa port 01:00:5e:01:01:05 chahta hai. Plain switch unknown multicast ko broadcast ki tarah sambhalta hai aur har port se bhej deta hai. Laptop aur printer ab har ek 8 Mbit/s TV receive karte hain jo unhone maanga hi nahi. Unke network cards ise drop kar dete hain, lekin Wi-Fi par yeh poore network ko choke kar sakta hai.",
+          "facts": [
+            ["Copies", "Har port"],
+            ["Wasted", "Har idle device par 8 Mbit/s"],
+            ["Sabse bura", "Wi-Fi access points par"]
+          ],
+          "quiz": {
+            "q": "IGMP-snooping switch ko kaise pata chalta hai ki kaunsa port stream chahta hai?",
+            "options": [
+              "Woh router se puchta hai",
+              "Woh apne se guzarti IGMP reports sunta hai aur unke ports note karta hai",
+              "Woh RTP header padhta hai",
+              "Set-top box DHCP se switch ke saath register karta hai"
+            ],
+            "why": "Snooping ka matlab hai router ki taraf jate IGMP joins aur leaves ko jhaank kar dekhna, aur unse group-to-port table banana."
+          }
+        },
+        {
+          "title": "Snooping on karo",
+          "desc": "Switch agli report se seekhta hai",
+          "detail": "IGMP snooping enabled hone par switch box ki agli report padhta hai aur likhta hai “239.1.1.5 set-top box port par chahiye”. Uske baad woh channel 1 sirf wahin bhejta hai. Laptop aur printer phir shant ho jate hain.",
+          "facts": [
+            ["Learned", "239.1.1.5 → set-top box port"],
+            ["Laptop, printer", "Ab stream nahi"],
+            ["Router port", "Hamesha reports paata hai"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Snooping multicast ko kaabu mein rakhti hai",
+        "text": "IGMP snooping ke bina switch multicast har port par flood karta hai, har device par bandwidth waste hota hai. Snooping ke saath woh joins aur leaves khud padhta hai aur har stream sirf un ports ko bhejta hai jinhone maangi.",
+        "facts": [
+          ["Snooping off", "Sab ports par flood"],
+          ["Snooping on", "Sirf member ports + router port"],
+          ["Needs", "Network par ek querier"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Message types",
+      "items": [
+        ["0x11", "Membership Query (general ya group-specific)"],
+        ["0x22", "IGMPv3 Membership Report"],
+        ["0x16", "IGMPv2 Report (purana)"],
+        ["0x17", "IGMPv2 Leave Group (purana)"]
+      ]
+    },
+    {
+      "title": "Group record types",
+      "items": [
+        ["1 / 2", "MODE_IS_INCLUDE / EXCLUDE (jawab)"],
+        ["3", "CHANGE_TO_INCLUDE (no sources = leave)"],
+        ["4", "CHANGE_TO_EXCLUDE (no sources = join)"],
+        ["5 / 6", "ALLOW_NEW / BLOCK_OLD sources"]
+      ]
+    },
+    {
+      "title": "Addresses aur numbers",
+      "items": [
+        ["224.0.0.1", "All hosts (queries)"],
+        ["224.0.0.22", "All IGMPv3 routers (reports)"],
+        ["239.0.0.0/8", "Organisation-local groups (IPTV)"],
+        ["MAC", "01:00:5e + low 23 bits"],
+        ["Query interval", "125 s"],
+        ["Router Alert", "IP option 94 04 00 00"]
+      ]
+    }
+  ]
+}

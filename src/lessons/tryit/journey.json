@@ -1,0 +1,35 @@
+{
+  "commands": [
+    {
+      "title": { "en": "See your IP, gateway and DNS server", "hinglish": "Apna IP, gateway aur DNS server dekho" },
+      "why": { "en": "These are the three things DHCP gave your laptop in step 1.", "hinglish": "Yeh teen cheezein DHCP ne step 1 mein tumhare laptop ko di thi." },
+      "windows": "ipconfig /all",
+      "unix": "ip addr; ip route; cat /etc/resolv.conf",
+      "expect": { "en": "You see an IPv4 address, a default gateway and DNS servers. Values differ on every network; on macOS use ifconfig and netstat -rn instead.", "hinglish": "Tumhe IPv4 address, default gateway aur DNS servers dikhenge. Har network par values alag hoti hain; macOS par ifconfig aur netstat -rn use karo." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Look at your ARP cache", "hinglish": "Apna ARP cache dekho" },
+      "why": { "en": "Your laptop remembers the router's MAC address so it does not ask ARP every time.", "hinglish": "Laptop router ka MAC address yaad rakhta hai, isliye har baar ARP nahi poochta." },
+      "windows": "arp -a",
+      "unix": "arp -a",
+      "expect": { "en": "A list of IP and MAC pairs; your gateway (for example 192.168.1.1) should be in it. The entries differ per machine.", "hinglish": "IP aur MAC pairs ki list; tumhara gateway (jaise 192.168.1.1) usme hona chahiye. Entries har machine par alag hoti hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Resolve a name with DNS", "hinglish": "DNS se naam resolve karo" },
+      "why": { "en": "This is the same name-to-address lookup the browser does in step 3.", "hinglish": "Yeh wahi naam-se-address lookup hai jo browser step 3 mein karta hai." },
+      "windows": "nslookup example.com",
+      "unix": "dig example.com",
+      "expect": { "en": "One or more IP addresses for example.com and the DNS server that answered. The dig output also shows the TTL; the address may differ from the lesson.", "hinglish": "example.com ke ek ya zyada IP addresses aur jis DNS server ne jawab diya woh. dig output mein TTL bhi dikhta hai; address lesson se alag ho sakta hai." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Find the SYN packets in the capture", "hinglish": "Capture mein SYN packets dhoondo" },
+      "why": { "en": "Open the downloaded .pcap in Wireshark to see the TCP handshake.", "hinglish": "Downloaded .pcap Wireshark mein kholo aur TCP handshake dekho." },
+      "wireshark": "tcp.flags.syn == 1",
+      "expect": { "en": "Two packets: the SYN from the laptop and the SYN-ACK from the server, to and from port 443.", "hinglish": "Do packets: laptop ka SYN aur server ka SYN-ACK, port 443 ke saath." },
+      "step": 4
+    }
+  ]
+}

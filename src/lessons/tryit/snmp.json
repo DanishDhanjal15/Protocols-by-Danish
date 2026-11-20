@@ -1,0 +1,53 @@
+{
+  "commands": [
+    {
+      "title": {
+        "en": "Read uptime from your own device",
+        "hinglish": "Apne device se uptime padho"
+      },
+      "why": {
+        "en": "Sends one GetRequest for sysUpTime to your own router or a Linux box with snmpd. Use only devices you own and have a community for.",
+        "hinglish": "Aapke apne router ya snmpd wale Linux box ko sysUpTime ke liye ek GetRequest bhejta hai. Sirf wahi devices use karo jo aapke hain aur jinka community aapko pata hai."
+      },
+      "unix": "snmpget -v2c -c public 127.0.0.1 1.3.6.1.2.1.1.3.0",
+      "windows": "snmpget -v2c -c public 127.0.0.1 1.3.6.1.2.1.1.3.0",
+      "expect": {
+        "en": "Needs the Net-SNMP tools and an agent on that address. You get a line like DISMAN-EVENT-MIB::sysUpTimeInstance = Timeticks: (123456789) 14 days, 6:56:07.89. With no agent or a wrong community it prints 'Timeout: No Response', exactly like the wrong-community scenario. Output varies.",
+        "hinglish": "Net-SNMP tools aur us address par agent chahiye. DISMAN-EVENT-MIB::sysUpTimeInstance = Timeticks: (123456789) 14 days, 6:56:07.89 jaisi line milti hai. Agent na ho ya community galat ho to 'Timeout: No Response' print hota hai, bilkul wrong-community scenario jaisa. Output alag ho sakta hai."
+      },
+      "step": 1
+    },
+    {
+      "title": {
+        "en": "See SNMP in the capture",
+        "hinglish": "Capture mein SNMP dekho"
+      },
+      "why": {
+        "en": "Open the downloaded .pcap and read the community string and OIDs.",
+        "hinglish": "Download kiya .pcap kholo aur community string aur OIDs padho."
+      },
+      "wireshark": "snmp",
+      "expect": {
+        "en": "You see get-request, get-response and the linkDown trap. In v2c packets the community string is readable in the details; in the SNMPv3 capture the PDU shows as encrypted.",
+        "hinglish": "get-request, get-response aur linkDown trap dikhte hain. v2c packets mein community string details mein padhne laayak hai; SNMPv3 capture mein PDU encrypted dikhta hai."
+      },
+      "step": 1
+    },
+    {
+      "title": {
+        "en": "Find traps only",
+        "hinglish": "Sirf traps dhoondo"
+      },
+      "why": {
+        "en": "Traps go to UDP 162 instead of 161.",
+        "hinglish": "Traps 161 ke bajaye UDP 162 par jaate hain."
+      },
+      "wireshark": "udp.port == 162",
+      "expect": {
+        "en": "Only the unasked SNMPv2-Trap packet for linkDown remains.",
+        "hinglish": "Sirf linkDown ka bina maanga SNMPv2-Trap packet bachta hai."
+      },
+      "step": 3
+    }
+  ]
+}

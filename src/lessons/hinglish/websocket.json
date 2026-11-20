@@ -1,0 +1,225 @@
+{
+  "tagline": "Ek HTTP request ko do-tarfa, hamesha khuli pipe bana do.",
+  "description": "WebSocket ek aam HTTP request se shuru hota hai jo upgrade maangti hai. Jab server 101 Switching Protocols se maan jaata hai, wahi TCP connection dono directions mein chhote frames carry karta hai, jab bhi koi side chahe. Chat, live scores aur multiplayer games ise use karte hain.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Starts as", "HTTP/1.1 GET with Upgrade"],
+    ["Ports", "80 (ws://), 443 (wss://)"],
+    ["Frame header", "2–14 bytes"],
+    ["Client frames", "Hamesha masked"],
+    ["Defined in", "RFC 6455"]
+  ],
+  "legend": [
+    "TCP handshake aur ACKs",
+    "HTTP upgrade",
+    "Browser ke frames",
+    "Server ke frames",
+    "Ping, pong aur close"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Ek chat room",
+      "summary": "Browser HTTP request ko upgrade karta hai, messages bhejta aur receive karta hai, ping ka jawab deta hai aur saaf tarike se close karta hai.",
+      "steps": [
+        {
+          "title": "Upgrade maango",
+          "desc": "Upgrade: websocket ke saath GET",
+          "detail": "JavaScript new WebSocket(\"ws://example.com/chat\") chalata hai. Browser TCP connection kholta hai aur Upgrade: websocket, Connection: Upgrade aur ek random Sec-WebSocket-Key ke saath normal dikhne wala GET bhejta hai.",
+          "facts": [
+            ["URL", "ws://example.com/chat"],
+            ["Key", "UHJvdG9jb2xzQnlEYW5pcw=="],
+            ["Version", "13"]
+          ]
+        },
+        {
+          "title": "101 Switching Protocols",
+          "desc": "Server maanta hai aur prove karta hai",
+          "detail": "Server key ko ek fixed GUID ke saath jodta hai, SHA-1 se hash karta hai aur base64 result ko Sec-WebSocket-Accept ke roop mein bhejta hai. Browser wahi hisaab karta hai; match hua to connection ab WebSocket hai. Is connection par HTTP khatam ho gaya.",
+          "facts": [
+            ["Status", "101 Switching Protocols"],
+            ["Accept", "bBg45Fje81XX4xvOWUFa04onpGI="],
+            ["Formula", "base64(SHA-1(key + GUID))"]
+          ],
+          "quiz": {
+            "q": "Server ko Sec-WebSocket-Accept bhejna hi kyun padta hai?",
+            "options": [
+              "Connection encrypt karne ke liye",
+              "Yeh prove karne ke liye ki usne WebSocket request samjhi, koi bhi aam HTTP nahi",
+              "User ko login karne ke liye",
+              "Port chunne ke liye"
+            ],
+            "why": "Sirf woh server sahi value bana sakta hai jisne key padhi aur jo WebSocket GUID jaanta hai. Ek confused HTTP server ya cache valid upgrade fake nahi kar sakta."
+          }
+        },
+        {
+          "title": "Browser message bhejta hai",
+          "desc": "Ek masked text frame",
+          "detail": "Browser \"Namaste!\" ko text frame ki tarah bhejta hai. Header sirf 2 bytes plus 4-byte masking key hai. Har payload byte key ke saath XOR hota hai, isliye wire par bytes random dikhte hain. Yeh encryption nahi hai: key saamne hi hai. Yeh kharab likhe proxies ko bytes ko HTTP samajhne se rokta hai.",
+          "facts": [
+            ["Opcode", "1 (text)"],
+            ["Header", "2 bytes + 4-byte mask"],
+            ["Payload", "8 bytes, masked"]
+          ],
+          "quiz": {
+            "q": "Pehla payload byte \"N\" (0x4e) hai aur pehla key byte 0x37 hai. Wire par kaun sa byte jaata hai?",
+            "options": [
+              "0x4e",
+              "0x37",
+              "0x79",
+              "0x85"
+            ],
+            "why": "0x4e XOR 0x37 = 0x79. Server 0x37 se dobara XOR karke 0x4e wapas pa leta hai."
+          }
+        },
+        {
+          "title": "Server message push karta hai",
+          "desc": "Unmasked, jab bhi chahe",
+          "detail": "Room mein koi aur user kuch likhta hai, aur server use turant browser ko push kar deta hai. Browser ne use maanga nahi tha. Server frames kabhi masked nahi hote, isliye JSON text wire par padhne layak hai.",
+          "facts": [
+            ["Direction", "Server → browser, bina maange"],
+            ["Masked", "No"],
+            ["Payload", "55 bytes of JSON"]
+          ]
+        },
+        {
+          "title": "Ping aur pong",
+          "desc": "Kya koi abhi bhi wahan hai?",
+          "detail": "Har 30 seconds mein server ping frame bhejta hai. Browser ko same bytes wale pong se jawab dena hota hai. Isse NAT aur firewall entries zinda rehti hain aur server dead clients ko pehchan leta hai.",
+          "facts": [
+            ["Ping opcode", "9"],
+            ["Pong opcode", "10 (0xA)"],
+            ["Pong payload", "Ping jaisa hi"]
+          ],
+          "quiz": {
+            "q": "Ping mein 2 bytes \"hb\" hain. Pong mein kya hona chahiye?",
+            "options": [
+              "Kuch nahi",
+              "\"hb\", masked kyunki woh browser se aa raha hai",
+              "\"hb\" unmasked",
+              "Abhi ka time"
+            ],
+            "why": "Pong ping ke payload ko echo karta hai. Woh browser se jaata hai, isliye har client frame ki tarah masked hota hai."
+          }
+        },
+        {
+          "title": "Saaf tarike se close",
+          "desc": "Close 1000, echo, phir TCP FIN",
+          "detail": "Jab tab band hota hai, browser status 1000 (normal closure) aur chhote reason ke saath close frame bhejta hai. Server apne close frame se jawab deta hai aur phir TCP connection pehle band karta hai, isliye TIME-WAIT mein server wait karta hai.",
+          "facts": [
+            ["Close opcode", "8"],
+            ["Code", "1000 = normal"],
+            ["Who closes TCP", "The server"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Do-tarfa pipe",
+        "text": "Upgrade wali ek HTTP request ne TCP connection ko WebSocket bana diya. Uske baad dono sides ne jab chaha chhote frames bheje, ping aur pong se line zinda rakhi, aur code 1000 ke saath close kiya. Asli sites mein wss:// use karo, jo wahi cheez TLS ke andar hai.",
+        "facts": [
+          ["Handshake", "1 HTTP request + 101"],
+          ["Smallest frame", "2 bytes (server), 6 (client)"],
+          ["Close code", "1000 normal"],
+          ["Secure version", "wss:// on port 443"]
+        ]
+      }
+    },
+    "proxy-strips": {
+      "name": "Proxy jo Upgrade nahi samajhta",
+      "summary": "Ek purana office proxy Upgrade headers hata deta hai, server mana kar deta hai, aur socket kabhi khulta hi nahi.",
+      "steps": [
+        {
+          "title": "Upgrade request",
+          "desc": "Transparent proxy ne pakad li",
+          "detail": "Office network par port 80 ka saara traffic chupchaap ek transparent proxy se guzarta hai. Browser ki Upgrade request bilkul pehle jaisi dikhti hai, lekin woh proxy par pahunchti hai, jo server ke naam par TCP handshake poora karta hai.",
+          "facts": [
+            ["URL", "ws://example.com/chat"],
+            ["Intercepted by", "Office proxy"],
+            ["Browser notices?", "No"]
+          ]
+        },
+        {
+          "title": "Headers hata diye",
+          "desc": "Upgrade aur Connection drop ho gaye",
+          "detail": "Yeh proxy sirf plain HTTP jaanta hai. Upgrade aur Connection hop-by-hop headers hain, jo sirf ek link ke liye hote hain, isliye woh forward karne se pehle unhe hata deta hai. Server ko protocol badalne ki kisi request ke bina normal GET /chat milta hai.",
+          "facts": [
+            ["Removed", "Upgrade, Connection"],
+            ["Added", "Via: 1.1 office-proxy"],
+            ["Server sees", "A plain GET"]
+          ],
+          "quiz": {
+            "q": "Upgrade ke bina GET /chat ka chat server kya jawab dega?",
+            "options": [
+              "101 Switching Protocols",
+              "426 Upgrade Required jaisa error",
+              "Chat messages ke saath 200",
+              "Kuch nahi"
+            ],
+            "why": "Upgrade: websocket ke bina server protocol switch nahi kar sakta, isliye woh plain request refuse kar deta hai."
+          }
+        },
+        {
+          "title": "426 Upgrade Required",
+          "desc": "Socket khulne mein fail",
+          "detail": "Server 426 Upgrade Required se jawab deta hai aur proxy use wapas pass kar deta hai. Browser ne 101 expect kiya tha, isliye WebSocket fail ho jaata hai. JavaScript ko error event aur code 1006 (abnormally closed, koi close frame nahi) ke saath close event milta hai.",
+          "facts": [
+            ["Server says", "426 Upgrade Required"],
+            ["JS sees", "onerror, close code 1006"],
+            ["Fix", "Use wss:// on port 443"]
+          ],
+          "quiz": {
+            "q": "wss:// par switch karne se aksar yeh theek kyun ho jaata hai?",
+            "options": [
+              "wss zyada fast hai",
+              "TLS ke andar proxy headers dekh ya badal nahi sakta; woh sirf encrypted bytes relay karta hai",
+              "Port 443 par proxies allowed nahi hain",
+              "wss HTTP use nahi karta"
+            ],
+            "why": "TLS ke saath Upgrade request end to end encrypted hoti hai. Proxy ya to use bina chhue tunnel karta hai (CONNECT) ya dakhal hi nahi de sakta."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Middlebox ne roka",
+        "text": "WebSocket ko do hop-by-hop headers ka safar mein bachna zaroori hai. Jo purane proxies unhe hata dete hain ve upgrade tod dete hain. Isi liye asli apps wss:// use karte hain: TLS ke andar koi middlebox handshake padh ya badal nahi sakta.",
+        "facts": [
+          ["Cause", "Proxy drops Upgrade/Connection"],
+          ["Symptom", "426 or 400 instead of 101"],
+          ["Close code", "1006 (abnormal)"],
+          ["Fix", "wss:// or a proxy that supports Upgrade"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Opcodes",
+      "items": [
+        ["0x0", "Continuation"],
+        ["0x1", "Text (UTF-8)"],
+        ["0x2", "Binary"],
+        ["0x8", "Close"],
+        ["0x9", "Ping"],
+        ["0xA", "Pong"]
+      ]
+    },
+    {
+      "title": "Close codes",
+      "items": [
+        ["1000", "Normal closure"],
+        ["1001", "Going away (page chhod diya)"],
+        ["1006", "Abnormal, koi close frame nahi (kabhi bheja nahi jaata)"],
+        ["1008", "Policy violation"],
+        ["1011", "Server error"]
+      ]
+    },
+    {
+      "title": "Frame header",
+      "items": [
+        ["Byte 1", "FIN, RSV1-3, opcode"],
+        ["Byte 2", "MASK bit + length (0–125)"],
+        ["126 / 127", "16-bit / 64-bit length aage aati hai"],
+        ["Masking key", "4 bytes, sirf client frames mein"]
+      ]
+    }
+  ]
+}

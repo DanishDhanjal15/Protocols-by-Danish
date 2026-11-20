@@ -1,0 +1,316 @@
+{
+  "tagline": "Spare cables bina endless loops ke: switches khud tay karte hain kya block karna hai.",
+  "description": "Switches ke beech extra links backup path dete hain, lekin woh loops bhi banate hain jinhe Ethernet jhel nahi sakta. Spanning Tree switches ko ek root elect karne deta hai, uske tak sabse sasta path nikalne deta hai, aur sirf utne ports block karta hai ki loop-free tree bach jaye. Link fail hone par ek blocked port jaag kar kaam sambhal leta hai.",
+  "facts": [
+    ["Layer", "Data link (Layer 2)"],
+    ["Messages", "BPDUs to 01:80:c2:00:00:00"],
+    ["Framing", "802.3 + LLC 0x42 0x42 0x03"],
+    ["Config BPDU", "35 bytes"],
+    ["Timers", "Hello 2 s, max age 20 s, forward delay 15 s"],
+    ["Defined in", "IEEE 802.1D (RSTP: 802.1w)"]
+  ],
+  "legend": [
+    "BPDUs (hellos)",
+    "Topology change",
+    "Laptop data",
+    "Failures aur loops",
+    "Flooded copies"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Root elect karna aur ek port block karna",
+      "summary": "Triangle mein teen switches SW1 ko root elect karte hain, root ports chunte hain, aur loop todne ke liye ek port block karte hain.",
+      "steps": [
+        {
+          "title": "Sab root hone ka claim karte hain",
+          "desc": "Power-on par har switch sochta hai ki woh root hai",
+          "detail": "Switches start hote hain to har ek maanta hai ki woh root hai aur har port se BPDUs bhejta hai jo yahi kehte hain, cost 0 ke saath. BPDU mein ek bridge ID hoti hai: 2-byte priority aur uske baad switch ka MAC. Election khatam hone tak har port user traffic ke liye blocked rehta hai.",
+          "facts": [
+            ["Destination", "01:80:c2:00:00:00"],
+            ["Har ek kehta hai", "Root = main, cost 0"],
+            ["Priorities", "Sab 32768 (default)"]
+          ],
+          "quiz": {
+            "q": "Teeno priorities 32768 hain. Kaunsa switch root banta hai?",
+            "options": [
+              "SW1, sabse kam MAC 00:1a:a1:00:00:10",
+              "SW3, sabse bada MAC",
+              "Jo pehle boot hua",
+              "Jiske paas sabse zyada ports hain"
+            ],
+            "why": "Sabse kam bridge ID jeetti hai. Pehle priority compare hoti hai; tie hone par kam MAC address jeetta hai, isliye SW1 root hai."
+          }
+        },
+        {
+          "title": "SW1 jeet gaya",
+          "desc": "Behtar BPDUs jeette hain, kharab wale chup ho jate hain",
+          "detail": "SW2 aur SW3 dono ko SW1 ka naam wali BPDU sunai deti hai, jiski bridge ID unki apni se kam hai. Woh root hone ka claim band kar dete hain aur SW1 ko maan lete hain. Ab se sirf root hi nayi BPDUs shuru karta hai, har 2 seconds (hello time) mein, hamesha root path cost 0 ke saath.",
+          "facts": [
+            ["Root bridge", "SW1 (00:1a:a1:00:00:10)"],
+            ["Root bhejta hai", "Har 2 s hellos"],
+            ["Root path cost", "Root par 0"]
+          ]
+        },
+        {
+          "title": "Root port chuno",
+          "desc": "Har switch root tak ka apna sabse sasta raasta rakhta hai",
+          "detail": "SW2 aur SW3 dono ek-ek root port chunte hain: woh port jiska root tak total cost sabse kam ho. Dono ke liye yeh port 1 hai, seedha SW1 tak, cost 4. Phir woh root ki BPDU ko apne dusre ports se aage pass karte hain, apna cost aur lagbhag 1 s ka message age jodkar.",
+          "facts": [
+            ["SW2 root port", "Port 1, cost 4"],
+            ["SW3 root port", "Port 1, cost 4"],
+            ["Relayed cost", "4 (0 + ek 1 Gb/s link)"]
+          ],
+          "quiz": {
+            "q": "SW2 SW3 ke raste se bhi SW1 tak pahunch sakta hai. Us path ka cost kya hoga?",
+            "options": [
+              "4",
+              "8",
+              "0",
+              "Uska koi cost nahi"
+            ],
+            "why": "Do 1 Gb/s links, 4-4 ke, mil kar 8 bante hain. Direct link ka cost 4 hai, isliye port 1 root port hai."
+          }
+        },
+        {
+          "title": "Aakhri link par tie",
+          "desc": "Kam bridge ID jeetti hai, dusra port block hota hai",
+          "detail": "SW2–SW3 link par dono taraf se root cost 4 par offer ho raha hai. Tie todne ke liye woh bridge IDs compare karte hain. SW2 kam hai, isliye SW2 ka port 2 us link ka designated port ban jata hai, aur SW3 ka port 2 blocked ho jata hai. Woh user frames drop karta hai lekin BPDUs sunta rehta hai.",
+          "facts": [
+            ["Designated", "SW2 port 2"],
+            ["Blocked", "SW3 port 2"],
+            ["Tie-breakers", "Cost, phir bridge ID, phir port ID"]
+          ],
+          "quiz": {
+            "q": "Loop todne ke liye kaunsa port block hota hai?",
+            "options": [
+              "SW1 port 2",
+              "SW2 port 2",
+              "SW3 port 2",
+              "SW2 port 1"
+            ],
+            "why": "Dono ka cost same hai, isliye jis switch ki bridge ID badi hai (SW3) woh haarta hai aur us link par apna port block karta hai. Root ports aur root ke ports kabhi block nahi hote."
+          }
+        },
+        {
+          "title": "30 seconds, phir forward",
+          "desc": "Listening, learning, forwarding",
+          "detail": "Classic 802.1D har naye forwarding port ko 15 s listening mein aur 15 s learning (sirf MAC addresses) mein wait karata hai, taaki BPDUs phailne ke dauraan loop na ban sake. Uske baad laptop ka NAS ko ping SW2 → SW1 → SW3 se hota hua, blocked link ke aas-paas se jata hai. RSTP (802.1w) wahi kaam padosiyon ke beech handshakes se lagbhag ek second mein kar deta hai.",
+          "facts": [
+            ["Listening", "15 s"],
+            ["Learning", "15 s"],
+            ["Laptop → NAS path", "SW2 → SW1 → SW3"]
+          ],
+          "quiz": {
+            "q": "SW2 aur SW3 ke beech direct cable hone ke bawajood ping SW1 se kyun jati hai?",
+            "options": [
+              "SW1 tez hai",
+              "Direct cable SW3 ke blocked port se hoke jati hai",
+              "Pings hamesha root se hoke jati hain",
+              "NAS ne maanga tha"
+            ],
+            "why": "SW3 port 2 user frames drop karta hai, isliye SW2 aur SW3 ke beech ek hi khula raasta root se hoke hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Ek loop-free tree",
+        "text": "Switches ne sabse kam bridge ID ko root elect kiya, har ek ne uski taraf apna sabse sasta port chuna, aur jo ek port loop band karta use block kar diya. Spare link ab bhi wahan hai, intezaar karta hua, aur BPDUs har 2 seconds mein aa rahe hain.",
+        "facts": [
+          ["Root", "SW1"],
+          ["Root ports", "SW2 port 1, SW3 port 1"],
+          ["Blocked", "SW3 port 2"],
+          ["BPDU size", "35 bytes + 3 LLC"]
+        ]
+      }
+    },
+    "link-fail": {
+      "name": "Link toot gaya, blocked port kaam sambhalta hai",
+      "summary": "SW1–SW3 cable fail ho jata hai; topology change announce hota hai aur SW3 ka blocked port forwarding shuru karta hai.",
+      "steps": [
+        {
+          "title": "Cable kat gaya",
+          "desc": "SW3 apna root port kho deta hai",
+          "detail": "Koi SW1 aur SW3 ke beech ka cable nikal deta hai. SW1 ka agla hello SW3 tak kabhi nahi pahunchta. Dono switches link down hote hi dekh lete hain, isliye unhe purani information expire hone ke liye 20 s (max age) wait nahi karna padta.",
+          "facts": [
+            ["Failed link", "SW1 port 2 – SW3 port 1"],
+            ["SW3 root port", "Gaya"],
+            ["Detected", "Turant (link down)"]
+          ],
+          "quiz": {
+            "q": "Ab SW3 root tak pahunchne ke liye kaunsa port use kare?",
+            "options": [
+              "Koi nahi, woh kat gaya",
+              "Port 2, SW2 ke through",
+              "Port 3, NAS ke through",
+              "Woh khud root ban jata hai"
+            ],
+            "why": "Port 2 ab bhi SW2 se BPDUs sunta hai jo kehti hain root SW1 hai cost 4 par. Uske through SW3 root tak cost 8 par pahunchta hai."
+          }
+        },
+        {
+          "title": "Naya root port",
+          "desc": "Blocked port bahar jane ka raasta ban jata hai",
+          "detail": "SW3 port 2 ko apna naya root port banata hai, cost 8 par, un BPDUs se jo SW2 bhejta rehta hai. Classic 802.1D mein use forwarding se pehle listening aur learning se guzarna padta hai. RSTP mein yeh port pehle se alternate mark tha, isliye woh lagbhag turant forwarding par aa jata.",
+          "facts": [
+            ["Naya root port", "SW3 port 2"],
+            ["Cost to root", "8"],
+            ["State", "Listening (802.1D)"]
+          ]
+        },
+        {
+          "title": "Root ko batao",
+          "desc": "TCN upar tree mein, TCA wapas neeche",
+          "detail": "SW3 apne root port se ek chhoti Topology Change Notification BPDU bhejta hai. SW2 use TCA flag se confirm karta hai aur notice SW1 tak upar pass kar deta hai, jo use bhi confirm karta hai. Sirf root hi poore network ko change announce kar sakta hai.",
+          "facts": [
+            ["TCN BPDU", "4 bytes, type 0x80"],
+            ["Ack flag", "TCA (bit 7)"],
+            ["Path", "SW3 → SW2 → SW1"]
+          ],
+          "quiz": {
+            "q": "Notice har switch ko seedha bhejne ke bajaye root ke paas kyun jata hai?",
+            "options": [
+              "Sirf root hi sabke liye TC flag set kar sakta hai",
+              "Dusre switches BPDUs ignore karte hain",
+              "Root saare MAC addresses store karta hai",
+              "Yeh tez hai"
+            ],
+            "why": "Saari BPDUs root se tree mein neeche behti hain. Root se apne hellos mein TC set karwana har switch tak pahunchne ka sabse simple tareeka hai."
+          }
+        },
+        {
+          "title": "TC flag har jagah",
+          "desc": "Purani MAC entries jaldi bhool jao",
+          "detail": "Agle 35 s (max age plus forward delay) tak root apne hellos mein TC flag set rakhta hai, aur har switch use aage pass karta hai. Jo switch TC dekhta hai woh apni MAC table aging 300 s se ghata kar 15 s kar deta hai. Dead link ki taraf point karne wali entries jaldi gayab ho jati hain, isliye frames gaddhe mein nahi bheje jate.",
+          "facts": [
+            ["Flags", "0x01 (TC)"],
+            ["TC chalta hai", "35 s"],
+            ["MAC aging", "300 s → 15 s"]
+          ],
+          "quiz": {
+            "q": "Topology change ke baad switches ko MAC entries kyun flush karni chahiye?",
+            "options": [
+              "Memory bachane ke liye",
+              "Kuch devices ab dusre ports se pahunche jate hain, aur purani entries galat taraf point karti hain",
+              "BPDUs chhoti karne ke liye",
+              "Root election reset karne ke liye"
+            ],
+            "why": "SW1 ab bhi sochta hai ki NAS port 2 se hai, jo dead hai. Fast aging use NAS ko port 1 par, SW2 ke through, dobara seekhne deta hai."
+          }
+        },
+        {
+          "title": "Port 2 forward karta hai",
+          "desc": "Backup link traffic carry karta hai",
+          "detail": "15 s listening aur 15 s learning ke baad SW3 port 2 forwarding shuru karta hai. Laptop ki pings ab chhote raste se jati hain, SW2 → SW3, us link se jo blocked tha. Jab toota cable wapas aayega, switches wahi rules chalayenge aur phir ek port block karenge.",
+          "facts": [
+            ["SW3 port 2", "Forwarding"],
+            ["Outage (802.1D)", "Lagbhag 30 s"],
+            ["Outage (RSTP)", "1 s se kam"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Spare link ne din bacha liya",
+        "text": "SW3 ne apna root port khoya to uska blocked port naya root port ban gaya. TCN ne root ko batayi, root ke TC flag ne har switch ko purani MAC entries flush karwayi, aur forward delay timers ke baad backup link ne traffic carry kiya.",
+        "facts": [
+          ["Trigger", "Root port link down"],
+          ["Messages", "TCN, TCA, TC"],
+          ["Recovery time", "~30 s STP, <1 s RSTP"]
+        ]
+      }
+    },
+    "storm": {
+      "name": "Spanning tree nahi: broadcast storm",
+      "summary": "STP band hone par ek ARP broadcast triangle mein hamesha ghoomta rehta hai aur har link ko bhar deta hai.",
+      "steps": [
+        {
+          "title": "Ek masoom broadcast",
+          "desc": "Laptop puchta hai: NAS kiske paas hai?",
+          "detail": "Kisi ne spanning tree band kar diya hai. Laptop ek hi ARP broadcast bhejta hai. SW2 use flood karta hai, jaise switches broadcasts ke saath hamesha karte hain, jis port se aaya use chhodkar har port se: SW1 aur SW3 ko.",
+          "facts": [
+            ["Destination", "ff:ff:ff:ff:ff:ff"],
+            ["STP", "Disabled"],
+            ["SW2 se copies", "2"]
+          ]
+        },
+        {
+          "title": "Chakkar par chakkar",
+          "desc": "Har switch use phir flood karta hai",
+          "detail": "SW1 apni copy SW3 ko flood karta hai, aur SW3 apni copy SW1 aur NAS ko flood karta hai. Phir har copy wapas SW2 ke paas aati hai, jo use dobara flood karta hai. Copies triangle mein dono directions mein ghoomti hain aur kabhi nahi rukti.",
+          "facts": [
+            ["Directions", "Clockwise aur anticlockwise"],
+            ["Ends when", "Kabhi nahi"],
+            ["MAC table", "Laptop kai ports par dikhta hai"]
+          ],
+          "quiz": {
+            "q": "Loop mein IP packet TTL 0 hone par mar jata hai. Yeh frame kyun nahi marta?",
+            "options": [
+              "Yeh bahut chhota hai",
+              "Ethernet header mein TTL ya hop count hota hi nahi",
+              "Switches TTL renew kar dete hain",
+              "ARP frames protected hote hain"
+            ],
+            "why": "Ethernet mein TTL jaisa kuch nahi hota. Switch ke paas yeh pata karne ka tareeka nahi ki usne frame pehle dekha hai, isliye woh use hamesha ke liye phir flood karta hai."
+          }
+        },
+        {
+          "title": "Network pighal jata hai",
+          "desc": "Links full, CPUs busy, kuch kaam nahi karta",
+          "detail": "Ek second ke andar ghoomti copies har link bhar deti hain. Network ke har device ko har broadcast padhna padta hai, isliye laptops aur switch CPUs dab jate hain, aur MAC tables lagatar port badalti rehti hain. Asli traffic nikal nahi pata. Fix hai spanning tree wapas on karna, ya ek cable nikalna.",
+          "facts": [
+            ["Link use", "~100%"],
+            ["Frames per second", "Lakhon"],
+            ["Fix", "STP ek port block karta hai"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Spanning tree kyun hai",
+        "text": "Ethernet frames mein hop count nahi hota, isliye ek loop mein ek broadcast tab tak multiply hota rehta hai jab tak network ruk na jaye. Spanning Tree spare cables rakhta hai lekin sirf utne ports block karta hai ki frames kabhi wapas ghoom kar na aa saken.",
+        "facts": [
+          ["Cause", "Loop aur STP nahi"],
+          ["Ethernet TTL", "Koi nahi"],
+          ["Defence", "STP/RSTP, BPDU guard, storm control"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Port roles",
+      "items": [
+        ["Root port", "Har switch ka root tak sabse behtar path"],
+        ["Designated port", "Har link par woh ek port jo leaves ki taraf forward karta hai"],
+        ["Blocked / alternate", "Data drop karta hai, BPDUs phir bhi sunta hai"],
+        ["Edge port (PortFast)", "PC ki taraf jata hai: turant forward karta hai"]
+      ]
+    },
+    {
+      "title": "Election order",
+      "items": [
+        ["1", "Sabse kam root bridge ID"],
+        ["2", "Sabse kam root path cost"],
+        ["3", "Sabse kam sender bridge ID"],
+        ["4", "Sabse kam sender port ID"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["Hello", "2 s"],
+        ["Max age", "20 s"],
+        ["Forward delay", "15 s (do baar: listening, learning)"],
+        ["Default priority", "32768, 4096 ke steps mein"],
+        ["Cost (short)", "100 Mb/s = 19, 1 Gb/s = 4, 10 Gb/s = 2"]
+      ]
+    },
+    {
+      "title": "BPDU types aur flags",
+      "items": [
+        ["0x00", "Configuration BPDU (35 bytes)"],
+        ["0x80", "Topology Change Notification (4 bytes)"],
+        ["0x02", "RST BPDU (RSTP, 36 bytes)"],
+        ["Flag 0x01 / 0x80", "TC / TCA"]
+      ]
+    }
+  ]
+}

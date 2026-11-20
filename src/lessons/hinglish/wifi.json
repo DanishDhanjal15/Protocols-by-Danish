@@ -1,0 +1,310 @@
+{
+  "tagline": "Tumhara laptop Wi-Fi network kaise dhoondta hai aur kaise sabit karta hai ki use password pata hai.",
+  "description": "Wi-Fi network join karne mein hawa mein ek chhoti si baatcheet hoti hai. Laptop access point ke beacons sunta hai, hello kehta hai, join karta hai, aur phir 4-way handshake chalata hai: dono sides password kabhi bheje bina sabit karte hain ki unhe password pata hai, aur fresh keys par agree karte hain jo uske baad har frame ko encrypt karti hain.",
+  "facts": [
+    ["Layer", "Data link (Layer 2)"],
+    ["Standard", "IEEE 802.11, WPA2 = 802.11i"],
+    ["Key exchange", "EAPOL 4-way handshake"],
+    ["Encryption", "AES-CCMP"],
+    ["MAC header", "24 bytes (3 addresses)"],
+    ["Bands", "2.4, 5 aur 6 GHz"]
+  ],
+  "legend": [
+    "Dhoondna aur join karna (management)",
+    "Accepted",
+    "4-way handshake (keys)",
+    "Laptop se encrypted data",
+    "Rejection ya attack"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "WPA2 home network join karna",
+      "summary": "Laptop HomeNet dhoondta hai, join karta hai, 4-way handshake chalata hai aur encrypted frames bhejna shuru karta hai.",
+      "steps": [
+        {
+          "title": "Beacon sunna",
+          "desc": "Access point ek second mein das baar apna ailaan karta hai",
+          "detail": "Router ka radio lagbhag har 102 ms mein ek Beacon broadcast karta hai. Isme network ka naam (SSID), channel, supported speeds aur ek RSN element hota hai jo kehta hai “WPA2, password chahiye, AES-CCMP”. Isi se networks tumhari Wi-Fi list mein dikhte hain.",
+          "facts": [
+            ["SSID", "HomeNet"],
+            ["Channel", "6 (2.4 GHz)"],
+            ["Sent to", "ff:ff:ff:ff:ff:ff (sabko)"]
+          ],
+          "quiz": {
+            "q": "Beacon ka kaunsa hissa laptop ko batata hai ki is network ko WPA2 password chahiye?",
+            "options": [
+              "SSID",
+              "RSN element",
+              "Beacon interval",
+              "Duration field"
+            ],
+            "why": "RSN (Robust Security Network) element cipher (CCMP) aur login method list karta hai: AKM 2, ek pre-shared key."
+          }
+        },
+        {
+          "title": "Pucho kaun hai",
+          "desc": "Probe Request aur Probe Response",
+          "detail": "Agle beacon ka intezaar karne ke bajaye laptop seedha puch sakta hai. Woh jis network ko chahta hai uska naam likhkar Probe Request bhejta hai, aur access point Probe Response se jawab deta hai. Isme lagbhag beacon jaisi hi information hoti hai lekin sirf is laptop ko bheji jati hai.",
+          "facts": [
+            ["Request to", "Broadcast"],
+            ["Response to", "3c:22:fb:7a:91:0e"],
+            ["Why", "Beacons ka wait karne se tez"]
+          ]
+        },
+        {
+          "title": "Authenticate aur associate",
+          "desc": "Open System auth, phir join",
+          "detail": "“Open System authentication” security check jaisa lagta hai lekin hai nahi: yeh do-frame ka hello hai jo hamesha succeed hota hai. Phir laptop Association Request bhejta hai jisme likha hota hai ki usne kaunsi security chuni (WPA2-PSK with CCMP), aur router Association ID se jawab deta hai. Laptop ab attached hai, lekin router handshake frames ke alawa uska saara traffic abhi bhi block rakhta hai.",
+          "facts": [
+            ["Auth algorithm", "0 (Open System)"],
+            ["Association ID", "1"],
+            ["Traffic allowed", "Abhi tak sirf EAPOL"]
+          ],
+          "quiz": {
+            "q": "Association Response ke baad kya laptop web traffic bhej sakta hai?",
+            "options": [
+              "Haan, woh connected hai",
+              "Nahi, keys agree hone tak router sirf EAPOL handshake frames jaane deta hai",
+              "Sirf router ko khud",
+              "Sirf unencrypted HTTP"
+            ],
+            "why": "802.1X port tab tak band rehta hai jab tak 4-way handshake password sabit na kar de aur keys install na ho jayein."
+          }
+        },
+        {
+          "title": "Handshake: nonces badlo",
+          "desc": "Messages 1 aur 2: ANonce, SNonce aur ek MIC",
+          "detail": "Dono sides ke paas pehle se PMK hai, jo password aur SSID se nikla hai (PBKDF2, 4096 rounds). Router ek random ANonce bhejta hai. Laptop apna SNonce chunta hai, PMK + ANonce + SNonce + dono MAC addresses ko mila kar session key (PTK) banata hai, aur us key se bani MIC ke saath SNonce bhejta hai. Router wahi PTK banata hai aur MIC check karta hai: agar match ho gaya, to laptop ko password pata hi hoga.",
+          "facts": [
+            ["PMK", "PBKDF2(password, SSID)"],
+            ["PTK", "PRF(PMK, ANonce, SNonce, MACs)"],
+            ["Password bheja?", "Kabhi nahi"]
+          ],
+          "quiz": {
+            "q": "Router ko message 2 mila. MIC check karne ke liye use kya chahiye?",
+            "options": [
+              "Message 2 mein bheja gaya password",
+              "Apna PMK aur message 2 ka SNonce",
+              "Sirf SNonce",
+              "Ek certificate"
+            ],
+            "why": "SNonce ke saath woh apne PMK se wahi PTK bana sakta hai. Agar laptop ka password alag hota, to uska PTK aur MIC match nahi karte."
+          }
+        },
+        {
+          "title": "Handshake: keys install karo",
+          "desc": "Messages 3 aur 4: GTK mil gaya, keys install ho gayi",
+          "detail": "Router message 3 se jawab deta hai. Usme uski apni MIC hoti hai, jo sabit karti hai ki router ko bhi password pata hai, aur GTK (broadcasts ke liye group key) jo PTK ke ek hisse se encrypted hai. Laptop message 4 se jawab deta hai, aur dono sides keys install kar lete hain. 802.1X port khul jata hai.",
+          "facts": [
+            ["GTK", "Group key, broadcasts ke liye"],
+            ["Replay counter", "2"],
+            ["Result", "Dono taraf keys installed"]
+          ]
+        },
+        {
+          "title": "Encrypted data",
+          "desc": "Ab har frame mein CCMP header hota hai",
+          "detail": "Ab se data frames mein Protected flag set hota hai. 24-byte MAC header ke baad packet number wala 8-byte CCMP header aata hai, phir encrypted contents (LLC, IP, TCP aur baaki) aur 8-byte MIC. Radio ke saath paas mein koi bhi MAC addresses aur frame sizes dekh sakta hai, lekin andar kya hai nahi.",
+          "facts": [
+            ["Cipher", "AES-CCMP (128-bit)"],
+            ["Overhead", "8-byte header + 8-byte MIC"],
+            ["Dusron ko dikhta hai", "MACs, sizes, timing"]
+          ],
+          "quiz": {
+            "q": "Attacker ek protected frame record karke baad mein phir bhejta hai. Use kya rokta hai?",
+            "options": [
+              "Duration field",
+              "Packet number (PN) hamesha badhna chahiye",
+              "SSID",
+              "Kuch nahi"
+            ],
+            "why": "Receiver aakhri PN yaad rakhta hai. Replay kiye gaye frame ka PN purana hota hai aur woh drop ho jata hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Network par",
+        "text": "Laptop ne apne beacon se HomeNet dhoonda, Open System auth aur association se join kiya, phir 4-way handshake mein sabit kiya ki use password pata hai, bina kabhi bheje. Ab fresh keys har frame ko AES-CCMP se encrypt karti hain.",
+        "facts": [
+          ["Join ke frames", "10"],
+          ["Join karne ka time", "probe ke lagbhag 8 ms baad"],
+          ["Hawa mein password", "Kabhi nahi"],
+          ["Next", "IP address ke liye DHCP"]
+        ]
+      }
+    },
+    "wrong-password": {
+      "name": "Galat password",
+      "summary": "Password mein typo se message 2 ki MIC galat ho jati hai. Router chup rehta hai, retry karta hai, phir laptop ko nikal deta hai.",
+      "steps": [
+        {
+          "title": "Hamesha ki tarah join",
+          "desc": "Auth aur association phir bhi succeed hote hain",
+          "detail": "Open System authentication ya association mein kuch bhi password check nahi karta, isliye typo ke saath bhi yeh succeed hote hain. Laptop ne galat password se apna PMK bana liya hai, lekin abhi kisi ko pata nahi.",
+          "facts": [
+            ["Typed password", "ek letter galat"],
+            ["Auth", "Succeeds"],
+            ["Association", "Succeeds"]
+          ]
+        },
+        {
+          "title": "MIC check fail",
+          "desc": "Message 2 aisi MIC ke saath aata hai jo router match nahi kar pata",
+          "detail": "Router ANonce bhejta hai aur laptop SNonce aur MIC ke saath jawab deta hai. Router asli password se apna PTK banata hai, MIC compute karta hai, aur alag value paata hai. Woh laptop ko wajah nahi batata. Bas message 2 drop kar deta hai.",
+          "facts": [
+            ["Laptop PTK", "Galat password se"],
+            ["Router PTK", "Sahi password se"],
+            ["Message 2", "Chupchap dropped"]
+          ],
+          "quiz": {
+            "q": "Router “wrong password” ka reply kyun nahi deta?",
+            "options": [
+              "802.11 mein error codes nahi hote",
+              "Use sirf itna pata hai ki MIC match nahi hui; woh password khud nahi dekh sakta",
+              "Woh bahut busy hai",
+              "Woh uske badle sahi password bhej deta hai"
+            ],
+            "why": "Password kabhi travel nahi karta. Router ko bas ek MIC dikhti hai jo fit nahi hoti, jo damaged ya forged frame bhi ho sakta hai."
+          }
+        },
+        {
+          "title": "Retry",
+          "desc": "Message 1 phir se, naye replay counter ke saath",
+          "detail": "Koi valid reply na milne par router lagbhag ek second wait karta hai aur replay counter 2 karke message 1 phir bhejta hai. Laptop wahi galat key se jawab deta hai, isliye MIC phir fail hoti hai.",
+          "facts": [
+            ["Replay counter", "2"],
+            ["Wait", "Lagbhag 1 s"],
+            ["Result", "Wahi kharab MIC"]
+          ]
+        },
+        {
+          "title": "Nikal diya gaya",
+          "desc": "Deauthentication, reason 15",
+          "detail": "Retries khatam hone par router reason 15 ke saath Deauthentication frame bhejta hai, “4-way handshake timeout”. Laptop ke Wi-Fi menu mein “incorrect password” dikhta hai. Kai routers failed attempt ko log bhi karte hain.",
+          "facts": [
+            ["Frame", "Deauthentication"],
+            ["Reason", "15 (4-way handshake timeout)"],
+            ["User ko dikhta hai", "Incorrect password"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Galat password, connection nahi",
+        "text": "Galat password sirf 4-way handshake mein pakda jata hai, jab message 2 ki MIC match nahi karti. Router use drop karta hai, retry karta hai, aur aakhir mein deauthentication bhejta hai. Password khud kabhi hawa mein nahi gaya.",
+        "facts": [
+          ["Detected at", "Message 2 (MIC)"],
+          ["Router reply", "Chuppi, phir deauth"],
+          ["Reason code", "15"]
+        ]
+      }
+    },
+    "deauth-attack": {
+      "name": "Deauth attack aur 802.11w",
+      "summary": "Attacker laptop ko nikalne ke liye forged deauthentication frames bhejta hai. Protected Management Frames unhe bekaar kar dete hain.",
+      "steps": [
+        {
+          "title": "Connected aur busy",
+          "desc": "Normal encrypted traffic",
+          "detail": "Laptop HomeNet se joined hai aur encrypted frames bhej raha hai. Plain WPA2 mein Deauthentication jaise management frames kabhi encrypted ya signed nahi hote.",
+          "facts": [
+            ["Data frames", "Encrypted (CCMP)"],
+            ["Management frames", "Protected nahi"],
+            ["PMF (802.11w)", "Off"]
+          ]
+        },
+        {
+          "title": "Forged deauth",
+          "desc": "Attacker router banne ka natak karta hai",
+          "detail": "Attacker router ka MAC address sender ke roop mein likhkar Deauthentication frame bhejta hai. Check karne ke liye koi signature nahi, isliye laptop us par yakeen karke disconnect ho jata hai. Yeh har kuch seconds mein dohrane se victim network se bahar rehta hai, aur laptop ko rejoin bhi karwa sakta hai taaki attacker ek fresh handshake record kare aur offline password guess kare.",
+          "facts": [
+            ["Spoofed sender", "b0:be:76:12:4c:01"],
+            ["Reason", "7 (class 3 frame from non-associated station)"],
+            ["Cost", "Ek 26-byte frame"]
+          ],
+          "quiz": {
+            "q": "Laptop forged frame par yakeen kyun karta hai?",
+            "options": [
+              "Attacker ko password pata hai",
+              "802.11w ke bina deauth frames mein MIC nahi hoti, to koi bhi sender address fake kar sakta hai",
+              "Frame encrypted hai",
+              "Router ne attacker ko bhejne ko kaha tha"
+            ],
+            "why": "Plain WPA2 sirf data frames ko protect karta hai. Management frame ka sender address bas chhe bytes hain jo koi bhi likh sakta hai."
+          }
+        },
+        {
+          "title": "Rejoin, handshake record hua",
+          "desc": "Laptop dobara connect hota hai aur attacker sunta hai",
+          "detail": "Laptop apne aap rejoin karta hai aur 4-way handshake phir chalata hai. Attacker messages 1 aur 2 record karta hai. ANonce, SNonce, MACs aur MIC ke saath woh ab apne computer par lakhon password guesses try kar sakta hai, isliye lamba, random WPA2 password zaroori hai.",
+          "facts": [
+            ["Captured", "ANonce, SNonce, MIC"],
+            ["Attack", "Offline dictionary guessing"],
+            ["Defence", "Lamba random password, ya WPA3"]
+          ]
+        },
+        {
+          "title": "802.11w (PMF) on karo",
+          "desc": "Forged deauth ignore ho jata hai",
+          "detail": "Protected Management Frames ke saath router ke asli deauth frames data ki tarah encrypted hote hain aur unme MIC hoti hai. Forged frame mein Protected flag nahi hota, isliye laptop connection nahi todta. Uske bajaye woh encrypted link par router se puchta hai (SA Query) ki kya woh sach mein disconnect karna chahta hai. Router sahi jawab deta hai, aur laptop bana rehta hai.",
+          "facts": [
+            ["RSN capabilities", "MFPC/MFPR set"],
+            ["Unprotected deauth", "SA Query chalata hai, disconnect nahi"],
+            ["Mandatory in", "WPA3 aur Wi-Fi 6E"]
+          ],
+          "quiz": {
+            "q": "PMF on hone par laptop ko router se aaya hua dikhta unprotected deauth milta hai. Woh kya karta hai?",
+            "options": [
+              "Turant disconnect ho jata hai",
+              "Protected link par router se puchta hai (SA Query) aur router jawab de to bana rehta hai",
+              "Router ko apna password bhejta hai",
+              "Channel badal leta hai"
+            ],
+            "why": "Asli router apna deauth protect karta. SA Query exchange sabit karta hai ki encrypted association abhi zinda hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Deauth attacks ruk gaye",
+        "text": "802.11w ke bina koi bhi deauthentication frame forge karke devices ko nikal sakta hai aur offline guessing ke liye handshakes capture kar sakta hai. Protected Management Frames in frames ko encrypt aur sign karte hain, isliye fakes ignore hote hain aur SA Query asli link confirm karta hai.",
+        "facts": [
+          ["Attack", "Forged deauthentication"],
+          ["Defence", "802.11w PMF"],
+          ["Madad bhi karta hai", "WPA3 (PMF zaroori hai)"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Frame types (type / subtype)",
+      "items": [
+        ["0/8 Beacon", "Network announcement"],
+        ["0/4, 0/5", "Probe Request / Response"],
+        ["0/11", "Authentication"],
+        ["0/0, 0/1", "Association Request / Response"],
+        ["0/12", "Deauthentication"],
+        ["2/0", "Data"]
+      ]
+    },
+    {
+      "title": "4-way handshake",
+      "items": [
+        ["Msg 1", "AP → STA: ANonce"],
+        ["Msg 2", "STA → AP: SNonce + MIC"],
+        ["Msg 3", "AP → STA: install, GTK, MIC"],
+        ["Msg 4", "STA → AP: done"],
+        ["PTK", "PRF(PMK, ANonce, SNonce, MACs)"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["MAC header", "24 bytes"],
+        ["CCMP overhead", "16 bytes (8 header + 8 MIC)"],
+        ["Beacon interval", "100 TU = 102.4 ms"],
+        ["EAPOL EtherType", "0x888E"],
+        ["Deauth reason 15", "4-way handshake timeout"]
+      ]
+    }
+  ]
+}

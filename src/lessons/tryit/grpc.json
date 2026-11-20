@@ -1,0 +1,26 @@
+{
+  "commands": [
+    {
+      "title": { "en": "List the gRPC calls in the capture", "hinglish": "Capture mein gRPC calls list karo" },
+      "why": { "en": "Wireshark decodes gRPC on top of HTTP/2 and shows the message and its protobuf fields.", "hinglish": "Wireshark HTTP/2 ke upar gRPC decode karta hai aur message aur uske protobuf fields dikhata hai." },
+      "wireshark": "grpc",
+      "expect": { "en": "The request and response messages, with the path /weather.Weather/GetForecast and the protobuf fields. The capture is plain HTTP/2 on port 50051; you may need Analyze, Decode As, HTTP2 for that port.", "hinglish": "Request aur response messages, path /weather.Weather/GetForecast aur protobuf fields ke saath. Capture port 50051 par plain HTTP/2 hai; us port ke liye shayad Analyze, Decode As, HTTP2 karna pade." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Find the result in the trailers", "hinglish": "Trailers mein result dhoondo" },
+      "why": { "en": "The real outcome of a call is the grpc-status header sent at the end.", "hinglish": "Call ka asli outcome end mein bheja gaya grpc-status header hai." },
+      "wireshark": "http2.header.name == \"grpc-status\"",
+      "expect": { "en": "A HEADERS frame with grpc-status: 0 in the normal scenario, and grpc-status: 4 in the deadline scenario.", "hinglish": "Normal scenario mein grpc-status: 0 wala HEADERS frame, aur deadline scenario mein grpc-status: 4." },
+      "step": 4
+    },
+    {
+      "title": { "en": "See that gRPC is just HTTP/2 over TLS", "hinglish": "Dekho ki gRPC bas TLS par HTTP/2 hai" },
+      "why": { "en": "Many Google APIs speak gRPC on port 443, so you can check that they negotiate h2.", "hinglish": "Bahut si Google APIs port 443 par gRPC bolti hain, isliye tum check kar sakte ho ki ve h2 negotiate karti hain." },
+      "windows": "curl.exe -sI --http2 -o NUL -w \"%{http_version}\\n\" https://www.google.com/",
+      "unix": "curl -sI --http2 -o /dev/null -w '%{http_version}\\n' https://www.google.com/",
+      "expect": { "en": "Prints 2 (or 3 if your curl prefers HTTP/3). gRPC needs HTTP/2, so any gRPC endpoint negotiates h2 through ALPN.", "hinglish": "2 print hota hai (ya 3 agar tumhara curl HTTP/3 prefer kare). gRPC ko HTTP/2 chahiye, isliye har gRPC endpoint ALPN se h2 negotiate karta hai." },
+      "step": 1
+    }
+  ]
+}

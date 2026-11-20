@@ -1,0 +1,223 @@
+{
+  "tagline": "Switch kaise seekhta hai ki kaun si port par kaun baitha hai.",
+  "description": "Ethernet frames mein destination MAC, source MAC aur ek type hota hai. Switch har frame ka source MAC padhkar seekhta hai ki har device kaunsi port par hai, phir baad ke frames sirf sahi port se bhejta hai. Unknown ya broadcast addresses ke frames har port par copy hote hain.",
+  "facts": [
+    ["Layer", "Data link (Layer 2)"],
+    ["Header", "14 bytes: dst, src, type"],
+    ["Frame size", "60–1514 bytes (+4 FCS)"],
+    ["MAC address", "48 bits, jaise 3c:22:fb:7a:91:0e"],
+    ["Switch table aging", "Default 300 s"],
+    ["Defined in", "IEEE 802.3, 802.1D (bridging)"]
+  ],
+  "legend": [
+    "Laptop ke frames",
+    "NAS ke frames",
+    "Flooded copies",
+    "Broadcast",
+    "Attack frames"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Switch apni ports seekhta hai",
+      "summary": "Pehla frame flood hota hai, switch reply se seekhta hai, aur baad ke frames sirf ek port se nikalte hain.",
+      "steps": [
+        {
+          "title": "Khaali table, pehla frame",
+          "desc": "Source seekho, unknown destination ko flood karo",
+          "detail": "Switch abhi power on hua hai aur uski MAC table khaali hai. Laptop NAS ko ek frame bhejta hai. Switch note karta hai ki 3c:22:fb:7a:91:0e port 1 par hai. Use abhi NAS ka pata nahi, isliye woh baaki har port se ek copy flood kar deta hai.",
+          "facts": [
+            ["Learned", "3c:22:fb:7a:91:0e → port 1"],
+            ["Destination", "00:11:32:c4:5e:07 (unknown)"],
+            ["Action", "Ports 2, 3, 4 par flood"]
+          ],
+          "quiz": {
+            "q": "Is frame ki copy kaunsi ports ko milti hai?",
+            "options": [
+              "Sirf port 3 (NAS)",
+              "Ports 2, 3 aur 4: jahan se aaya uske alawa sab",
+              "Port 1 samet sabhi ports",
+              "Kisi ko nahi, drop ho jata hai"
+            ],
+            "why": "Unknown destination ko us port ke alawa har port par flood kiya jata hai jahan se woh aaya. Sender ko wapas bhejna bekaar hota."
+          }
+        },
+        {
+          "title": "NAS jawab deta hai",
+          "desc": "Sirf maalik frame rakhta hai",
+          "detail": "Printer aur router ko aisa destination MAC dikhta hai jo unka nahi, aur woh frame ko hardware mein hi phenk dete hain. NAS reply karta hai. Ab switch seekh leta hai ki NAS port 3 par hai, aur use pehle se pata hai ki laptop port 1 par hai, isliye reply sirf port 1 se nikalta hai.",
+          "facts": [
+            ["Learned", "00:11:32:c4:5e:07 → port 3"],
+            ["Reply jata hai", "Sirf port 1 ko"],
+            ["Baaki", "Copy drop kar di"]
+          ]
+        },
+        {
+          "title": "Seedha sahi port tak",
+          "desc": "Ab flooding nahi",
+          "detail": "Ab se laptop aur NAS ke beech ke frames sirf ports 1 aur 3 ke beech chalte hain. Printer unhe kabhi nahi dekhta. Isi wajah se switch purane hub se tez aur zyada private hota hai, jo har frame ko har jagah copy karta tha.",
+          "facts": [
+            ["MAC table", "Port 1: laptop, port 3: NAS"],
+            ["Printer ko frames", "Koi nahi"],
+            ["Hub karta", "Sab kuch har jagah copy"]
+          ],
+          "quiz": {
+            "q": "Laptop NAS ko ek aur frame bhejta hai. Woh kitni ports se nikalta hai?",
+            "options": [
+              "1",
+              "3",
+              "4",
+              "Size par depend karta hai"
+            ],
+            "why": "NAS ka MAC ab table mein port 3 par hai, isliye switch use wahin forward karta hai aur kahin nahi."
+          }
+        },
+        {
+          "title": "Broadcast har jagah jata hai",
+          "desc": "ff:ff:ff:ff:ff:ff hamesha flood hota hai",
+          "detail": "Ab laptop print karna chahta hai aur ARP se poochta hai ki 192.168.1.60 kiske paas hai. Destination broadcast MAC hai, jiska matlab sabhi, isliye switch ise hamesha flood karta hai, chahe uski table kuch bhi kahe. Isi wajah se bahut bade Layer 2 networks broadcasts se slow ho jate hain.",
+          "facts": [
+            ["Destination", "ff:ff:ff:ff:ff:ff"],
+            ["Type", "0x0806 (ARP)"],
+            ["Flooded to", "Ports 2, 3, 4"]
+          ]
+        },
+        {
+          "title": "Aging out",
+          "desc": "Na use hui entries 300 s baad bhula di jati hain",
+          "detail": "Printer jawab deta hai, aur switch seekhta hai ki woh port 2 par hai. Har entry ka ek timer hota hai jo us MAC ke frame bhejte hi reset ho jata hai. Agar koi device 300 seconds chup rahe, ya doosri port par le jaya jaye, to purani entry gayab ho jati hai aur switch phir seekhta hai.",
+          "facts": [
+            ["Learned", "00:80:77:3b:c2:19 → port 2"],
+            ["Aging time", "300 s"],
+            ["Moved device", "Nayi port par re-learn hota hai"]
+          ],
+          "quiz": {
+            "q": "NAS ko unplug karke port 4 par laga diya gaya. Uske agle frame ka kya hoga?",
+            "options": [
+              "Hamesha ke liye drop ho jata hai",
+              "Switch uska MAC port 4 par dekhta hai aur table update kar deta hai",
+              "Switch use hamesha har port par flood karta rehta hai",
+              "NAS ko switch reboot karna padega"
+            ],
+            "why": "Learning har frame par hoti hai. Nayi port par dikha source MAC bas purani entry ko replace kar deta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Switch jo apni ports jaanta hai",
+        "text": "Switch ne har device ki port uske frames ke source MAC se seekhi. Unknown aur broadcast destinations flood hue; known wale bilkul ek port se nikle. Koi configuration nahi chahiye thi.",
+        "facts": [
+          ["Learn from", "Source MAC"],
+          ["Forward by", "Destination MAC"],
+          ["Unknown / broadcast", "Flood"],
+          ["Aging", "300 s"]
+        ]
+      }
+    },
+    "mac-flood": {
+      "name": "MAC flooding aur port security",
+      "summary": "Attacker MAC table ko fake addresses se bhar deta hai taaki switch sab kuch flood kare; port security port ko band kar deti hai.",
+      "steps": [
+        {
+          "title": "Hazaron fake MACs",
+          "desc": "macof jaisa tool random source addresses bhejta hai",
+          "detail": "Attacker port 5 mein plug karta hai aur ek tool chalata hai jo har baar naye random source MAC ke saath frames bhejta hai, hazaron per second. Switch imaandari se unmein se har ek ko port 5 par seekh leta hai.",
+          "facts": [
+            ["Rate", "~100,000 frames/s"],
+            ["Source MACs", "Random, sab alag"],
+            ["Goal", "MAC table bhar do"]
+          ]
+        },
+        {
+          "title": "Table bhar gayi",
+          "desc": "Asli devices ab fit nahi hote",
+          "detail": "Switch mein 8,192 entries ki jagah hai, aur ab sab fake hain. Jab NAS ki entry age out hoti hai, use dobara seekhne ki jagah nahi hoti. NAS ke frames ka destination ab unknown hai, isliye switch unhe har port se flood karta hai, attacker ki port samet.",
+          "facts": [
+            ["Table size", "8,192 entries"],
+            ["Free", "0"],
+            ["Laptop → NAS frames", "Sabhi ports par flood"]
+          ],
+          "quiz": {
+            "q": "Attacker ko ab laptop ke NAS wale frames kyun dikhte hain?",
+            "options": [
+              "Switch jaan-boojhkar sab kuch port 5 ko forward karta hai",
+              "NAS ka MAC bhari hui table mein nahi hai, isliye uske frames flood hote hain",
+              "Attacker ne NAS ka IP badal diya",
+              "Laptop galti se attacker ko bhejta hai"
+            ],
+            "why": "NAS ko seekhne ki jagah na hone se switch use unknown maanta hai aur flood karta hai. Switch hub ki tarah behave karta hai aur attacker traffic capture kar sakta hai."
+          }
+        },
+        {
+          "title": "Port security",
+          "desc": "Har port par adhiktam 2 MACs, phir shut down",
+          "detail": "Admin port security on karta hai: har access port adhiktam do MAC addresses seekh sakti hai. Jab port 5 par teesra source MAC dikhta hai, switch ise violation ginta hai aur port ko error-disabled state mein daal deta hai. Attacker ke frames kahin nahi jate.",
+          "facts": [
+            ["Limit", "2 MACs per port"],
+            ["Violation action", "Port shut down"],
+            ["Port 5", "err-disabled"]
+          ],
+          "quiz": {
+            "q": "Switch ko kaunsa signal batata hai ki yeh port galat behave kar rahi hai?",
+            "options": [
+              "Frames bahut bade hain",
+              "Ek port par allowed se zyada source MACs",
+              "Frames broadcasts hain",
+              "IP addresses galat hain"
+            ],
+            "why": "Laptop ya printer ka ek MAC hota hai. Ek access port par sainkdon source MACs ka matlab sirf yahi ho sakta hai ki kuch galat hai."
+          }
+        },
+        {
+          "title": "Wapas normal",
+          "desc": "Table khaali hoti hai aur asli devices seekhe jate hain",
+          "detail": "Fake entries age out ho jati hain. NAS ek frame bhejta hai, switch use phir port 3 par seekhta hai, aur laptop-to-NAS traffic ek hi port se nikalta hai. Port 5 tab tak band rehti hai jab tak admin use check karke dobara on na kare.",
+          "facts": [
+            ["Fake entries", "Age out ho gayi"],
+            ["NAS", "Phir port 3"],
+            ["Port 5", "Reset hone tak down"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Table bhi ek resource hai",
+        "text": "MAC flooding table ko fake addresses se bharkar switch ko hub bana deta hai. Port security har port ke MACs ki limit lagati hai aur rule todne wali port ko band kar deti hai.",
+        "facts": [
+          ["Attack", "MAC flooding (CAM overflow)"],
+          ["Effect", "Unknown-unicast flooding"],
+          ["Defence", "Port security, 802.1X"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Frame layout",
+      "items": [
+        ["Preamble + SFD", "8 bytes sync (capture nahi hota)"],
+        ["Destination MAC", "6 bytes"],
+        ["Source MAC", "6 bytes"],
+        ["EtherType", "2 bytes"],
+        ["Payload", "46–1500 bytes (padded)"],
+        ["FCS", "4-byte CRC (aam taur par capture nahi hota)"]
+      ]
+    },
+    {
+      "title": "Switch rules",
+      "items": [
+        ["Learn", "Source MAC → incoming port"],
+        ["Known unicast", "Ek port ko forward"],
+        ["Unknown unicast", "Flood"],
+        ["Broadcast / multicast", "Flood (jab tak snooping na ho)"]
+      ]
+    },
+    {
+      "title": "Special MACs",
+      "items": [
+        ["ff:ff:ff:ff:ff:ff", "Broadcast"],
+        ["01:00:5e:…", "IPv4 multicast"],
+        ["33:33:…", "IPv6 multicast"],
+        ["Byte 1 ka 2nd bit set", "Locally administered (aksar random)"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,294 @@
+{
+  "tagline": "Do connections: ek baat karne ke liye, ek file ke liye.",
+  "description": "FTP files move karne ke sabse purane internet protocols mein se ek hai. Commands aur numbered replies port 21 ke control connection par jaate hain, aur har file apne alag data connection par jaati hai. Plain FTP sab kuch, passwords samet, clear text mein bhejta hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP 21 control, alag data connections"],
+    ["Defined in", "RFC 959 (1985)"],
+    ["Modes", "Active (PORT) aur passive (PASV/EPSV)"],
+    ["Security", "Koi nahi; FTPS (RFC 4217) ya SFTP use karo"],
+    ["Replies", "3-digit codes, SMTP ki tarah"]
+  ],
+  "legend": [
+    "Handshake aur success replies",
+    "Client ke commands",
+    "Server replies aur file data",
+    "Data connection setup",
+    "Exposed secrets ya blocked traffic"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Passive mode mein file download karo",
+      "summary": "Port 21 par login karo, binary par switch karo, PASV karo, aur doosre connection par report.pdf fetch karo.",
+      "steps": [
+        {
+          "title": "21 par control connection",
+          "desc": "Sirf commands ke liye ek TCP connection",
+          "detail": "FTP do tarah ke connections use karta hai. Port 21 ka control connection poore session ke liye text commands aur numbered replies le jaata hai. Files alag data connections par jaati hain. Handshake ke baad server 220 se greet karta hai.",
+          "facts": [
+            ["Server", "203.0.113.40 port 21"],
+            ["Greeting", "220 (vsFTPd 3.0.5)"],
+            ["Connections", "1 control + har transfer ke liye 1"]
+          ]
+        },
+        {
+          "title": "USER aur PASS",
+          "desc": "331 password maangta hai, 230 login karata hai",
+          "detail": "Client USER danish bhejta hai; server 331 se jawab deta hai, jiska matlab hai \"ab tak theek, password bhejo\". Phir PASS correct-horse-42 plain text mein jaata hai aur server 230 Login successful se reply karta hai. Classic FTP mein encryption bilkul nahi hai, isliye ye password path par kisi ko bhi padhne ko mil jaata hai.",
+          "facts": [
+            ["331", "User OK, password chahiye"],
+            ["230", "Logged in"],
+            ["Password", "Clear text mein bheja gaya!"]
+          ],
+          "quiz": {
+            "q": "USER danish ke baad server 331 reply karta hai. Client se ab aage kya bhejne ki ummeed hai?",
+            "options": [
+              "QUIT",
+              "Password ke saath PASS",
+              "PASV",
+              "Ek aur USER"
+            ],
+            "why": "3xx replies ka matlab \"aur information chahiye\". 331 khaas taur par password maangta hai."
+          }
+        },
+        {
+          "title": "PWD aur TYPE I",
+          "desc": "Main kahan hoon, aur binary par switch",
+          "detail": "PWD working directory print karta hai: server 257 se path quotes mein deta hai. TYPE I image (binary) mode par switch karta hai taaki file byte-by-byte bheji jaye. Purane ASCII mode mein server line endings rewrite kar deta, jo PDFs aur images ko corrupt kar deta hai.",
+          "facts": [
+            ["257", "\"/home/danish\" current directory hai"],
+            ["TYPE I", "Binary, bytes mein koi change nahi"],
+            ["TYPE A", "ASCII, line endings rewrite karta hai"]
+          ]
+        },
+        {
+          "title": "PASV: kahan connect karna hai",
+          "desc": "Chhe numbers ke saath 227",
+          "detail": "PASV server se kehta hai ki naya port khole aur client ka wait kare. Reply address aur port ko chhe numbers mein pack karta hai: (h1,h2,h3,h4,p1,p2). Yahan wo 203.0.113.40 aur port 195 × 256 + 149 = 50069 hai. Kyunki client connection bahar ki taraf kholta hai, ye home routers aur NAT ke through chalta hai.",
+          "facts": [
+            ["Reply", "227 Entering Passive Mode (203,0,113,40,195,149)."],
+            ["Address", "203.0.113.40"],
+            ["Port", "195 × 256 + 149 = 50069"]
+          ],
+          "quiz": {
+            "q": "Reply (…,195,149) par khatam hota hai. Client ko kaun se port se connect karna chahiye?",
+            "options": [
+              "195149",
+              "344",
+              "50069",
+              "20"
+            ],
+            "why": "Port p1 × 256 + p2 = 195 × 256 + 149 = 50069 hai. p1 high byte hai, p2 low byte."
+          }
+        },
+        {
+          "title": "Data connection kholo",
+          "desc": "Port 50069 par doosra TCP connection",
+          "detail": "Client port 50112 se 203.0.113.40:50069 tak bilkul naya TCP connection kholta hai. Ye data connection hai. Abhi ispar kuch nahi bheja gaya: client ko control connection par batana abhi baaki hai ki use kaun si file chahiye.",
+          "facts": [
+            ["From", "192.168.1.10:50112"],
+            ["To", "203.0.113.40:50069"],
+            ["Direction", "Client → server (passive mode)"]
+          ]
+        },
+        {
+          "title": "RETR aur file",
+          "desc": "Control par 150, data par bytes",
+          "detail": "Control connection par client RETR report.pdf bhejta hai. Server 150 se jawab deta hai aur file ko data connection par push karna shuru karta hai: yahan do poore 1460-byte segments. Khatam hone par wo data connection ko FIN se close kar deta hai. Connection ka end hi file ka end hai.",
+          "facts": [
+            ["Command", "RETR report.pdf"],
+            ["150", "Opening data connection"],
+            ["Size", "2 segments mein 2920 bytes"]
+          ],
+          "quiz": {
+            "q": "Client ko kaise pata chalta hai ki poori file aa gayi?",
+            "options": [
+              "Alag line par ek dot",
+              "Server data connection close kar deta hai",
+              "End mein checksum",
+              "Wo 1000 bytes tak ginta hai"
+            ],
+            "why": "FTP ke normal stream mode mein data connection ka FIN file ka end batata hai. Control par 226 reply ise confirm karta hai."
+          }
+        },
+        {
+          "title": "226 aur goodbye",
+          "desc": "Transfer complete, phir QUIT",
+          "detail": "Control connection par server 226 Transfer complete se confirm karta hai. Client ab aur files maang sakta tha, har ek apne PASV aur data connection ke saath. Uski jagah wo QUIT bhejta hai aur 221 Goodbye pata hai.",
+          "facts": [
+            ["226", "Transfer complete"],
+            ["221", "Goodbye"],
+            ["Data connections used", "1"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "File download ho gayi",
+        "text": "Control connection ne login aur commands carry kiye; port 50069 ke alag data connection ne file carry ki aur apna end batane ke liye close ho gaya. Ye chala, par password internet par plain text mein gaya.",
+        "facts": [
+          ["Connections", "2 (control + data)"],
+          ["PASV port", "195×256+149 = 50069"],
+          ["File", "report.pdf, 2920 bytes"],
+          ["Total time", "0.354 s"]
+        ]
+      }
+    },
+    "active-nat": {
+      "name": "NAT ne active mode block kiya",
+      "summary": "PORT private address bhejta hai; server ke port 20 se SYNs kabhi pahunchte nahi.",
+      "steps": [
+        {
+          "title": "Client active mode maangta hai",
+          "desc": "PORT 192,168,1,10,195,200",
+          "detail": "Ek purana FTP client active mode use karta hai. PASV ki jagah wo apne address aur port ke saath PORT bhejta hai, PORT 192,168,1,10,195,200, matlab \"mujhse 192.168.1.10 port 50120 par connect karo\". Ye private home address hai, jiska internet par koi matlab nahi.",
+          "facts": [
+            ["Command", "PORT 192,168,1,10,195,200"],
+            ["Means", "192.168.1.10 port 195×256+200 = 50120"],
+            ["Problem", "NAT ke peeche private address"]
+          ],
+          "quiz": {
+            "q": "Active mode mein data connection kaun kholta hai?",
+            "options": [
+              "Client",
+              "Server, client ki taraf wapas connect karke",
+              "Home router",
+              "Koi nahi, data control connection use karta hai"
+            ],
+            "why": "Active mode direction ulta kar deta hai: server port 20 se PORT command ke address par connect karta hai."
+          }
+        },
+        {
+          "title": "Server andar connect nahi kar sakta",
+          "desc": "Port 20 se SYNs kabhi nahi pahunchte",
+          "detail": "RETR ke baad server port 20 se 192.168.1.10 tak connect karne ki koshish karta hai. Ye address internet par route nahi ho sakta, aur agar Danish ke router tak pahunch bhi jaye, to router ka firewall un connection attempts ko drop kar deta hai jo andar kisi ne maange nahi. Server 1 aur 3 seconds baad retry karta hai.",
+          "facts": [
+            ["Server port", "20 (ftp-data)"],
+            ["Blocked by", "NAT aur router ka firewall"],
+            ["Retries", "1 s, phir 3 s"]
+          ]
+        },
+        {
+          "title": "425: data connection nahi bana",
+          "desc": "Fix hai passive mode",
+          "detail": "Server haar maan leta hai aur control connection par 425 report karta hai. Fix hai PASV (ya EPSV), jahan client data connection bahar ki taraf kholta hai, jo NAT aur firewalls allow karte hain. Modern clients default mein passive mode use karte hain.",
+          "facts": [
+            ["Reply", "425 Failed to establish connection."],
+            ["Fix", "PASV / EPSV (client bahar connect karta hai)"],
+            ["Firewall rule", "Inbound sirf wahi jo maanga gaya ho"]
+          ],
+          "quiz": {
+            "q": "Home router ke peeche PORT fail hota hai to PASV kyun chalta hai?",
+            "options": [
+              "PASV encrypted hai",
+              "PASV mein client data connection bahar ki taraf shuru karta hai, jo NAT allow karta hai",
+              "PASV UDP use karta hai",
+              "PASV data ke liye port 21 use karta hai"
+            ],
+            "why": "Home routers outgoing connections aur unke replies ko jaane dete hain, par unexpected incoming connections block karte hain."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Passive mode use karo",
+        "text": "Active mode mein server ko client ke andar connect karna padta hai, jise home routers aur firewalls block karte hain. Passive mode ise ulta kar deta hai taaki client hamesha bahar ki taraf connect kare.",
+        "facts": [
+          ["Result", "425 Failed to establish connection"],
+          ["Cause", "Private IP + firewall inbound SYN drop karta hai"],
+          ["Fix", "PASV ya EPSV"]
+        ]
+      }
+    },
+    "sniffed": {
+      "name": "Password sniff hua: FTPS aur SFTP kyun",
+      "summary": "Ek passive listener FTP login padh leta hai; TLS (FTPS) ya SSH (SFTP) use chhupa deta hai.",
+      "steps": [
+        {
+          "title": "Wire par password",
+          "desc": "Plain FTP sab kuch dikha deta hai",
+          "detail": "Jo koi Danish ka traffic dekh sakta hai (shared Wi-Fi, compromised router) wo port 21 par filter kiya hua capture chalata hai. USER aur PASS lines plain text hain, aur data connections par har file bhi. Cracking ki zaroorat nahi.",
+          "facts": [
+            ["Seen", "USER danish, PASS correct-horse-42"],
+            ["Also seen", "File names aur contents"],
+            ["Effort", "Bas ek packet capture"]
+          ]
+        },
+        {
+          "title": "Defence: FTPS",
+          "desc": "Login se pehle AUTH TLS",
+          "detail": "FTPS FTP mein TLS jodta hai. Client AUTH TLS bhejta hai, server 234 se reply karta hai, aur control connection par TLS handshake chalta hai. Uske baad USER aur PASS encrypted hain, aur PROT P data connections ko bhi protect karta hai. SFTP ek alag protocol hai jo port 22 par SSH ke andar ek connection mein chalta hai, aur usually simpler choice hai.",
+          "facts": [
+            ["FTPS", "AUTH TLS → 234, phir TLS"],
+            ["Data", "PROT P data connections encrypt karta hai"],
+            ["SFTP", "SSH par, port 22, ek connection"]
+          ],
+          "quiz": {
+            "q": "SFTP ke baare mein kya sach hai?",
+            "options": [
+              "Ye TLS wala FTP hai",
+              "Ye SSH par chalta hai, usually port 22 par, alag data connections ke bina",
+              "Ye ab bhi plain text hai",
+              "Ye port 21 use karta hai"
+            ],
+            "why": "Naam ke bawajood SFTP FTP hai hi nahi. Ye SSH connection ke andar ka file protocol hai, isliye firewall setup aasaan hai."
+          }
+        },
+        {
+          "title": "Chori karne ko kuch nahi bacha",
+          "desc": "Encrypted USER aur PASS",
+          "detail": "TLS chalu hone ke baad login encrypted records ke andar jaata hai. Eavesdropper ko ab bhi dikhta hai ki Danish FTP server se baat kar raha hai, par password ya files nahi.",
+          "facts": [
+            ["Inside", "USER, PASS, PROT P"],
+            ["Attacker sees", "IPs, ports, sizes"],
+            ["Best practice", "Plain FTP poori tarah disable karo"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "File transfers encrypt karo",
+        "text": "Plain FTP password aur files un sabko de deta hai jo path dekh sakte hain. FTPS FTP ko TLS mein wrap karta hai, aur SFTP use SSH ke andar ke file protocol se replace karta hai. Dono mein se koi bhi login aur data private rakhta hai.",
+        "facts": [
+          ["Attack", "Passive sniffing"],
+          ["Defences", "FTPS (AUTH TLS), SFTP (SSH port 22)"],
+          ["Aaj plain FTP", "Sirf public, anonymous files ke liye"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Commands",
+      "items": [
+        ["USER / PASS", "Login (clear text)"],
+        ["PWD / CWD", "Directory dikhao / badlo"],
+        ["TYPE I / TYPE A", "Binary / ASCII"],
+        ["PASV / EPSV", "Server client ke liye port kholta hai"],
+        ["PORT", "Client apna address deta hai (active)"],
+        ["RETR / STOR", "Download / upload"],
+        ["LIST", "Directory listing (data connection par)"],
+        ["AUTH TLS", "FTPS par upgrade"]
+      ]
+    },
+    {
+      "title": "Replies",
+      "items": [
+        ["150", "Opening data connection"],
+        ["220", "Ready"],
+        ["226", "Transfer complete"],
+        ["227", "Passive mode (h1,h2,h3,h4,p1,p2)"],
+        ["230", "Logged in"],
+        ["331", "Password chahiye"],
+        ["425", "Data connection nahi khul sakta"],
+        ["530", "Logged in nahi"]
+      ]
+    },
+    {
+      "title": "Numbers",
+      "items": [
+        ["p1,p2 se port", "p1 × 256 + p2"],
+        ["21", "Control"],
+        ["20", "Active-mode data (server se)"],
+        ["22", "SFTP (SSH)"]
+      ]
+    }
+  ]
+}

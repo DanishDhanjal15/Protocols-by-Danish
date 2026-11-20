@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Check which security your Wi-Fi uses", "hinglish": "Dekho tumhara Wi-Fi kaunsi security use karta hai" },
+      "why": { "en": "Shows whether your current connection uses WPA2 or WPA3 (SAE).", "hinglish": "Dikhata hai ki tumhara current connection WPA2 ya WPA3 (SAE) use karta hai." },
+      "windows": "netsh wlan show interfaces",
+      "unix": "nmcli -f IN-USE,SSID,SECURITY dev wifi",
+      "expect": { "en": "The Authentication line reads WPA3-Personal (or WPA2-Personal on older networks); on Linux the SECURITY column shows WPA3 or WPA2. It depends on your router.", "hinglish": "Authentication line mein WPA3-Personal (ya purane networks par WPA2-Personal) likha hota hai; Linux par SECURITY column WPA3 ya WPA2 dikhata hai. Yeh tumhare router par depend karta hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "See the SAE Commit and Confirm frames", "hinglish": "SAE Commit aur Confirm frames dekho" },
+      "why": { "en": "In the .pcap, SAE uses authentication frames with algorithm 3.", "hinglish": ".pcap mein SAE algorithm 3 wale authentication frames use karta hai." },
+      "wireshark": "wlan.fixed.auth.alg == 3",
+      "expect": { "en": "Four authentication frames: two Commits (sequence 1) and two Confirms (sequence 2), carrying the scalar and element.", "hinglish": "Chaar authentication frames: do Commits (sequence 1) aur do Confirms (sequence 2), jinme scalar aur element hote hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Compare the RSN element in beacons", "hinglish": "Beacons mein RSN element compare karo" },
+      "why": { "en": "The AKM suite shows 8 (SAE) for WPA3 and 2 (PSK) for WPA2.", "hinglish": "AKM suite WPA3 ke liye 8 (SAE) aur WPA2 ke liye 2 (PSK) dikhata hai." },
+      "wireshark": "wlan.fc.type_subtype == 8 && wlan.rsn.akms.type",
+      "expect": { "en": "Expand the RSN information in a Beacon; the downgrade scenario shows both AKM 2 and 8 on the real router and only 2 on the evil twin.", "hinglish": "Beacon ki RSN information expand karo; downgrade scenario mein asli router par AKM 2 aur 8 dono dikhte hain aur evil twin par sirf 2." },
+      "step": 1
+    },
+    {
+      "title": { "en": "List nearby networks and their security", "hinglish": "Aas-paas ke networks aur unki security list karo" },
+      "why": { "en": "A read-only look at which nearby networks advertise WPA3.", "hinglish": "Read-only dekho ki aas-paas ke kaunse networks WPA3 advertise karte hain." },
+      "windows": "netsh wlan show networks mode=bssid",
+      "unix": "nmcli dev wifi list",
+      "expect": { "en": "Each SSID shows its authentication. Many show WPA2 only; WPA3 or WPA2/WPA3 transition mode entries are the newer ones. Output varies by place.", "hinglish": "Har SSID apni authentication dikhata hai. Kai sirf WPA2 dikhate hain; WPA3 ya WPA2/WPA3 transition mode wali entries naye hote hain. Output jagah ke hisaab se alag hota hai." }
+    }
+  ]
+}

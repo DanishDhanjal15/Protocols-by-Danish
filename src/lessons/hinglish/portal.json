@@ -1,0 +1,208 @@
+{
+  "tagline": "Hotel Wi-Fi internet chalne se pehle login page kyun kholta hai.",
+  "description": "Hotel, airport aur café Wi-Fi pe address turant mil jaata hai lekin internet nahi chalta. Network aapki plain HTTP requests hijack karke aapko login page pe bhej deta hai. Phones aur laptops ek chhoti si probe request se ye detect karte hain aur page khud khol dete hain.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Detection", "Plain HTTP probe, 204 expect karta hai"],
+    ["Trap", "Portal pe 302 redirect"],
+    ["Announcement", "DHCP option 114 (RFC 8910)"],
+    ["API", "RFC 8908 captive portal API"],
+    ["Breaks", "HTTPS (certificate errors)"]
+  ],
+  "legend": [
+    "DHCP aur probes",
+    "Laptop se requests",
+    "Portal pages",
+    "Success, TCP ACKs",
+    "Hijacked ya blocked"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Hotel Wi-Fi mein check-in",
+      "summary": "Phone Wi-Fi join karta hai, samajh jaata hai ki wo trap mein hai, login page dikhata hai, aur terms accept karne ke baad online ho jaata hai.",
+      "steps": [
+        {
+          "title": "Address lo",
+          "desc": "DHCP, option 114 ke saath",
+          "detail": "Laptop hotel Wi-Fi join karta hai aur DHCP hamesha ki tarah chalata hai: Discover, Offer, Request, Ack. Use turant 10.20.0.37 mil jaata hai. Modern networks option 114 (RFC 8910) bhi bhejte hain, jo kehta hai \"yahan captive portal hai\" aur uski API ka URL deta hai.",
+          "facts": [
+            ["Address", "10.20.0.37"],
+            ["Gateway, DNS", "10.20.0.1"],
+            ["Option 114", "https://portal.hotel.example/api/captive"]
+          ],
+          "quiz": {
+            "q": "Laptop ke paas IP address aur gateway hai. Kya wo ab internet tak pahunch sakta hai?",
+            "options": [
+              "Haan, DHCP complete ho gaya",
+              "Abhi nahi: gateway unknown devices ko login hone tak block karta hai",
+              "Sirf DNS over TCP ke liye",
+              "Sirf IPv6 pe"
+            ],
+            "why": "Captive network addresses khule dil se deta hai lekin traffic sirf unhi devices ka forward karta hai jo portal pass kar chuke hain."
+          }
+        },
+        {
+          "title": "Probe",
+          "desc": "Plain HTTP pe GET /generate_204",
+          "detail": "Join karte hi operating system check karta hai ki internet sach mein chal raha hai ya nahi. Wo ek known URL fetch karta hai jo 204 No Content aur khali body se jawab deta hai. (Option 114 ki API use seedha bata sakti hai; kai devices abhi bhi probe use karte hain, aur yahan dono dikhaye gaye hain.) Check host ka DNS pehle hi 203.0.113.80 de chuka hai.",
+          "facts": [
+            ["URL", "http://connectivitycheck.gstatic.com/generate_204"],
+            ["Expected", "204 No Content"],
+            ["Others", "Apple: captive.apple.com, Windows: msftconnecttest.com"]
+          ]
+        },
+        {
+          "title": "Hijacked: 302",
+          "desc": "Gateway khud jawab deta hai",
+          "detail": "Gateway ko ek aise device ki HTTP request dikhti hai jisne login nahi kiya. Wo use forward nahi karta. Wo khud jawab deta hai, check server ka IP address fake karke, 302 Found aur login page ki taraf point karte Location ke saath. Jawab 204 nahi hai, isliye OS samajh jaata hai ki wo captive portal ke peeche hai aur login window kholta hai.",
+          "facts": [
+            ["Answered by", "Hotel gateway"],
+            ["Source IP shown", "203.0.113.80 (faked)"],
+            ["OS reaction", "Login window pop up karta hai"]
+          ],
+          "quiz": {
+            "q": "Check https:// ki jagah plain http:// kyun use karta hai?",
+            "options": [
+              "HTTPS slow hai",
+              "Gateway plain HTTP rewrite kar sakta hai, lekin HTTPS ka fake jawab clean redirect ki jagah certificate error deta hai",
+              "HTTPS ko login chahiye",
+              "Port 443 har jagah blocked hai"
+            ],
+            "why": "Probe chahta hai ki use redirect kiya jaaye taaki wo portal dhoond sake. HTTPS mein gateway valid certificate bana nahi sakta, isliye redirect fail ho jaata."
+          }
+        },
+        {
+          "title": "Login page",
+          "desc": "Hotel LAN pe portal serve karta hai",
+          "detail": "Login window Location URL follow karke portal server pe jaata hai, jo hotel ke apne network pe hai aur login ke bina reachable hai. Wo ek chhota HTML form return karta hai jo room number, last name aur terms ki agreement maangta hai.",
+          "facts": [
+            ["Portal", "10.20.0.2:80"],
+            ["Login se pehle reachable", "Haan (allow-listed)"],
+            ["Form fields", "room, last_name, accept_terms"]
+          ]
+        },
+        {
+          "title": "Terms accept karo",
+          "desc": "POST /accept",
+          "detail": "Guest form bharke Connect dabata hai. Browser form fields POST karta hai. Portal room aur last name check karta hai, phir gateway ko kehta hai ki is laptop ka MAC address pass hone de. Bas yahi ek change internet khol deta hai.",
+          "facts": [
+            ["Method", "POST"],
+            ["Body", "room=412&last_name=Guest&accept_terms=on"],
+            ["Gateway rule", "Allow 3c:22:fb:7a:91:0e"]
+          ]
+        },
+        {
+          "title": "Dobara probe: 204",
+          "desc": "Is baar asli server jawab deta hai",
+          "detail": "OS probe dobara chalata hai. Ab gateway use forward karta hai, aur asli check server 204 No Content khali body ke saath deta hai. OS login window band karta hai aur network ko connected mark karta hai.",
+          "facts": [
+            ["Answer", "204 No Content"],
+            ["From", "Asli 203.0.113.80"],
+            ["Status", "Online"]
+          ],
+          "quiz": {
+            "q": "Packet se kaise pata chalega ki ye 204 sach mein internet se aaya?",
+            "options": [
+              "Uska status 204 hai",
+              "Uska TTL kam hai: wo kai routers cross karke aaya",
+              "Wo bada hai",
+              "Pata nahi chal sakta"
+            ],
+            "why": "Gateway ke fake jawab TTL 64 ke saath nikle the. Ye TTL 56 ke saath aaya, internet ke routers cross karke. 204 khud bhi main proof hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Check-in ho gaya",
+        "text": "DHCP ne address diya, plain HTTP probe 302 se hijack hua, OS ne portal dikhaya, POST ne terms accept kiye, aur gateway ne laptop ka MAC allow-list kiya. Doosre probe ko asli 204 mila. RFC 8910 aur RFC 8908 devices ko andaza lagane se bachate hain aur network se seedha puchne dete hain.",
+        "facts": [
+          ["Detection", "Probe ≠ 204"],
+          ["Unlock key", "Allow list mein MAC address"],
+          ["Modern way", "Option 114 + portal API"]
+        ]
+      }
+    },
+    "https-trap": {
+      "name": "Login se pehle ek HTTPS site",
+      "summary": "Guest login se pehle https://example.com kholta hai. Gateway ise clean redirect nahi kar paata aur browser certificate warning dikhata hai.",
+      "steps": [
+        {
+          "title": "Seedha HTTPS pe",
+          "desc": "Gateway connection pakad leta hai",
+          "detail": "Login window aane se pehle guest https://example.com ka bookmark kholta hai. Gateway port 443 ke TCP connection ko intercept karke khud jawab deta hai, jaise probe ke saath kiya tha.",
+          "facts": [
+            ["Target", "203.0.113.10:443"],
+            ["Answered by", "Gateway"],
+            ["Logged in?", "Nahi"]
+          ]
+        },
+        {
+          "title": "Galat certificate",
+          "desc": "Gateway sirf apna dikha sakta hai",
+          "detail": "Redirect karne ke liye gateway ko example.com ban ke TLS bolna padega. Uske paas us naam ka certificate nahi hai, isliye wo portal.hotel.example ka apna certificate bhejta hai. Browser dekhta hai ki naam match nahi karta aur warning ke saath ruk jaata hai. Andar ka 302 kabhi padha hi nahi jaata.",
+          "facts": [
+            ["Certificate for", "portal.hotel.example"],
+            ["Wanted", "example.com"],
+            ["Browser shows", "NET::ERR_CERT_COMMON_NAME_INVALID"]
+          ],
+          "quiz": {
+            "q": "Kya guest ko \"proceed anyway\" click karna chahiye?",
+            "options": [
+              "Haan, bas hotel hai",
+              "Nahi; browser harmless portal aur attacker mein fark nahi kar sakta. OS ko portal kholne do",
+              "Haan, agar padlock green hai",
+              "Sirf Wi-Fi pe"
+            ],
+            "why": "Man-in-the-middle attack bilkul aisa hi dikhta hai. Safe tarika hai koi plain http:// page kholna ya OS ko portal detect karne dena."
+          }
+        },
+        {
+          "title": "Probes HTTP kyun use karte hain",
+          "desc": "Sirf plain HTTP clean redirect ho sakta hai",
+          "detail": "Ye failure hi wajah hai ki operating systems plain http:// URLs se probe karte hain. Captive network HTTP jawab ko rewrite karke working 302 bana sakta hai, lekin HTTPS jawab certificate error ke bina kabhi fake nahi kar sakta. RFC 8910 aur RFC 8908 ise sahi tarike se fix karte hain: network apna portal announce karta hai, isliye kuch hijack karna nahi padta.",
+          "facts": [
+            ["HTTP probe", "Redirect kaam karta hai"],
+            ["HTTPS", "Certificate error, by design"],
+            ["Proper fix", "DHCP option 114 + portal API"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "HTTPS hijack hone se mana karta hai",
+        "text": "TLS aise design hua hai ki beech mein koi bhi site ki jagah jawab na de sake. Ye aapko attackers se bachata hai, aur captive portals ko HTTPS pages redirect karne se bhi rokta hai. Plain HTTP probes aur naye announced-portal standards TLS ko kamzor kiye bina ye solve karte hain.",
+        "facts": [
+          ["Error", "Name mismatch"],
+          ["Not a bug", "TLS design ke hisaab se kaam kar raha hai"],
+          ["Standards", "RFC 8908, 8910, 8952"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Probe URLs",
+      "items": [
+        ["Android", "connectivitycheck.gstatic.com/generate_204 → 204"],
+        ["Apple", "captive.apple.com/hotspot-detect.html → \"Success\""],
+        ["Windows", "www.msftconnecttest.com/connecttest.txt → text"],
+        ["Firefox", "detectportal.firefox.com/canonical.html"]
+      ]
+    },
+    {
+      "title": "Status codes jo khel mein hain",
+      "items": [
+        ["204 No Content", "Online, beech mein kuch nahi"],
+        ["302 Found", "Portal pe redirect"],
+        ["511 Network Authentication Required", "Portals ka standard code (RFC 6585)"]
+      ]
+    },
+    {
+      "title": "Standards",
+      "items": [
+        ["RFC 8910", "DHCP option 114 / RA option 37: portal URI"],
+        ["RFC 8908", "Captive portal API (HTTPS pe JSON)"],
+        ["RFC 8952", "Captive portal architecture"]
+      ]
+    }
+  ]
+}

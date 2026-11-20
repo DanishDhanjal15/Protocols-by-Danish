@@ -1,0 +1,223 @@
+{
+  "tagline": "Virtual machines ke liye Ethernet networks, UDP ke andar carry hote hain.",
+  "description": "VXLAN virtual machines ko alag-alag racks par hote hue bhi aise behave karne deta hai jaise ve ek hi Ethernet switch par hon. Sender ke paas wala switch poore Ethernet frame ko UDP mein wrap karke routed data-centre network ke paar bhejta hai, aur receiver ke paas wala switch use unwrap karta hai. 24-bit network number millions of tenants ko alag rakhta hai.",
+  "facts": [
+    ["Layer", "Layer 2 frames over Layer 3/4"],
+    ["Transport", "UDP port 4789"],
+    ["Header", "8 bytes (50 bytes of total overhead)"],
+    ["Network ID", "24-bit VNI (16 million networks)"],
+    ["Endpoints", "VTEPs (VXLAN tunnel endpoints)"],
+    ["Defined in", "RFC 7348"]
+  ],
+  "legend": [
+    "Virtual machine ke frames",
+    "Replies",
+    "VXLAN mein wrapped (outer headers)",
+    "Doosre tenant ka traffic",
+    "Dropped"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Racks ke beech ping",
+      "summary": "VM A doosre rack ke VM B ko ping karta hai. Leaf switches frame ko wrap aur unwrap karte hain, isliye dono VMs ko lagta hai ki ve ek hi LAN par hain.",
+      "steps": [
+        {
+          "title": "VM A ping bhejta hai",
+          "desc": "Ek plain Ethernet frame, kuch khaas nahi",
+          "detail": "VM A aur VM B dono Red tenant ke network 10.10.0.0/24 par hain, isliye VM A seedha VM B ke MAC address par Ethernet frame bhej deta hai. Use pata bhi nahi ki VM B doosre rack par, routers ke peeche hai. Frame Leaf 1 tak pahunchta hai, jis switch mein uska host laga hai.",
+          "facts": [
+            ["From", "10.10.0.11 (VM A)"],
+            ["To", "10.10.0.12 (VM B)"],
+            ["Frame size", "98 bytes"]
+          ],
+          "quiz": {
+            "q": "VM A aur VM B alag racks par hain aur beech mein routers hain. VM A ko lagta hai ki woh seedha kisse baat kar raha hai?",
+            "options": [
+              "Spine router se",
+              "VM B se, jaise ek hi switch par ho",
+              "Leaf 2 se",
+              "Apne default gateway se"
+            ],
+            "why": "Overlay VMs ko ek flat Ethernet network deta hai, isliye VM A seedha VM B ke MAC ko address karta hai."
+          }
+        },
+        {
+          "title": "Leaf 1 frame ko wrap karta hai",
+          "desc": "Ethernet VXLAN ke andar, VXLAN UDP ke andar, UDP IP ke andar",
+          "detail": "Leaf 1 ek VTEP hai: VXLAN tunnel endpoint. Usne (aksar BGP EVPN se) seekha hai ki VM B ka MAC Leaf 2 ke peeche 192.0.2.12 par hai. Woh poore frame ke aage 8-byte VXLAN header lagata hai jisme Red tenant ke liye VNI 10010 hai, phir Leaf 2 ke address wale UDP, IP aur Ethernet headers jodta hai.",
+          "facts": [
+            ["Outer IPs", "192.0.2.11 → 192.0.2.12"],
+            ["UDP", "random source → 4789"],
+            ["VNI", "10010 (Red)"]
+          ],
+          "quiz": {
+            "q": "Outer UDP source port har flow ke saath kyun badalta hai?",
+            "options": [
+              "Yeh ek security token hai",
+              "Yeh inner frame ka hash hai, isliye routers flows ko alag links par baant dete hain",
+              "Yeh frames ginta hai",
+              "Isme VNI hota hai"
+            ],
+            "why": "Routers outer headers ko hash karke traffic balance karte hain. Per-flow source port se alag inner flows alag equal-cost paths le sakte hain."
+          }
+        },
+        {
+          "title": "Leaf 2 unwrap karta hai",
+          "desc": "50 bytes hatao, original frame deliver karo",
+          "detail": "Spine ne packet ko kisi bhi aam UDP packet ki tarah route kiya; usne andar kabhi nahi dekha. Leaf 2 UDP port 4789 dekhta hai, VNI 10010 padhta hai, outer 50 bytes hatata hai aur original frame VM B ko de deta hai, bilkul waisa hi byte for byte jaisa VM A ne bheja tha.",
+          "facts": [
+            ["Removed", "14 + 20 + 8 + 8 = 50 bytes"],
+            ["VNI", "10010 → Red network"],
+            ["Delivered", "Original 98-byte frame"]
+          ]
+        },
+        {
+          "title": "Reply wapas aata hai",
+          "desc": "Wahi safar ulta",
+          "detail": "VM B echo reply se jawab deta hai. Leaf 2 use same VNI se wrap karke Leaf 1 ko bhejta hai, jo use unwrap karke VM A ko deliver karta hai. Data centre ke andar poora round trip lagbhag 20 microseconds leta hai.",
+          "facts": [
+            ["Outer IPs", "192.0.2.12 → 192.0.2.11"],
+            ["VNI", "10010"],
+            ["Round trip", "≈ 20 µs"]
+          ]
+        },
+        {
+          "title": "Same IPs, doosra tenant",
+          "desc": "VNI tenants ko alag rakhta hai",
+          "detail": "VM C Blue tenant ka hai, jo ittefaq se bilkul wahi address 10.10.0.11 use karta hai. Leaf 1 uske frames ko VNI 20020 se wrap karta hai. Leaf 2 sirf VNI 20020 ke frames Blue machines ko deliver karta hai, isliye addresses takrane ke bawajood Red aur Blue ek doosre ko kabhi nahi dekhte.",
+          "facts": [
+            ["Blue VNI", "20020"],
+            ["Same inner IPs", "Koi dikkat nahi"],
+            ["Old VLAN limit", "4094 networks"]
+          ],
+          "quiz": {
+            "q": "Clouds tenants ko alag karne ke liye aam VLANs ki jagah VXLAN kyun use karte hain?",
+            "options": [
+              "VLANs IP carry nahi kar sakte",
+              "VLAN ID mein sirf 12 bits hain (4094 networks); VNI mein 24 bits hain",
+              "VXLAN encrypted hota hai",
+              "VLANs ko fibre chahiye"
+            ],
+            "why": "12 bits se 4094 usable VLANs milte hain, jo bade cloud ke liye bahut kam hain. 24 bits se lagbhag 16 million milte hain."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Ek flat network, kai racks",
+        "text": "VXLAN ne ek aam Ethernet frame ko UDP mein wrap karke routed data-centre network ke paar pahunchaya. Spine ko sirf do VTEPs ke beech IP packets dikhe, aur VNI ne same addresses wale do tenants ko alag rakha.",
+        "facts": [
+          ["Overhead", "50 bytes per frame"],
+          ["UDP port", "4789"],
+          ["Tenants", "Up to 16 million VNIs"],
+          ["Control plane", "Usually BGP EVPN"]
+        ]
+      }
+    },
+    "mtu": {
+      "name": "Bade packets gayab (MTU)",
+      "summary": "50-byte VXLAN overhead full-size frame ko underlay ke 1500-byte MTU se bada kar deta hai, isliye bade packets chupchaap drop ho jaate hain.",
+      "steps": [
+        {
+          "title": "Full-size segment",
+          "desc": "VM A 1500 bytes ka IP bhejta hai",
+          "detail": "VM A ka normal Ethernet MTU 1500 hai, isliye uske database replies full 1500-byte IP packets ban kar jaate hain: 20 bytes IP, 20 bytes TCP aur 1460 bytes data. Pehle wale ping jaise chhote packets theek chale the.",
+          "facts": [
+            ["Inner IP packet", "1500 bytes"],
+            ["VM MTU", "1500"],
+            ["DF bit", "Set"]
+          ]
+        },
+        {
+          "title": "Underlay ke liye bahut bada",
+          "desc": "1500 + 50 = 1550 bytes",
+          "detail": "Leaf 1 outer headers ke 50 bytes jodta hai. Outer IP packet ab 1550 bytes ka hai, lekin leaf aur spine ke beech ke links MTU 1500 par chhod diye gaye the. VTEPs ko VXLAN packets fragment nahi karne chahiye, isliye bada packet drop ho jaata hai.",
+          "facts": [
+            ["Outer IP packet", "1550 bytes"],
+            ["Underlay MTU", "1500"],
+            ["Result", "Dropped"]
+          ],
+          "quiz": {
+            "q": "Underlay ICMP “too big” message wapas bhejta hai. VM A apne packets chhote kyun nahi karta?",
+            "options": [
+              "ICMP Leaf 1 ke VTEP address par jaata hai, VM A par nahi",
+              "VM A saare ICMP ignore karta hai",
+              "ICMP VXLAN ke paar nahi ja sakta",
+              "Message encrypted hota hai"
+            ],
+            "why": "Drop hue packet ka source VTEP tha, isliye koi bhi error wahin jaata hai. VM A ko kabhi pata nahi chalta ki uske packets bade hain."
+          }
+        },
+        {
+          "title": "Chhota chalta hai, bada gayab",
+          "desc": "Ek classic black hole",
+          "detail": "TCP timer khatam hone ke baad wahi 1500-byte packet dobara bhejta hai, aur woh phir drop ho jaata hai. Ping aur chhote requests ab bhi chalte hain, isliye yeh bug confusing hai: connection khulta hai, phir jaise hi asli data chalta hai woh atak jaata hai.",
+          "facts": [
+            ["Pings", "Work"],
+            ["Big transfers", "Hang"],
+            ["Symptom", "Retransmissions, then timeout"]
+          ]
+        },
+        {
+          "title": "Fix",
+          "desc": "50 aur bytes ki jagah",
+          "detail": "Do fixes hain. Aam wala hai underlay MTU ko 9000 ya usse zyada karna (jumbo frames), taaki 1550-byte packet aaram se fit ho. Doosra hai VMs ko MTU 1450 dena, jo bahut se clouds karte hain. Yahan VM 1450 use karta hai: inner packet 1450 bytes ka aur outer bilkul 1500 ka.",
+          "facts": [
+            ["VM MTU", "1450 (MSS 1410)"],
+            ["Outer packet", "1500 bytes: fits"],
+            ["Better fix", "Underlay MTU 9000+"]
+          ],
+          "quiz": {
+            "q": "VM MTU 1450 hone par outer IP packet kitna bada hota hai?",
+            "options": [
+              "1450 bytes",
+              "1486 bytes",
+              "1500 bytes",
+              "1550 bytes"
+            ],
+            "why": "Outer IP header (20), UDP (8), VXLAN (8) aur inner Ethernet (14) inner IP packet ke upar 50 bytes jodte hain: 1450 + 50 = 1500. Outer Ethernet header IP MTU mein nahi ginta."
+          }
+        }
+      ],
+      "outro": {
+        "title": "50 bytes ka dhyaan rakho",
+        "text": "VXLAN har frame mein 50 bytes jodta hai. Agar underlay MTU nahi badhaya gaya, ya VMs ka MTU kam nahi kiya gaya, to full-size packets chupchaap drop hote hain jabki chhote chalte rehte hain, jo ek rahasyamayi hang jaisa lagta hai.",
+        "facts": [
+          ["Overhead", "50 bytes (IPv4 underlay)"],
+          ["Fix 1", "Underlay MTU 9000+"],
+          ["Fix 2", "VM MTU 1450"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "VXLAN stack",
+      "items": [
+        ["Outer Ethernet", "14 bytes, leaf → spine"],
+        ["Outer IPv4", "20 bytes, VTEP → VTEP"],
+        ["Outer UDP", "8 bytes, dst port 4789, checksum 0"],
+        ["VXLAN", "8 bytes: flags 0x08, 24-bit VNI"],
+        ["Inner frame", "VM ka original Ethernet frame"]
+      ]
+    },
+    {
+      "title": "Jaanne wale words",
+      "items": [
+        ["Underlay", "Asli routed network"],
+        ["Overlay", "Virtual network jo VMs ko dikhta hai"],
+        ["VTEP", "Switch ya host jo wrap aur unwrap karta hai"],
+        ["VNI", "Tenant network number"],
+        ["EVPN", "BGP jo VTEPs ko batata hai ki har MAC kahan hai"]
+      ]
+    },
+    {
+      "title": "Numbers",
+      "items": [
+        ["UDP port", "4789"],
+        ["VNI size", "24 bits (≈16.7 million)"],
+        ["Overhead", "50 bytes"],
+        ["Safe VM MTU", "1450 on a 1500 underlay"]
+      ]
+    }
+  ]
+}

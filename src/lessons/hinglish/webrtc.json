@@ -1,0 +1,275 @@
+{
+  "tagline": "Video calls seedha ek browser se doosre browser tak.",
+  "description": "WebRTC do browsers ya apps ko ek doosre ko seedha audio aur video bhejne deta hai. Server sirf call ke descriptions badalne mein madad karta hai; phir STUN aur ICE home routers ke beech se path dhoondte hain, DTLS keys agree karta hai, aur SRTP encrypted media le jaata hai.",
+  "facts": [
+    ["Layer", "Application (7), media UDP pe"],
+    ["Path finding", "ICE, STUN aur TURN ke saath"],
+    ["Keys", "DTLS handshake → SRTP keys"],
+    ["Media", "RTP, SRTP ki tarah encrypted"],
+    ["STUN header", "20 bytes + attributes"],
+    ["Defined in", "RFC 8825–8835, RFC 8489, RFC 8445"]
+  ],
+  "legend": [
+    "Signalling aur STUN lookups",
+    "ICE checks aur replies",
+    "DTLS key exchange",
+    "Laptop se media",
+    "Friend se media"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Do gharon ke beech video call",
+      "summary": "Laptop friend ke phone ko call karta hai; dono normal home routers ke peeche hain, isliye direct path kaam karta hai.",
+      "steps": [
+        {
+          "title": "STUN se pucho: main kaun hoon?",
+          "desc": "Router jo public address deta hai wo pata karo",
+          "detail": "Laptop ko sirf apna private address 192.168.1.10 pata hai, jise internet pe koi reach nahi kar sakta. Wo ek public STUN server ko chhota sa STUN Binding Request bhejta hai. Server us address aur port ke saath reply karta hai jahan se usne request aati dekhi: home router ka public side.",
+          "facts": [
+            ["Request", "Binding, 20-byte header, koi attribute nahi"],
+            ["Answer", "198.51.100.7:61001"],
+            ["Server port", "UDP 3478"]
+          ],
+          "quiz": {
+            "q": "Laptop ne 192.168.1.10:54321 se bheja. STUN server kaunsa address wapas report karega?",
+            "options": [
+              "192.168.1.10:54321",
+              "198.51.100.7:61001",
+              "192.0.2.19:3478",
+              "Koi address nahi, bas OK"
+            ],
+            "why": "Home router ne source ko apne public address aur naye port se rewrite kar diya (NAT). Wahi rewritten address STUN server ko dikhta hai aur wo report karta hai."
+          }
+        },
+        {
+          "title": "Offer bhejo",
+          "desc": "WebSocket pe SDP offer",
+          "detail": "Browser ek SDP offer likhta hai: kaunse codecs use kar sakta hai (Opus audio, VP8 video), ICE username fragment aur password, uska certificate fingerprint, aur uske candidate addresses, jisme STUN ka abhi dhunda hua public address bhi hai. WebRTC ye nahi batata ki ye text kaise deliver karna hai, isliye app ise apne WebSocket pe, TLS ke andar, bhejti hai, aur server ise friend tak pahunchata hai.",
+          "facts": [
+            ["Offer mein", "Codecs, candidates, ice-ufrag, fingerprint"],
+            ["Carried by", "TLS pe WebSocket (port 443)"],
+            ["Candidates", "host 192.168.1.10, srflx 198.51.100.7"]
+          ],
+          "quiz": {
+            "q": "WebRTC ka kaunsa hissa decide karta hai ki offer friend tak kaise pahunchega?",
+            "options": [
+              "STUN server",
+              "WebRTC mein kuch nahi: app apni pasand ka koi bhi channel chunti hai",
+              "DTLS handshake",
+              "RTP"
+            ],
+            "why": "Signalling app pe chhodi gayi hai. WebSocket common hai, lekin HTTP polling, chat message ya QR code bhi chalega."
+          }
+        },
+        {
+          "title": "Answer wapas aata hai",
+          "desc": "Friend accept karke SDP answer bhejta hai",
+          "detail": "Friend Accept dabata hai. Unka browser wo codecs chunta hai jo dono sides support karte hain aur apne candidates, ICE credentials aur certificate fingerprint ke saath SDP answer likhta hai. Wo a=setup:active bhi kehta hai, jiska matlab friend ka phone baad mein DTLS handshake shuru karega.",
+          "facts": [
+            ["Answer mein", "Chosen codecs, candidates, fingerprint"],
+            ["Friend ka candidate", "203.0.113.77:50000"],
+            ["DTLS role", "Friend = client (setup:active)"]
+          ]
+        },
+        {
+          "title": "ICE connectivity checks",
+          "desc": "Dono sides ek doosre ke darwaze khatkhatate hain",
+          "detail": "Ab har side doosre ke candidate addresses ko seedha STUN Binding Requests bhejti hai. Bahar bhejne se aapke apne router mein ek hole bhi khulta hai, taaki doosri side ka check andar aa sake. Har check SDP ke ICE password se signed hota hai. Laptop control mein hai aur ye path chunne ke liye USE-CANDIDATE jodta hai.",
+          "facts": [
+            ["Check", "STUN Binding with USERNAME, PRIORITY, MESSAGE-INTEGRITY"],
+            ["Chosen path", "198.51.100.7:61001 ⇄ 203.0.113.77:50000"],
+            ["Server involved", "Koi nahi: direct"]
+          ],
+          "quiz": {
+            "q": "Dono sides ko checks kyun bhejne padte hain, sirf laptop ko nahi?",
+            "options": [
+              "Speed double karne ke liye",
+              "Bahar bhejne se apne NAT mein mapping khulti hai, jisse doosri side ke packets andar aa sakte hain",
+              "STUN sirf ek direction mein kaam karta hai",
+              "Signalling server ise require karta hai"
+            ],
+            "why": "Home router sirf unhi addresses ke replies andar aane deta hai jinhe aap pehle bhej chuke ho. Dono lagbhag ek saath bhejein to dono routers hole kholte hain. Ise hole punching kehte hain."
+          }
+        },
+        {
+          "title": "DTLS handshake",
+          "desc": "Naye path pe keys agree karo",
+          "detail": "Usi UDP path pe dono browsers DTLS handshake chalate hain, jo TLS hai lekin lost aur reordered datagrams jhel sakta hai. Dono ek self-signed certificate dikhate hain, aur har ek use us fingerprint se check karta hai jo doosre ne apne SDP mein rakha tha. use_srtp extension handshake se SRTP ki keys bhi banwata hai.",
+          "facts": [
+            ["Version", "DTLS 1.2 (0xfefd)"],
+            ["Trust", "SDP se certificate fingerprint"],
+            ["Output", "SRTP keys (AES-128, HMAC-SHA1-80)"]
+          ],
+          "quiz": {
+            "q": "Certificates self-signed hain. Man in the middle ko apna certificate dikhane se kya rokta hai?",
+            "options": [
+              "Kuch nahi, DTLS secure nahi hai",
+              "Har side certificate ko us fingerprint se compare karti hai jo TLS-protected signalling channel se SDP mein aaya tha",
+              "STUN server unhe sign karta hai",
+              "Router unhe check karta hai"
+            ],
+            "why": "Fingerprint signalling server se TLS ke through aaya. Alag certificate uske saath match nahi karega aur call fail ho jaayegi. Trust signalling server pe tika hai."
+          }
+        },
+        {
+          "title": "Video aur voice chalte hain",
+          "desc": "RTP packets, SRTP ki tarah encrypted",
+          "detail": "Media ab usi UDP path pe dono taraf chalta hai. Har packet mein padhne layak 12-byte RTP header hai jisme codec number, sequence number aur timestamp hai, taaki receiver reorder kar sake, loss pakad sake aur sahi moment pe play kar sake. Payload encrypted hai, aur end ka 10-byte tag proof deta hai ki kuch badla nahi.",
+          "facts": [
+            ["Video", "VP8, PT 96, 90 kHz clock"],
+            ["Audio", "Opus, PT 111, 48 kHz clock, 20 ms per packet"],
+            ["Overhead", "12-byte header + 10-byte tag"]
+          ],
+          "quiz": {
+            "q": "Ek video frame 3 packets mein split hua. In 3 packets mein kya common hai?",
+            "options": [
+              "Sequence number",
+              "Timestamp",
+              "Authentication tag",
+              "Kuch nahi"
+            ],
+            "why": "Har packet ko agla sequence number milta hai, lekin ek frame ke saare tukdon ka timestamp same hota hai, kyunki wo video ke ek hi moment ke hain. Aakhri packet marker bit bhi set karta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Call connected, peer to peer",
+        "text": "Server ne sirf offer aur answer carry kiye. STUN ne public address dhoondha, ICE checks ne direct path prove kiya, DTLS ne fingerprints check karke keys banayi, aur ab SRTP voice aur video seedha do gharon ke beech le jaata hai.",
+        "facts": [
+          ["Setup time", "Answer ke baad lagbhag 0.15 s"],
+          ["Media path mein servers", "Koi nahi"],
+          ["Encryption", "Hamesha on (DTLS-SRTP)"],
+          ["Transport", "Sab kuch ke liye ek UDP port pair"]
+        ]
+      }
+    },
+    "turn": {
+      "name": "Dono symmetric NAT ke peeche: TURN use karo",
+      "summary": "Direct checks fail hote hain kyunki har router har destination ke liye naya port chunta hai, isliye call TURN relay se jaati hai.",
+      "steps": [
+        {
+          "title": "Checks kahin nahi pahunchte",
+          "desc": "Symmetric NAT hole punching tod deta hai",
+          "detail": "Is baar dono routers symmetric NATs hain, jo mobile networks aur offices mein aam hain. Wo har naye destination ke liye naya public port chunte hain. STUN ne jo port bataya wo sirf STUN server ki taraf valid hai, isliye usko bheje gaye checks doosra router drop kar deta hai.",
+          "facts": [
+            ["NAT type", "Symmetric (har destination ke liye naya port)"],
+            ["STUN ne kaha", "198.51.100.7:61001"],
+            ["Friend ki taraf use hua", "198.51.100.7:61377 (alag)"]
+          ],
+          "quiz": {
+            "q": "Dono taraf symmetric NAT ho to call ko aur kya jod sakta hai?",
+            "options": [
+              "Checks tez retry karna",
+              "Ek public address wala relay jise dono sides bhejti hain (TURN)",
+              "Bada STUN server",
+              "Encryption band karna"
+            ],
+            "why": "Har side hamesha ek fixed public server ko bhej sakti hai. TURN server dono ke beech relay karta hai, isliye kisi ko doosre ka port guess nahi karna padta."
+          }
+        },
+        {
+          "title": "Relay maango",
+          "desc": "TURN Allocate, pehle bina password ke",
+          "detail": "Laptop TURN server se relay address allocate karne ko kehta hai. TURN servers bandwidth khate hain, isliye login chahiye. Pehli request mein credentials nahi hote, aur server 401 se jawab deta hai, ek realm aur nonce ke saath jo agli koshish mein use hoga.",
+          "facts": [
+            ["Request", "Allocate, REQUESTED-TRANSPORT = UDP"],
+            ["Answer", "401 Unauthorized + REALM + NONCE"],
+            ["Server port", "UDP 3478"]
+          ]
+        },
+        {
+          "title": "Relay mil gaya",
+          "desc": "Phir Allocate, password se signed",
+          "detail": "Laptop request ko username, realm, nonce aur password se bane MESSAGE-INTEGRITY hash ke saath repeat karta hai. App ko ye short-lived credentials apne server se mile the. TURN server laptop ke liye ek public relay port kholta hai aur batata hai.",
+          "facts": [
+            ["Relay address", "192.0.2.30:49170"],
+            ["Lifetime", "600 s, call chalne tak refresh hota hai"],
+            ["New candidate", "type relay, sabse kam priority"]
+          ],
+          "quiz": {
+            "q": "Laptop apna naya relay address kahan rakhta hai taaki friend use kar sake?",
+            "options": [
+              "Signalling server se bheje naye ICE candidate mein",
+              "RTP header mein",
+              "Kahin nahi, friend guess karta hai",
+              "DTLS certificate mein"
+            ],
+            "why": "Ye bas ek aur ICE candidate hai (type relay). Ise signalling se friend ko trickle kiya jaata hai, aur ICE checks isse bhi kisi bhi path ki tarah chalte hain."
+          }
+        },
+        {
+          "title": "Channel bind karo",
+          "desc": "Friend ke address ko chhota number do",
+          "detail": "TURN sirf unhi addresses ko relay karta hai jinki client ne permission di ho. ChannelBind wahi karta hai aur friend ke address ko channel 0x4000 bhi assign karta hai. Ab se laptop media ko poore STUN message ki jagah chhote 4-byte ChannelData header mein lapet sakta hai.",
+          "facts": [
+            ["Channel", "0x4000"],
+            ["Peer", "203.0.113.77:50022"],
+            ["Iske baad overhead", "4 bytes per packet"]
+          ]
+        },
+        {
+          "title": "Relay se media",
+          "desc": "ICE, DTLS aur SRTP sab relay pe chalte hain",
+          "detail": "Relay ke through ICE checks succeed hote hain, DTLS uske upar chalta hai, aur phir SRTP flow hota hai. Laptop har packet TURN server ko channel 0x4000 ke saath bhejta hai, aur server andar ke bytes apne relay port se friend ko forward karta hai. Relay media padh nahi sakta: wo ab bhi SRTP hai, end to end encrypted.",
+          "facts": [
+            ["Extra delay", "Relay se ek detour"],
+            ["Relay media padh sakta hai?", "Nahi, wo sirf SRTP dekhta hai"],
+            ["Cost", "Relay saari bandwidth ka kharcha uthata hai"]
+          ],
+          "quiz": {
+            "q": "TURN server har packet forward karta hai. Kya wo video dekh sakta hai?",
+            "options": [
+              "Haan, uske paas keys hain",
+              "Nahi, DTLS keys sirf do browsers mein hain",
+              "Sirf audio",
+              "Sirf agar wo usi country mein ho"
+            ],
+            "why": "DTLS handshake relay ke through end to end chalta hai, isliye SRTP keys TURN server tak kabhi nahi pahunchtin. Wo bas encrypted bytes hilata hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Relay ke through connected",
+        "text": "Jab dono sides symmetric NAT ke peeche hon, hole punching fail hoti hai. ICE relay candidate pe fall back karta hai: TURN server har side ko public address deta hai aur packets forward karta hai. Call thodi zyada delay ke saath chalti hai, aur media end to end encrypted rehta hai.",
+        "facts": [
+          ["TURN chahiye wali calls", "Practice mein lagbhag 10–20%"],
+          ["TURN messages", "Allocate, CreatePermission, ChannelBind, Refresh"],
+          ["ChannelData header", "4 bytes"],
+          ["Defined in", "RFC 8656"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Building blocks",
+      "items": [
+        ["SDP", "Codecs, keys fingerprint, candidates describe karne wala text"],
+        ["ICE", "Har address pair try karta hai, sabse achha working rakhta hai"],
+        ["STUN", "Aapka public address batata hai; checks ke liye bhi use hota hai"],
+        ["TURN", "Jab koi direct path na chale to relay"],
+        ["DTLS", "UDP pe TLS; SRTP keys banata hai"],
+        ["SRTP", "Encrypted payload + auth tag wala RTP"]
+      ]
+    },
+    {
+      "title": "Candidate types",
+      "items": [
+        ["host", "Aapke apne interface ka address"],
+        ["srflx", "STUN se mila public address"],
+        ["prflx", "Check ke dauran mila"],
+        ["relay", "TURN server pe address"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["STUN header", "20 bytes; magic cookie 0x2112A442"],
+        ["STUN/TURN port", "3478 (TLS pe 5349)"],
+        ["RTP header", "12 bytes, V=2"],
+        ["FINGERPRINT", "CRC-32 XOR 0x5354554E"],
+        ["Video clock", "90 000 Hz; Opus 48 000 Hz"]
+      ]
+    }
+  ]
+}

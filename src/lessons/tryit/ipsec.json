@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "title": { "en": "List IPsec policies on your PC", "hinglish": "Apne PC par IPsec policies dekho" },
+      "why": { "en": "Read-only view of the IPsec security associations your own machine currently has.", "hinglish": "Aapki apni machine ke paas abhi kaunse IPsec security associations hain, uska read-only view." },
+      "windows": "Get-NetIPsecMainModeSA",
+      "unix": "sudo ip xfrm state",
+      "expect": { "en": "On a machine without an IPsec/IKEv2 VPN connected you usually get an empty result. With a VPN up you see the peer addresses, the cipher (for example AES-GCM) and SPI values like those in the lesson. Output varies.", "hinglish": "Jis machine par IPsec/IKEv2 VPN connected nahi hai wahan aksar result khaali aata hai. VPN up ho to peer addresses, cipher (jaise AES-GCM) aur lesson jaise SPI values dikhte hain. Output alag ho sakta hai." },
+      "step": 4
+    },
+    {
+      "title": { "en": "See IKE in the capture", "hinglish": "Capture mein IKE dekho" },
+      "why": { "en": "Open the downloaded .pcap and look at the IKE_SA_INIT and IKE_AUTH exchanges.", "hinglish": "Download kiya .pcap kholo aur IKE_SA_INIT aur IKE_AUTH exchanges dekho." },
+      "wireshark": "isakmp",
+      "expect": { "en": "You see IKE_SA_INIT request and response, then encrypted IKE_AUTH messages. Expand the SA, KE and Nonce payloads in the first packet.", "hinglish": "IKE_SA_INIT request aur response, phir encrypted IKE_AUTH messages dikhte hain. Pehle packet mein SA, KE aur Nonce payloads expand karo." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find the ESP packets", "hinglish": "ESP packets dhoondo" },
+      "why": { "en": "Shows only the encrypted data packets, with their SPI and sequence numbers.", "hinglish": "Sirf encrypted data packets dikhata hai, unke SPI aur sequence numbers ke saath." },
+      "wireshark": "esp || udpencap",
+      "expect": { "en": "You see ESP packets (or UDP 4500 packets that contain ESP). The payload cannot be read; only the SPI and the increasing sequence number are visible.", "hinglish": "ESP packets (ya UDP 4500 packets jinme ESP hai) dikhte hain. Payload padha nahi ja sakta; sirf SPI aur badhta hua sequence number dikhta hai." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Find the refusal", "hinglish": "Refusal dhoondo" },
+      "why": { "en": "In the proposal-mismatch capture the gateway answers with Notify type 14.", "hinglish": "Proposal-mismatch capture mein gateway Notify type 14 se jawab deta hai." },
+      "wireshark": "isakmp.notify_msg_type == 14",
+      "expect": { "en": "One packet matches: the gateway's NO_PROPOSAL_CHOSEN reply. The normal capture has no such packet.", "hinglish": "Ek packet match karta hai: gateway ka NO_PROPOSAL_CHOSEN reply. Normal capture mein aisa koi packet nahi hota." }
+    }
+  ]
+}

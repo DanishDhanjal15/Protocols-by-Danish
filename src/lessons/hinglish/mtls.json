@@ -1,0 +1,190 @@
+{
+  "tagline": "Dono sides certificate dikhati hain: services ke beech zero-trust.",
+  "description": "Normal TLS mein sirf server prove karta hai ki wo kaun hai. Mutual TLS mein server client se bhi certificate maangta hai, isliye dono ends us CA ke against verify hote hain jis par wo bharosa karte hain. Service meshes aur internal APIs ise use karte hain taaki ek service sirf unhi services se baat kare jinhe wo pehchaan sakti hai.",
+  "facts": [
+    ["Layer", "TCP aur app ke beech (5–6)"],
+    ["Built on", "TLS 1.3 / 1.2"],
+    ["Extra messages", "CertificateRequest, client Certificate"],
+    ["Trust", "Usually private, internal CA"],
+    ["Common in", "Service meshes, banking APIs, IoT"],
+    ["Defined in", "RFC 8446 §4.3.2, §4.4.2"]
+  ],
+  "legend": [
+    "TLS hellos (clear text)",
+    "Encrypted handshake, certificates",
+    "Client service ka request",
+    "Server service ka response",
+    "Alert"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "orders mTLS par payments ko call karta hai",
+      "summary": "Dono services ke paas internal CA ke certificates hain aur wo kisi bhi gRPC call se pehle ek doosre ko verify karti hain.",
+      "steps": [
+        {
+          "title": "Certificates pehle se",
+          "desc": "Internal CA ne dono identities issue ki",
+          "detail": "Pehle internal CA ne har service ko ek short-lived certificate diya, 24 hours ke liye valid. Uska naam spiffe://acme.internal/ns/prod/sa/orders jaisa URI hai. Dono services sirf isi CA par bharosa karti hain. Port 8443 ka TCP connection pehle se khula hai.",
+          "facts": [
+            ["CA", "Acme Internal Services CA"],
+            ["Certificate life", "24 hours, auto-renewed"],
+            ["Identity", "SAN mein SPIFFE ID"]
+          ]
+        },
+        {
+          "title": "Server certificate maangta hai",
+          "desc": "Encrypted flight ke andar CertificateRequest",
+          "detail": "Payments service kisi bhi TLS 1.3 server ki tarah jawab deti hai, ek extra encrypted message ke saath: CertificateRequest. Isme wo signature algorithms aur CA names list hote hain jo wo accept karti hai, taaki client ko pata chale ki kaun sa certificate chunna hai.",
+          "facts": [
+            ["New message", "CertificateRequest (type 13)"],
+            ["Trusted CA", "CN=Acme Internal Services CA"],
+            ["Encrypted", "Haan, baaki flight ki tarah"]
+          ],
+          "quiz": {
+            "q": "Kaun sa message client ko batata hai ki use bhi apni identity prove karni hai?",
+            "options": [
+              "ServerHello",
+              "CertificateRequest",
+              "NewSessionTicket",
+              "EncryptedExtensions"
+            ],
+            "why": "CertificateRequest ke bina client kabhi certificate nahi bhejta. Uska hona hi TLS aur mTLS ka poora farak hai."
+          }
+        },
+        {
+          "title": "Client khud ko prove karta hai",
+          "desc": "Certificate, CertificateVerify, Finished",
+          "detail": "Orders service pehle server ka certificate check karti hai. Phir wo apna Certificate bhejti hai, poore handshake par apni private key se signed CertificateVerify, aur Finished. Signature hi asli cheez hai: chori hui certificate file akeli key ke bina bekaar hai.",
+          "facts": [
+            ["Client cert", "spiffe://…/sa/orders"],
+            ["Signature", "ECDSA P-256"],
+            ["Sent", "Encrypted"]
+          ],
+          "quiz": {
+            "q": "Attacker ne orders certificate (public) copy kar liya par uski private key nahi. Kya fail hoga?",
+            "options": [
+              "Kuch nahi, certificate kaafi hai",
+              "CertificateVerify, kyunki wo sign nahi kar sakta",
+              "ServerHello",
+              "TCP handshake"
+            ],
+            "why": "CertificateVerify ko isi handshake par private key se signature chahiye. Key ke bina wo ban nahi sakta."
+          }
+        },
+        {
+          "title": "Dono taraf verified",
+          "desc": "Server chain check karta hai, phir call chalti hai",
+          "detail": "Payments service client chain ko internal CA tak, dates ko, aur SPIFFE ID ko apni policy ke against check karti hai: sirf orders service Charge call kar sakti hai. Phir gRPC request aur reply tunnel ke andar jaate hain. Har side ab theek-theek jaanti hai ki doosre end par kaun hai.",
+          "facts": [
+            ["Chain", "Internal CA tak valid"],
+            ["Policy", "orders Charge call kar sakta hai"],
+            ["Call", "POST /payments.v1.Payments/Charge"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Mutual trust, passwords nahi",
+        "text": "Server ke ek extra message aur client ke teen messages ke saath, dono services ne internal CA ki keys aur certificates se apni identity prove ki. Koi API keys ya passwords network par nahi jaate, aur certificates roz khud renew hote hain.",
+        "facts": [
+          ["Server proved", "Certificate + signature"],
+          ["Client proved", "Certificate + signature"],
+          ["Round trips", "Abhi bhi 1"],
+          ["Secrets sent", "Koi nahi"]
+        ]
+      }
+    },
+    "no-cert": {
+      "name": "Certificate ke bina client",
+      "summary": "Ek purana batch job plain TLS aadat ke saath connect hota hai; payments certificate maangta hai aur darwaza band kar deta hai.",
+      "steps": [
+        {
+          "title": "Plain TLS client",
+          "desc": "Batch job ko kabhi certificate diya hi nahi gaya",
+          "detail": "Ek purana reporting job payments ko call karne ki koshish karta hai. Wo TLS 1.3 bilkul theek bolta hai, par uske liye kisi ne certificate setup nahi kiya. Uska Client Hello normal lagta hai.",
+          "facts": [
+            ["Client", "old batch job, 10.0.3.30"],
+            ["Certificate", "Koi nahi"],
+            ["Target", "payments:8443"]
+          ]
+        },
+        {
+          "title": "Certificate requested",
+          "desc": "Wahi server flight CertificateRequest ke saath",
+          "detail": "Payments service apni usual flight bhejti hai, CertificateRequest samet. Job server ka certificate check karta hai aur uses theek paata hai.",
+          "facts": [
+            ["Server cert", "Valid"],
+            ["CertificateRequest", "Sent"],
+            ["Client has", "Bhejne ko kuch nahi"]
+          ]
+        },
+        {
+          "title": "Khali Certificate",
+          "desc": "Rules kehte hain: phir bhi jawab do, khali hi sahi",
+          "detail": "TLS 1.3 kehta hai ki jis client se certificate maanga gaya ho use Certificate message phir bhi bhejna padta hai, chahe list khali ho. Job wahi karta hai, CertificateVerify skip karta hai, aur Finished bhejta hai.",
+          "facts": [
+            ["Certificate list", "Khali (0 certs)"],
+            ["CertificateVerify", "Not sent"],
+            ["Finished", "Sent"]
+          ],
+          "quiz": {
+            "q": "Server ko client certificates chahiye aur use khali list mili. Aage kya hota hai?",
+            "options": [
+              "Wo bina check kiye aage badhta hai",
+              "Wo fatal alert bhejta hai aur close kar deta hai",
+              "Wo doosre CertificateRequest ke saath dobara maangta hai",
+              "Wo password prompt par fall back karta hai"
+            ],
+            "why": "Jis server ko client authentication require karne ke liye configure kiya gaya hai use abort karna padta hai. TLS 1.3 mein bilkul isi case ke liye ek dedicated alert hai."
+          }
+        },
+        {
+          "title": "Alert 116",
+          "desc": "certificate_required, phir close",
+          "detail": "Payments service fatal alert 116, certificate_required, bhejti hai aur connection close kar deti hai. Kyunki ab tak keys ban chuki hain, alert encrypted hai aur wire par 24-byte Application Data record jaisa dikhta hai. Job ke logs mein TLS error dikhta hai aur call kabhi Charge code tak nahi pahunchti.",
+          "facts": [
+            ["Alert", "116 certificate_required"],
+            ["Level", "2 (fatal)"],
+            ["Added in", "TLS 1.3"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Kisi request se pehle hi block",
+        "text": "Kyunki payments mutual TLS require karta hai, certificate ke bina client handshake ke dauran hi rok diya jaata hai. Fix server ko dheela karna nahi, balki job ko internal CA se uski apni identity dena hai.",
+        "facts": [
+          ["Alert", "116 certificate_required"],
+          ["TLS 1.2 equivalent", "40 handshake_failure"],
+          ["Galat CA ho to", "48 unknown_ca"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "mTLS mein extra messages",
+      "items": [
+        ["CertificateRequest (13)", "Server client cert maangta hai"],
+        ["Certificate (11)", "Client ki chain (khali ho sakti hai)"],
+        ["CertificateVerify (15)", "Handshake par client ka signature"]
+      ]
+    },
+    {
+      "title": "Alerts",
+      "items": [
+        ["116 certificate_required", "Client cert nahi (TLS 1.3)"],
+        ["48 unknown_ca", "Aisi CA ne sign kiya jis par server bharosa nahi karta"],
+        ["45 certificate_expired", "Client cert out of date"],
+        ["42 bad_certificate", "Corrupt ya galat cert"]
+      ]
+    },
+    {
+      "title": "Practice mein",
+      "items": [
+        ["Service meshes", "Istio, Linkerd: automatic mTLS"],
+        ["SPIFFE ID", "spiffe://trust-domain/path"],
+        ["Cert lifetime", "Hours se days, auto-rotated"],
+        ["nginx", "ssl_verify_client on"]
+      ]
+    }
+  ]
+}

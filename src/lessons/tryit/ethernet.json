@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find your network card's MAC address", "hinglish": "Apne network card ka MAC address dhoondo" },
+      "why": { "en": "This is the 48-bit address a switch learns from your frames.", "hinglish": "Yeh woh 48-bit address hai jo switch tumhare frames se seekhta hai." },
+      "windows": "getmac /v",
+      "unix": "ip link",
+      "expect": { "en": "A list of adapters with MAC addresses like 3C-22-FB-7A-91-0E (Windows uses dashes). Values differ per machine; on macOS use ifconfig and look for 'ether'.", "hinglish": "Adapters ki list MAC addresses ke saath, jaise 3C-22-FB-7A-91-0E (Windows dashes use karta hai). Values har machine par alag hoti hain; macOS par ifconfig use karo aur 'ether' dhoondo." },
+      "step": 1
+    },
+    {
+      "title": { "en": "See the MACs your machine has learned", "hinglish": "Dekho tumhari machine ne kaunse MACs seekhe hain" },
+      "why": { "en": "Your own table of neighbours, the host-side cousin of a switch's MAC table.", "hinglish": "Padosiyon ki tumhari apni table, switch ki MAC table ka host-side cousin." },
+      "windows": "arp -a",
+      "unix": "ip neigh",
+      "expect": { "en": "IP and MAC pairs for devices on your LAN, such as your router. Contents differ per network; on macOS use arp -a.", "hinglish": "Tumhare LAN ke devices ke IP aur MAC pairs, jaise tumhara router. Contents har network par alag hote hain; macOS par arp -a use karo." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Check your link speed and state", "hinglish": "Apni link speed aur state check karo" },
+      "why": { "en": "Shows whether your Ethernet or Wi-Fi adapter is up and at what speed it talks to the switch.", "hinglish": "Dikhata hai ki tumhara Ethernet ya Wi-Fi adapter up hai ya nahi aur switch se kis speed par baat karta hai." },
+      "windows": "Get-NetAdapter | Select-Object Name, Status, LinkSpeed, MacAddress",
+      "unix": "ip -s link",
+      "expect": { "en": "One row per adapter with status Up or Disconnected and a speed such as 1 Gbps. The Unix command also prints frame counters. Output varies per machine.", "hinglish": "Har adapter ki ek row, status Up ya Disconnected aur 1 Gbps jaisi speed ke saath. Unix command frame counters bhi print karta hai. Output har machine par alag hota hai." }
+    },
+    {
+      "title": { "en": "Show the Ethernet header fields in the capture", "hinglish": "Capture mein Ethernet header fields dikhao" },
+      "why": { "en": "Open the .pcap in Wireshark and filter on the broadcast destination or on one MAC.", "hinglish": ".pcap Wireshark mein kholo aur broadcast destination ya kisi ek MAC par filter lagao." },
+      "wireshark": "eth.dst == ff:ff:ff:ff:ff:ff || eth.addr == 3c:22:fb:7a:91:0e",
+      "expect": { "en": "The ARP broadcast, plus every frame to or from the laptop. Expand the Ethernet II line to see destination, source and type.", "hinglish": "ARP broadcast, aur laptop ke har frame (aane wale ya jaane wale). Destination, source aur type dekhne ke liye Ethernet II line expand karo." },
+      "step": 4
+    }
+  ]
+}

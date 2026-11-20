@@ -1,0 +1,230 @@
+{
+  "tagline": "OBS apni live stream ko platform tak kaise upload karta hai.",
+  "description": "RTMP zyaadatar live streams ka upload path hai. Streaming app ingest server se ek TCP connection kholti hai, chhota sa handshake karti hai, secret stream key se ek app mein login karti hai, aur phir audio aur video ko chhote chunks ke steady flow mein bhejti hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP, port 1935"],
+    ["Encoding", "Chunks + AMF0 commands"],
+    ["Handshake", "C0/C1, S0/S1/S2, C2 (1536-byte blocks)"],
+    ["Media", "H.264 video, AAC audio (FLV tags)"],
+    ["Defined in", "Adobe RTMP spec (2012)"]
+  ],
+  "legend": [
+    "Handshake aur success replies",
+    "Commands (connect, createStream, publish)",
+    "OBS se audio aur video",
+    "Errors",
+    "Closing"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "OBS se live jao",
+      "summary": "OBS ingest server se connect karta hai, stream key ke saath publish karta hai aur audio-video bhejna shuru karta hai.",
+      "steps": [
+        {
+          "title": "C0 aur C1 bhejo",
+          "desc": "Ek version byte aur 1536-byte ka block",
+          "detail": "Port 1935 par TCP connection pehle se khula hai. OBS C0 bhejta hai, jo ek single version byte (3) hai, aur turant uske baad C1: 1536 bytes jisme timestamp, chaar zeros aur 1528 random bytes hote hain. Total 1537 bytes hue, jo ek TCP segment ke liye bade hain, isliye do segments mein jaate hain.",
+          "facts": [
+            ["C0", "1 byte, version 3"],
+            ["C1", "1536 bytes"],
+            ["Segments", "1460 + 77 bytes"]
+          ],
+          "quiz": {
+            "q": "C0 + C1 1537 bytes hai aur segment size 1460 hai. Kitne TCP segments ise le jaate hain?",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "Ye 128-byte chunks mein split hota hai"
+            ],
+            "why": "1537, 1460 se zyada hai, isliye TCP pehle 1460 bytes bhejta hai aur phir bachhe hue 77. RTMP chunking handshake ke baad hi shuru hoti hai."
+          }
+        },
+        {
+          "title": "S0, S1, S2 phir C2",
+          "desc": "Har side doosre ka random block echo karti hai",
+          "detail": "Server S0 (version 3), apna random block S1, aur S2 se jawab deta hai, jo C1 ki exact copy hai. OBS echo check karta hai aur C2 se reply karta hai, jo S1 ki copy hai. Random content ka koi matlab nahi; echo bas ye prove karta hai ki dono sides RTMP bol rahi hain aur ek doosre ko sahi padh rahi hain.",
+          "facts": [
+            ["Server sends", "1 + 1536 + 1536 = 3073 bytes"],
+            ["Laptop sends", "C2, 1536 bytes"],
+            ["Rule", "S2 = C1, C2 = S1"]
+          ],
+          "quiz": {
+            "q": "S2 ke random part mein kya hona chahiye?",
+            "options": [
+              "Fresh random bytes",
+              "C1 ke random bytes ki copy",
+              "Stream key",
+              "Zeros"
+            ],
+            "why": "S2, C1 ko echo karta hai aur C2, S1 ko. Har side prove karti hai ki usne doosre ka block intact receive kiya."
+          }
+        },
+        {
+          "title": "App se connect karo",
+          "desc": "Pehla AMF0 command",
+          "detail": "Ab RTMP chunks par switch karta hai. OBS pehle apna chunk size default 128 bytes se badhakar 4096 karta hai, phir connect command bhejta hai. Commands AMF0 mein encode hote hain: ek type byte, phir value. Yahan name string \"connect\" hai, transaction ID number 1 hai, aur ek object mein app name \"live\" aur poora URL hai.",
+          "facts": [
+            ["Command", "connect('live')"],
+            ["URL", "rtmp://ingest.example.com/live"],
+            ["Chunk stream", "3 (commands)"]
+          ],
+          "quiz": {
+            "q": "AMF0 transaction ID 1 ko kaise encode karta hai?",
+            "options": [
+              "Ek byte: 0x01",
+              "0x00 phir 8-byte double",
+              "4-byte integer",
+              "Text \"1\""
+            ],
+            "why": "AMF0 mein sirf ek number type hai: marker 0x00 ke baad 64-bit IEEE double (1 ke liye 3F F0 00 00 00 00 00 00)."
+          }
+        },
+        {
+          "title": "Stream banao",
+          "desc": "Message stream ID maango",
+          "detail": "Ek RTMP connection kai streams le ja sakta hai, isliye OBS createStream (transaction 2) se ek maangta hai. Server _result mein number 1 deta hai. Ab se audio, video aur stream commands apne chunk headers mein message stream ID 1 rakhte hain.",
+          "facts": [
+            ["Request", "createStream, transaction 2"],
+            ["Answer", "Stream ID 1"],
+            ["Used in", "Message stream ID field"]
+          ]
+        },
+        {
+          "title": "Key ke saath publish karo",
+          "desc": "Stream key hi password hai",
+          "detail": "OBS stream 1 par secret stream key aur type \"live\" ke saath publish bhejta hai. Server key ko lookup karta hai, aapke channel se jodta hai aur onStatus ke saath NetStream.Publish.Start se jawab deta hai. Plain RTMP key ko clear text mein bhejta hai, isliye platforms ab RTMPS (TLS ke andar RTMP, port 443) pasand karte hain.",
+          "facts": [
+            ["Command", "publish(key, \"live\")"],
+            ["Reply", "NetStream.Publish.Start"],
+            ["Key sent", "Plain RTMP par clear text mein"]
+          ],
+          "quiz": {
+            "q": "Same Wi-Fi par koi is plain RTMP session ko capture karta hai. Wo kya le sakta hai?",
+            "options": [
+              "Kuch nahi, RTMP encrypted hai",
+              "Stream key, aur isse aapke channel par stream kar sakta hai",
+              "Sirf video",
+              "Sirf server ka naam"
+            ],
+            "why": "Plain RTMP mein encryption nahi hai, isliye publish command aur uski key padhi ja sakti hai. RTMPS sab kuch TLS mein wrap karta hai."
+          }
+        },
+        {
+          "title": "Audio aur video flow",
+          "desc": "RTMP chunks ke andar FLV tags",
+          "detail": "Media ab bina ruke stream hota hai. Har audio message 0xAF (AAC) se shuru hota hai aur har video message 0x17 (H.264 keyframe) ya 0x27 (doosra frame) se, phir compressed data. Audio aur video alag chunk streams use karte hain taaki bada video frame sound ko zyaada der block na kare. TCP bytes ko usual tarah acknowledge karta hai.",
+          "facts": [
+            ["Audio", "Type 8, AAC, lagbhag 23 ms per frame"],
+            ["Video", "Type 9, H.264"],
+            ["Chunk streams", "4 audio, 6 video"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Live streaming",
+        "text": "OBS ne TCP connection khola, C/S handshake se prove kiya ki dono sides RTMP bolti hain, app se connect kiya, stream ID liya, apni secret key se publish kiya aur audio-video chunks bhejna shuru kiya. Platform phir stream ko viewers ke liye repackage karta hai, usually HLS ya DASH mein.",
+        "facts": [
+          ["Handshake", "Har taraf 3 × 1536-byte blocks"],
+          ["Commands", "connect, createStream, publish"],
+          ["Media", "Chunks mein AAC + H.264"],
+          ["Time to live", "Lagbhag 0.15 s"]
+        ]
+      }
+    },
+    "bad-key": {
+      "name": "Galat stream key",
+      "summary": "Stream key ka ek character galat hai, isliye server publish karne se mana kar deta hai.",
+      "steps": [
+        {
+          "title": "Handshake aur connect",
+          "desc": "Ab tak sab normal lagta hai",
+          "detail": "Handshake aur connect command mein stream key involve nahi hoti, isliye ye pehle jaise hi succeed hote hain. Key sirf tab check hoti hai jab OBS publish karne ki koshish karta hai.",
+          "facts": [
+            ["Handshake", "OK"],
+            ["connect", "NetConnection.Connect.Success"],
+            ["Key checked", "Abhi nahi"]
+          ]
+        },
+        {
+          "title": "Typo ke saath publish",
+          "desc": "Aakhri character galat hai",
+          "detail": "OBS mein paste ki gayi stream key \"pz\" ki jagah \"pq\" par khatam hoti hai. OBS ko ye pata nahi chal sakta, isliye wo galat naam ke saath publish bilkul pehle jaisa bhej deta hai.",
+          "facts": [
+            ["Key sent", "sk-7f3a-91qd-2bxe-k4pq"],
+            ["Correct key", "…2bxe-k4pz"],
+            ["Stream ID", "1"]
+          ],
+          "quiz": {
+            "q": "Server kya jawab dega?",
+            "options": [
+              "NetStream.Publish.Start",
+              "Error code ke saath onStatus",
+              "Bina message ke TCP reset",
+              "Wo chupchaap video ignore kar dega"
+            ],
+            "why": "RTMP problems ko onStatus message se report karta hai jiska level \"error\" hota hai. Code batata hai ki kya galat hua."
+          }
+        },
+        {
+          "title": "Publish.BadName",
+          "desc": "Reject, phir connection close",
+          "detail": "Server ko us key ka koi channel nahi milta aur wo level \"error\" aur code NetStream.Publish.BadName ke saath onStatus bhejta hai. Phir wo TCP connection close kar deta hai. OBS “failed to connect” type ka error dikhata hai aur usual fix hai platform ke dashboard se key dobara copy karna.",
+          "facts": [
+            ["Level", "error"],
+            ["Code", "NetStream.Publish.BadName"],
+            ["Then", "Server TCP close karta hai (FIN)"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Stream nahi, nuksaan nahi",
+        "text": "Stream key hi wo ek cheez hai jo upload ko aapke channel se jodti hai, isliye server publish time par ise check karta hai aur jo nahi pehchanta use refuse kar deta hai. Key ko password ki tarah treat karo: screen par kabhi mat dikhao, aur leak ho jaye to reset karo.",
+        "facts": [
+          ["Checked at", "publish"],
+          ["Error code", "NetStream.Publish.BadName"],
+          ["Fix", "Key dobara copy karo ya reset karo"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Handshake",
+      "items": [
+        ["C0 / S0", "1 byte: version 3"],
+        ["C1 / S1", "1536 bytes: time, zero, random"],
+        ["C2 / S2", "S1 / C1 ka echo"]
+      ]
+    },
+    {
+      "title": "Message types",
+      "items": [
+        ["1", "Set Chunk Size"],
+        ["3", "Acknowledgement"],
+        ["5 / 6", "Window Ack Size / Set Peer Bandwidth"],
+        ["8 / 9", "Audio / Video"],
+        ["18 / 20", "AMF0 data / AMF0 command"]
+      ]
+    },
+    {
+      "title": "AMF0 markers",
+      "items": [
+        ["0x00", "Number (8-byte double)"],
+        ["0x01", "Boolean"],
+        ["0x02", "String (2-byte length)"],
+        ["0x03", "Object, 00 00 09 par end"],
+        ["0x05", "Null"]
+      ]
+    },
+    {
+      "title": "Status codes",
+      "items": [
+        ["NetConnection.Connect.Success", "connect OK"],
+        ["NetStream.Publish.Start", "Aap live ho"],
+        ["NetStream.Publish.BadName", "Galat ya busy stream key"]
+      ]
+    }
+  ]
+}

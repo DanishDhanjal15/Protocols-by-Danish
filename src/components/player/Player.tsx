@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight, Check, ChevronLeft, ChevronRight, Download, Expand, Keyboard, Layers, ListTree, Menu, Network, PanelLeft,
-  Pause, Play, RotateCcw, Rows3, Search, SkipForward, Sparkles, Volume2, VolumeX, X, GraduationCap,
+  Pause, Play, RotateCcw, Rows3, Search, SkipForward, Sparkles, Volume2, VolumeX, X, GraduationCap, Terminal, Boxes, Table2,
 } from "lucide-react";
 import type { Lesson } from "@/lib/lesson";
 import { GroupId, OSI_NAMES } from "@/lib/lesson";
 import { expandLesson, expandPacket } from "@/lib/catalog";
+import { applyText, LessonText, TryIt } from "@/lib/text";
 import { downloadPcap } from "@/lib/pcap";
 import { MOBILE_H, MOBILE_W, STAGE_H, STAGE_W } from "@/lib/route";
 import { useApp } from "../Providers";
@@ -16,8 +17,11 @@ import { usePlayer } from "./usePlayer";
 import { NetworkView, SequenceView } from "./Stage";
 import { CaptureTable, Inspector } from "./Packets";
 import { CheatSheet, Facts, QuizCard, QuizRun, StepPanel } from "./Panels";
+import { EncapView } from "./EncapView";
+import { LiveTables } from "./LiveTables";
+import { TryItPanel } from "./TryItPanel";
 
-type Tab = "info" | "inspect" | "quiz" | "cheat";
+type Tab = "info" | "inspect" | "quiz" | "try" | "cheat";
 
 const FAMILY: Record<string, GroupId[]> = {
   core: ["journey", "foundations", "lan", "routing"],
@@ -26,9 +30,11 @@ const FAMILY: Record<string, GroupId[]> = {
 };
 const FAMILY_NAME = { all: "All", core: "Core", app: "Apps", security: "Security" } as const;
 
-export function Player({ lesson: compact }: { lesson: Lesson }) {
-  const lesson = useMemo(() => expandLesson(compact), [compact]);
-  const { t, catalog, progress, updateProgress, layer, setLayer } = useApp();
+export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; hinglish?: LessonText | null; tryit?: TryIt | null }) {
+  const { t, catalog, progress, updateProgress, layer, setLayer, contentLang, setContentLang } = useApp();
+  const english = useMemo(() => expandLesson(compact), [compact]);
+  const lang = contentLang === "hinglish" && hinglish ? "hinglish" : "en";
+  const lesson = useMemo(() => (lang === "hinglish" ? applyText(english, hinglish) : english), [english, hinglish, lang]);
 
   const [scIdx, setScIdx] = useState(0);
   const scenario = lesson.scenarios[scIdx] ?? lesson.scenarios[0];
@@ -37,7 +43,8 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
   const voiceHold = useRef<() => boolean>(() => false);
   const api = usePlayer(scenario, voiceHold);
 
-  const [view, setView] = useState<"network" | "sequence">("network");
+  const [view, setView] = useState<"network" | "sequence" | "layers">("network");
+  const [bottom, setBottom] = useState<"capture" | "tables">("capture");
   const [tab, setTab] = useState<Tab>("info");
   const [sidebar, setSidebar] = useState(true);
   const [drawer, setDrawer] = useState(false);
@@ -120,7 +127,7 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
     speechSynthesis.cancel();
     if (!narrate) return;
     const text = step
-      ? `Step ${api.stepIdx + 1}. ${step.title}. ${step.detail}`
+      ? `${lang === "hinglish" ? "Step" : "Step"} ${api.stepIdx + 1}. ${step.title}. ${step.detail}`
       : finished
         ? `${scenario.outro.title}. ${scenario.outro.text}`
         : `${lesson.name}. ${lesson.full}. ${lesson.description}`;
@@ -184,7 +191,7 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
       else if (k === "ArrowRight") { e.preventDefault(); api.next(); }
       else if (k === "ArrowLeft") { e.preventDefault(); api.prev(); }
       else if (k === "s" || k === "S") api.stepPacket();
-      else if (k === "v" || k === "V") setView((v) => (v === "network" ? "sequence" : "network"));
+      else if (k === "v" || k === "V") setView((v) => (v === "network" ? "sequence" : v === "sequence" ? "layers" : "network"));
       else if (k === "d" || k === "D") setPanels((p) => !p);
       else if (k === "l" || k === "L") { setSidebar((s) => !s); setDrawer((d) => !d); }
       else if (k === "f" || k === "F") toggleFs();
@@ -232,10 +239,10 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
           <Search size={15} className="text-muted" />
           <input id="proto-filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter protocols" className="flex-1 bg-transparent outline-none text-[13.5px] min-w-0" />
         </label>
-        <div className="flex p-0.5 rounded-lg bg-panel-2" role="tablist">
+        <div className="flex gap-3 border-b border-line" role="tablist">
           {(Object.keys(FAMILY_NAME) as (keyof typeof FAMILY_NAME)[]).map((f) => (
             <button key={f} role="tab" aria-selected={family === f} onClick={() => setFamily(f)}
-              className={`flex-1 h-7 rounded-md text-[12px] font-semibold ${family === f ? "bg-panel-3 text-ink" : "text-muted hover:text-ink"}`}>
+              className={`h-8 -mb-px border-b-2 text-[12.5px] font-medium ${family === f ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"}`}>
               {FAMILY_NAME[f]}
             </button>
           ))}
@@ -343,6 +350,7 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
     ["info", api.stepIdx === -1 ? "Overview" : finished ? "Summary" : "Explain", <Layers key="i" size={14} />],
     ["inspect", "Packet", <ListTree key="i" size={14} />],
     ["quiz", quizzes.length ? `Quiz · ${quizzes.length}` : "Quiz", <GraduationCap key="i" size={14} />],
+    ["try", "Try it", <Terminal key="i" size={14} />],
     ["cheat", "Cheat", <Rows3 key="i" size={14} />],
   ];
 
@@ -360,7 +368,7 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
       <section ref={stageRef} className={`hud flex flex-col min-h-0 overflow-hidden order-1 xl:order-none ${c1} xl:row-start-1`}>
         <div className="flex flex-wrap items-center gap-2 px-3 pt-3">
           <button className="icon-btn xl:hidden" onClick={() => setDrawer(true)} aria-label={t.menu}><Menu size={17} /></button>
-          <div className="min-w-0 flex-1 basis-[calc(100%-48px)] sm:basis-0">
+          <div className="min-w-0 flex-1 basis-[calc(100%-48px)]">
             <h1 className="text-[20px] font-bold leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
               {lesson.name} <span className="text-muted font-medium text-[14px]">{lesson.full}</span>
             </h1>
@@ -374,10 +382,20 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
             </select>
           )}
           <div className="flex p-0.5 rounded-lg bg-panel-2" role="tablist" aria-label="View">
-            {(["network", "sequence"] as const).map((v) => (
-              <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}
+            {(["network", "sequence", "layers"] as const).map((v) => (
+              <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} title={v === "layers" ? "Encapsulation: watch headers wrap and unwrap" : undefined}
                 className={`h-8 px-3 rounded-md text-[13px] font-semibold inline-flex items-center gap-1.5 ${view === v ? "bg-panel-3 text-ink" : "text-muted hover:text-ink"}`}>
-                {v === "network" ? <Network size={15} /> : <Rows3 size={15} />}<span className="hidden sm:inline">{v === "network" ? t.network : t.sequence}</span>
+                {v === "network" ? <Network size={15} /> : v === "sequence" ? <Rows3 size={15} /> : <Boxes size={15} />}
+                <span className="hidden sm:inline">{v === "network" ? t.network : v === "sequence" ? t.sequence : "Layers"}</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex p-0.5 rounded-lg bg-panel-2" role="tablist" aria-label="Lesson language">
+            {(["en", "hinglish"] as const).map((l) => (
+              <button key={l} role="tab" aria-selected={lang === l} disabled={l === "hinglish" && !hinglish} onClick={() => setContentLang(l)}
+                title={l === "hinglish" && !hinglish ? "Hinglish for this lesson is coming soon" : undefined}
+                className={`h-8 px-2.5 rounded-md text-[12.5px] font-semibold disabled:opacity-40 ${lang === l ? "bg-panel-3 text-ink" : "text-muted hover:text-ink"}`}>
+                {l === "en" ? "EN" : "Hinglish"}
               </button>
             ))}
           </div>
@@ -388,11 +406,13 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
 
         <div className="relative flex-1 min-h-[260px] stage-bg mx-3 mt-3 rounded-lg overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-full max-h-full" style={{ aspectRatio: stageAspect }}>
+            <div className={view === "layers" ? "w-full h-full" : "w-full max-h-full"} style={view === "layers" ? undefined : { aspectRatio: stageAspect }}>
               {view === "network" ? (
                 <NetworkView devices={devices} links={links} api={api} selected={selected?.key} onSelect={selectPacket} narrow={narrow} />
-              ) : (
+              ) : view === "sequence" ? (
                 <SequenceView devices={devices} links={links} scenario={scenario} api={api} selected={selected?.key} onSelect={selectPacket} />
+              ) : (
+                <EncapView api={api} selected={selected} devices={devices} lang={lang} />
               )}
             </div>
           </div>
@@ -442,10 +462,10 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
 
       {/* explanation / packet / cheat sheet */}
       <section className={`hud flex flex-col min-h-[420px] xl:min-h-0 overflow-hidden order-3 xl:order-none ${c2} xl:row-start-1 xl:row-span-2`}>
-        <div className="flex gap-1 p-2 border-b border-line" role="tablist">
+        <div className="flex gap-4 px-4 border-b border-line overflow-x-auto" role="tablist">
           {TABS.map(([id, label, icon]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-              className={`flex-1 h-9 px-1 rounded-lg text-[12.5px] font-semibold inline-flex items-center justify-center gap-1.5 whitespace-nowrap ${tab === id ? "bg-panel-3 text-ink" : "text-muted hover:text-ink"}`}>
+              className={`h-11 -mb-px border-b-2 text-[13px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap ${tab === id ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"}`}>
               {icon}{label}
             </button>
           ))}
@@ -454,6 +474,7 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
           {tab === "info" && <div className="p-4">{infoEl}</div>}
           {tab === "inspect" && <Inspector cap={selected} onPrev={() => movePacket(-1)} onNext={() => movePacket(1)} />}
           {tab === "quiz" && <QuizRun key={scenario.id} items={quizzes} onAnswer={recordQuiz} onGoStep={(i) => { api.showStepDone(i); setTab("info"); }} />}
+          {tab === "try" && <TryItPanel data={tryit ?? null} lang={lang} onDownload={download} onGoStep={(i) => { if (scIdx !== 0) setScIdx(0); api.showStepDone(i); setTab("info"); }} />}
           {tab === "cheat" && <CheatSheet lesson={lesson} />}
         </div>
       </section>
@@ -470,7 +491,7 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
       {/* playback + capture */}
       {panels && (
         <section className={`hud flex flex-col min-h-[260px] max-h-[60vh] xl:max-h-none xl:min-h-0 overflow-hidden order-2 xl:order-none ${c1} xl:row-start-2`}>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 border-b border-line">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
             <div className="flex items-center gap-1">
               <button className="icon-btn" onClick={api.prev} title={`${t.prev} (←)`} aria-label={t.prev}><ChevronLeft size={18} /></button>
               <button className="btn btn-primary !rounded-full !px-5" onClick={api.toggle} title="Space">
@@ -498,8 +519,16 @@ export function Player({ lesson: compact }: { lesson: Lesson }) {
               <button className="icon-btn" onClick={download} title={`${t.download}: open in Wireshark`} aria-label={t.download}><Download size={16} /></button>
             </div>
           </div>
+          <div className="flex gap-4 px-4 border-b border-line" role="tablist" aria-label="Capture or tables">
+            {([["capture", "Capture", <ListTree key="i" size={14} />], ["tables", "Live tables", <Table2 key="i" size={14} />]] as const).map(([id, label, icon]) => (
+              <button key={id} role="tab" aria-selected={bottom === id} onClick={() => setBottom(id)}
+                className={`h-10 -mb-px border-b-2 text-[13px] font-medium inline-flex items-center gap-1.5 ${bottom === id ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"}`}>
+                {icon}{label}{id === "capture" && <span className="mono text-[11px] text-muted">{api.captured.length}</span>}
+              </button>
+            ))}
+          </div>
           <div className="flex-1 min-h-0">
-            <CaptureTable rows={api.captured} selected={selected?.key} onSelect={selectPacket} />
+            {bottom === "capture" ? <CaptureTable rows={api.captured} selected={selected?.key} onSelect={selectPacket} /> : <LiveTables rows={api.captured} lang={lang} />}
           </div>
         </section>
       )}

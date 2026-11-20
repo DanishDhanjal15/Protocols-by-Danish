@@ -1,0 +1,195 @@
+{
+  "tagline": "Doosri machine par function call karo, HTTP/2 par protobuf ke saath.",
+  "description": "gRPC ek service ko doosri service ka function aise call karne deta hai jaise woh local ho. Har call ek HTTP/2 stream hai: /Service/Method par POST, body mein length-prefixed protobuf message, aur result status end mein trailers mein. Deadlines har call ke saath travel karti hain.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "HTTP/2 (usually inside TLS)"],
+    ["Message format", "Protocol Buffers (binary)"],
+    ["Framing", "1-byte flag + 4-byte length"],
+    ["Result", "grpc-status in trailers"],
+    ["Common port", "50051 (convention)"]
+  ],
+  "legend": [
+    "TCP handshake aur ACKs",
+    "HTTP/2 setup",
+    "Request",
+    "Response",
+    "Error status"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Ek unary call: GetForecast",
+      "summary": "Checkout app weather service se forecast maangta hai. Ek request message, ek response message, status OK.",
+      "steps": [
+        {
+          "title": "Connect karo aur HTTP/2 shuru karo",
+          "desc": "TCP, preface, SETTINGS",
+          "detail": "Is data centre ke andar dono services bina TLS ke plain HTTP/2 (h2c) bolti hain, isliye hum har byte dekh sakte hain. gRPC jaanta hai ki server HTTP/2 bolta hai, isliye client upgrade maangne ki jagah seedha preface bhej deta hai. Internet par wahi frames TLS ke andar hote.",
+          "facts": [
+            ["Server", "10.0.5.40:50051"],
+            ["Mode", "HTTP/2 with prior knowledge"],
+            ["Round trip", "~0.2 ms on a LAN"]
+          ]
+        },
+        {
+          "title": "Call nikalti hai",
+          "desc": "Stream 1 par HEADERS + DATA",
+          "detail": "gRPC call ek HTTP/2 POST hai. Path function ka naam batata hai: /weather.Weather/GetForecast. content-type application/grpc hai, te: trailers zaroori hai, aur grpc-timeout mein deadline hoti hai. DATA frame mein argument gRPC message ke roop mein hota hai.",
+          "facts": [
+            ["Path", "/weather.Weather/GetForecast"],
+            ["Deadline", "grpc-timeout: 1S"],
+            ["Stream", "1 (ek call = ek stream)"]
+          ],
+          "quiz": {
+            "q": "Checkout app ek saath 50 calls karta hai. Use kitne TCP connections chahiye?",
+            "options": [
+              "50",
+              "1, har call apni HTTP/2 stream hai",
+              "2, har direction ke liye ek",
+              "Har method ke liye ek"
+            ],
+            "why": "Har call usi HTTP/2 connection par alag stream hai, isliye kai calls ek connection par ek saath chalti hain."
+          }
+        },
+        {
+          "title": "Message ke andar",
+          "desc": "Protobuf: tags aur varints",
+          "detail": "5-byte gRPC prefix kehta hai: compressed nahi, 8 bytes lamba. Protobuf bas 0a 04 50 75 6e 65 10 03 hai. Byte 0x0a ek tag hai: field 1, wire type 2 (length-delimited), phir length 4 aur \"Pune\". Byte 0x10 field 2, wire type 0 (varint) hai, phir value 3. Field names wire par kabhi nahi jaate; dono sides ek .proto file share karti hain jo numbers ko names se map karti hai.",
+          "facts": [
+            ["Tag byte", "(field number << 3) | wire type"],
+            ["0x0a", "field 1, length-delimited"],
+            ["0x10", "field 2, varint"]
+          ],
+          "quiz": {
+            "q": "Field 3 aur wire type 2 (string) ka tag byte kya hoga?",
+            "options": [
+              "0x03",
+              "0x1a",
+              "0x32",
+              "0x0b"
+            ],
+            "why": "(3 << 3) | 2 = 24 + 2 = 26 = 0x1a."
+          }
+        },
+        {
+          "title": "Response aur trailers",
+          "desc": "HEADERS, DATA, phir grpc-status: 0",
+          "detail": "Server stream 1 par jawab deta hai: :status 200 aur content-type application/grpc wala HEADERS, result message wala DATA frame, aur aakhir mein trailers kehlane wala doosra HEADERS frame jisme grpc-status: 0 (OK) aur END_STREAM hota hai. Call ka asli result trailers mein hota hai, :status mein nahi.",
+          "facts": [
+            ["HTTP status", "200 (always, if HTTP worked)"],
+            ["grpc-status", "0 = OK"],
+            ["aqi = 150", "varint 0x96 0x01"]
+          ],
+          "quiz": {
+            "q": "150 ka varint 0x96 0x01 hai. Ise do bytes kyun chahiye?",
+            "options": [
+              "Har varint 2 bytes ka hota hai",
+              "Har byte mein 7 bits ki value hoti hai; 150 ko 8 bits chahiye",
+              "Byte 2 checksum hai",
+              "Negative numbers ko 2 bytes chahiye"
+            ],
+            "why": "Values 0–127 7 bits mein aa jaati hain. 150 ko zyada chahiye, isliye pehla byte apna top bit (0x80) set karke batata hai ki \"aur aa raha hai\"."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Network par function call",
+        "text": "Call apni HTTP/2 stream par POST ban gayi, argument 13-byte length-prefixed protobuf, aur outcome grpc-status trailer. Connection khula rehta hai, hazaaron aur calls ke liye taiyaar.",
+        "facts": [
+          ["Request body", "5 + 8 bytes"],
+          ["Response body", "5 + 18 bytes"],
+          ["Status", "grpc-status 0 (OK)"],
+          ["Time", "~12 ms"]
+        ]
+      }
+    },
+    "deadline": {
+      "name": "Deadline exceeded",
+      "summary": "Checkout page sirf 200 ms wait kar sakta hai. Weather service slow database par atki hai aur time khatam ho jaata hai.",
+      "steps": [
+        {
+          "title": "Tight deadline wali call",
+          "desc": "grpc-timeout: 200m",
+          "detail": "Checkout page ko jaldi render hona hai, isliye app call ko 200 millisecond ki deadline deta hai. Woh grpc-timeout header mein travel karti hai (200m ka matlab 200 milliseconds), isliye server ko bhi limit pata hoti hai.",
+          "facts": [
+            ["grpc-timeout", "200m"],
+            ["Units", "H M S m u n"],
+            ["Stream", "1 (setup ke baad pehli call)"]
+          ]
+        },
+        {
+          "title": "Server slow hai",
+          "desc": "Database ka wait",
+          "detail": "Weather service apne database se poochti hai, jo overloaded hai aur seconds leta hai. Clock chalte waqt wire par kuch nahi jaata.",
+          "facts": [
+            ["Database", "Overloaded"],
+            ["Time used", "200 ms aur ginti jaari"],
+            ["Packets", "None"]
+          ],
+          "quiz": {
+            "q": "200 ms ki deadline nikalne par kya hona chahiye?",
+            "options": [
+              "Wait karte raho; result ab bhi kaam ka hai",
+              "Dono sides haar maan leti hain aur call DEADLINE_EXCEEDED par khatam hoti hai",
+              "Client turant nayi connection par retry karta hai",
+              "Server partial result bhejta hai"
+            ],
+            "why": "Deadline ke baad koi jawab nahi chahta. Haar maan lene se server free hota hai aur client fallback dikha sakta hai."
+          }
+        },
+        {
+          "title": "grpc-status 4",
+          "desc": "Trailers-only mein DEADLINE_EXCEEDED",
+          "detail": "200 ms par server ruk jaata hai aur trailers-only response bhejta hai: ek HEADERS frame jisme :status 200, grpc-status: 4 aur grpc-message: Deadline Exceeded, END_STREAM ke saath. Client ka apna timer bhi fire hota hai aur RST_STREAM se stream cancel karta hai. Checkout page order ko weather widget ke bina dikhata hai.",
+          "facts": [
+            ["grpc-status", "4 DEADLINE_EXCEEDED"],
+            ["RST_STREAM", "Error 8 (CANCEL)"],
+            ["Connection", "Doosri calls ke liye abhi bhi khula"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Jaan-boojhkar jaldi fail",
+        "text": "Deadlines ek slow service ko un sab ko neeche ghaseetne se rokti hain jo use call karte hain. Limit call ke saath travel karti hai, isliye server bhi haar maan sakta hai. Sirf stream cancel hoti hai; HTTP/2 connection chalta rehta hai.",
+        "facts": [
+          ["Status", "4 DEADLINE_EXCEEDED"],
+          ["Sent in", "Trailers"],
+          ["Lost", "Ek call, connection nahi"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Status codes",
+      "items": [
+        ["0 OK", "Success"],
+        ["1 CANCELLED", "Caller ne haar maan li"],
+        ["3 INVALID_ARGUMENT", "Galat input"],
+        ["4 DEADLINE_EXCEEDED", "Time khatam"],
+        ["5 NOT_FOUND", "Aisi cheez nahi hai"],
+        ["14 UNAVAILABLE", "Server down, baad mein retry karo"],
+        ["16 UNAUTHENTICATED", "Valid credentials nahi"]
+      ]
+    },
+    {
+      "title": "Protobuf wire types",
+      "items": [
+        ["0 varint", "int32, int64, bool, enum"],
+        ["1 64-bit", "fixed64, double"],
+        ["2 length-delimited", "string, bytes, nested messages"],
+        ["5 32-bit", "fixed32, float"],
+        ["Tag", "(field << 3) | wire type"]
+      ]
+    },
+    {
+      "title": "Wire par",
+      "items": [
+        [":method", "Hamesha POST"],
+        [":path", "/package.Service/Method"],
+        ["content-type", "application/grpc"],
+        ["Message prefix", "1-byte flag + 4-byte length"]
+      ]
+    }
+  ]
+}

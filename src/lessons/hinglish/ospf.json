@@ -1,0 +1,244 @@
+{
+  "tagline": "Har router wahi same map banata hai, phir shortest path dhoondta hai.",
+  "description": "OSPF woh routing protocol hai jo bahut si companies aur ISPs apne andar ke network mein chalate hain. Har router apne links ko ek chhote record LSA mein likhta hai, use baaki sabhi routers tak flood karta hai, aur phir shared map par Dijkstra ka shortest-path algorithm chala kar apni routing table banata hai.",
+  "facts": [
+    ["Layer", "Network (IP protocol 89)"],
+    ["Multicast", "224.0.0.5 all routers, 224.0.0.6 DR/BDR"],
+    ["Algorithm", "Dijkstra shortest path first"],
+    ["Timers", "Hello 10 s, dead 40 s"],
+    ["Header", "24 bytes"],
+    ["Defined in", "RFC 2328"]
+  ],
+  "legend": [
+    "Hellos aur acknowledgements",
+    "Database description aur requests",
+    "Link state updates (LSAs)",
+    "User traffic",
+    "Failures"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "R1 network join karta hai",
+      "summary": "R1 boot hota hai, Hello se apne neighbours dhoondta hai, DR ke saath apna map sync karta hai aur routes compute karta hai.",
+      "steps": [
+        {
+          "title": "Hello, koi hai?",
+          "desc": "R1 224.0.0.5 par Hello multicast karta hai",
+          "detail": "R1 abhi boot hua hai. Har 10 seconds mein woh 224.0.0.5 par Hello bhejta hai, jo woh address hai jispar saare OSPF routers sunte hain. IP TTL 1 hai, isliye yeh is segment se bahar nahi jaata. R1 ne abhi tak kisi ko nahi suna, isliye uski neighbour list khaali hai aur use kisi DR ka pata nahi.",
+          "facts": [
+            ["To", "224.0.0.5 (AllSPFRouters)"],
+            ["IP protocol", "89 (OSPF, no TCP or UDP)"],
+            ["TTL", "1: sirf yeh link"]
+          ],
+          "quiz": {
+            "q": "R2 ke Hello mein hello interval 10 s hai, lekin R1 ko 30 s configure kiya gaya tha. Kya hoga?",
+            "options": [
+              "Dono 10 s par agree kar lenge",
+              "Dono 30 s par agree kar lenge",
+              "Dono ek doosre ke Hellos ignore karenge",
+              "R1 DR ban jaayega"
+            ],
+            "why": "Hello aur dead intervals, area, mask aur kuch options bilkul match hone chahiye. Nahi hue to Hello chupchaap ignore ho jaata hai aur koi neighbour nahi banta."
+          }
+        },
+        {
+          "title": "Two-way contact",
+          "desc": "Har ek apne Hello mein doosron ko list karta hai",
+          "detail": "R3 aur R2 R1 ko sunte hain aur apne agle Hellos mein 1.1.1.1 ko neighbour list mein daal dete hain. Jab R1 kisi aur ke Hello mein apna router ID dekhta hai, to use pata chal jaata hai ki link dono taraf kaam karta hai. Ab neighbour 2-Way state mein hai.",
+          "facts": [
+            ["R3 lists", "2.2.2.2, 1.1.1.1"],
+            ["State", "Init → 2-Way"],
+            ["DR", "192.0.2.3 (R3)"]
+          ]
+        },
+        {
+          "title": "DR kaun hai?",
+          "desc": "Ek router poore segment ki taraf se bolta hai",
+          "detail": "Shared segment par har router ka har doosre router ke saath sync karna bekaar ki mehnat hogi. Isliye ve ek Designated Router (DR) aur ek backup (BDR) chunte hain. Sabse high priority jeetti hai, phir sabse high router ID. R3 (3.3.3.3) R1 ke aane se pehle hi jeet chuka tha, aur R2 backup hai. Naya aane wala kabhi chalte hue DR ko replace nahi karta, isliye R1 bas use accept kar leta hai.",
+          "facts": [
+            ["DR", "R3, 192.0.2.3"],
+            ["BDR", "R2, 192.0.2.2"],
+            ["R1", "DROTHER: sirf DR aur BDR ke saath sync karta hai"]
+          ],
+          "quiz": {
+            "q": "Agar R1 ki priority 200 hoti (sabse high), to join karte waqt kya hota?",
+            "options": [
+              "Woh turant DR ban jaata",
+              "Jab tak current DR fail na ho, kuch nahi",
+              "Woh turant BDR ban jaata",
+              "Election shuru se restart hota"
+            ],
+            "why": "OSPF elections pre-emptive nahi hote. Higher-priority router tabhi DR banta hai jab current DR aur BDR fail ho jaayein, jisse network stable rehta hai."
+          }
+        },
+        {
+          "title": "Databases compare karo",
+          "desc": "Database Description packets batate hain ki kiske paas kya hai",
+          "detail": "R1 ab DR ke saath full adjacency banata hai. Pehle ve decide karte hain ki lead kaun karega: higher router ID wala (R3) master ban jaata hai aur DD sequence number chunta hai. Phir har ek Database Description packets bhejta hai jisme sirf un LSAs ke 20-byte headers hote hain jo uske paas hain, taaki dono dekh sakein ki kaun se missing hain ya out of date hain.",
+          "facts": [
+            ["Master", "R3 (higher router ID)"],
+            ["R1 has", "1 LSA (apna khud ka)"],
+            ["R3 has", "4 LSAs"]
+          ]
+        },
+        {
+          "title": "Request, update, acknowledge",
+          "desc": "LSR, LSU, LSAck",
+          "detail": "R1 un chaar LSAs ke liye Link State Request bhejta hai jo uske paas nahi hain. R3 Link State Update se reply karta hai jisme poore LSAs hote hain. R1 unhe 224.0.0.6 par acknowledge karta hai, jo woh address hai jispar sirf DR aur BDR sunte hain. Har LSA mein Fletcher checksum hota hai, isliye kharab LSA pakda jaata hai aur dobara maanga jaata hai.",
+          "facts": [
+            ["Requested", "4 LSAs"],
+            ["LSAck to", "224.0.0.6 (AllDRouters)"],
+            ["State", "Loading → Full"]
+          ],
+          "quiz": {
+            "q": "R3 ke paas ab R1 ka naya Router-LSA hai. R3 use kisko bhejega?",
+            "options": [
+              "Kisi ko nahi, R1 ke paas pehle se hai",
+              "Har OSPF router ko, 224.0.0.5 se",
+              "Sirf R4 ko",
+              "Sirf BDR ko"
+            ],
+            "why": "DR naye ya badle hue LSAs ko poore segment mein 224.0.0.5 par flood karta hai, aur har router unhe aage pass karta hai, isliye area ke saare routers ke paas identical map ban jaata hai."
+          }
+        },
+        {
+          "title": "SPF chalao",
+          "desc": "Shared map par Dijkstra",
+          "detail": "Poora map milne ke baad R1 khud ko root maan kar Dijkstra ka algorithm chalata hai. 203.0.113.0/24 tak pahunchne ke liye woh R3 se ja sakta hai (10 + 10 + 1 = 21) ya R2 se (10 + 50 + 1 = 61). R3 wala sasta path routing table mein jaata hai, aur desk ka ping usi ko follow karta hai.",
+          "facts": [
+            ["Via R3", "cost 21 (chosen)"],
+            ["Via R2", "cost 61"],
+            ["Route", "203.0.113.0/24 via 192.0.2.3"]
+          ],
+          "quiz": {
+            "q": "Best path chunne ke liye OSPF kya add karta hai?",
+            "options": [
+              "Routers ki ginti",
+              "Raaste ke link costs",
+              "Ping times",
+              "AS numbers"
+            ],
+            "why": "Har link ki ek cost hoti hai, aksar uski speed par based. OSPF sabse kam total cost wala path chunta hai, sabse kam hops wala nahi."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Har jagah same map",
+        "text": "R1 ne Hellos se neighbours dhoondhe, maujooda DR ko accept kiya, databases compare kiye, missing LSAs khinche aur Dijkstra chalaya. Ab area ke har router ke paas identical map hai aur woh usi se apne shortest paths compute karta hai.",
+        "facts": [
+          ["Packet types used", "All 5"],
+          ["Adjacency", "DR aur BDR ke saath Full"],
+          ["Best path", "via R3, cost 21"],
+          ["Time to full", "Lagbhag 10 s"]
+        ]
+      }
+    },
+    "link-down": {
+      "name": "Ek link fail ho jaata hai",
+      "summary": "R3–R4 ka fibre kat gaya. Naye LSAs flood hote hain, har router SPF dobara chalata hai aur traffic R2 par chala jaata hai.",
+      "steps": [
+        {
+          "title": "Fibre kat gaya",
+          "desc": "R3 aur R4 ka link toot gaya",
+          "detail": "Kisi ne R3–R4 ka cable nikal diya. Dono routers ko interface turant down dikhta hai, isliye unhe 40 seconds dead timer ka wait nahi karna padta. Har ek us link ke bina naya Router-LSA banata hai aur use higher sequence number deta hai.",
+          "facts": [
+            ["Link", "R3–R4, cost 10"],
+            ["Detected by", "Loss of signal, turant"],
+            ["New LSAs", "R3 aur R4, sequence +1"]
+          ]
+        },
+        {
+          "title": "Khabar flood karo",
+          "desc": "224.0.0.5 par Link State Updates",
+          "detail": "R3 DR hai, isliye woh apna naya LSA seedha 224.0.0.5 par flood karta hai. R4 apna LSA R2 ko bhejta hai, aur R2 use 224.0.0.6 par DR aur BDR ko pass karta hai; phir R3 use sabko re-flood karta hai. Routers LSA tabhi accept karte hain jab uska sequence number unke paas wali copy se higher ho, aur use sender ko chhod kar sabko aage pass karte hain.",
+          "facts": [
+            ["R3 seq", "0x80000002 → 0x80000003"],
+            ["R4 seq", "0x80000003 → 0x80000004"],
+            ["Sent to", "224.0.0.5"]
+          ],
+          "quiz": {
+            "q": "R2 ko R4 ka naya LSA R4 se milta hai aur thodi der baad wahi LSA R3 se re-flood hoke milta hai. Doosri copy ka R2 kya karega?",
+            "options": [
+              "Use dobara install karega",
+              "Ignore karega: same sequence number, pehle se hai",
+              "Use R3 ko wapas bhejega",
+              "DR election dobara chalayega"
+            ],
+            "why": "Sequence number R2 ko batata hai ki uske paas yeh exact version pehle se hai, isliye duplicate bas acknowledge hoke drop ho jaata hai. Isi se flooding hamesha ke liye loop nahi karti."
+          }
+        },
+        {
+          "title": "Acknowledge",
+          "desc": "Har LSA ka confirm hona zaroori hai",
+          "detail": "Flooding reliable hoti hai: har LSA acknowledge hota hai, aur jab tak ack na mile router use har 5 seconds mein dobara bhejta hai. R1 DR aur BDR ko 224.0.0.6 par acknowledge karta hai, aur R2 R4 ko acknowledge karta hai.",
+          "facts": [
+            ["R1 acks to", "224.0.0.6"],
+            ["R2 acks to", "R4"],
+            ["Resend if lost", "Har 5 s"]
+          ]
+        },
+        {
+          "title": "Reconverge",
+          "desc": "SPF dobara chalta hai, traffic R2 par jaata hai",
+          "detail": "Baaki changes collect karne ke liye thodi der ruk kar har router SPF dobara chalata hai. R1 ke liye servers tak ka sirf ek path bacha hai, R2 se, cost 10 + 50 + 1 = 61. Routing table update hoti hai aur agla ping R2 se jaata hai. Poora change ek second se bhi kam mein ho gaya.",
+          "facts": [
+            ["New path", "R1 → R2 → R4"],
+            ["New cost", "61"],
+            ["Outage", "1 s se kam"]
+          ],
+          "quiz": {
+            "q": "Fibre repair hone par R1 kya karega?",
+            "options": [
+              "Hamesha R2 hi use karta rahega",
+              "Naye LSAs aur SPF ke baad R3 par wapas switch karega",
+              "Admin ka wait karega",
+              "Traffic barabar baant dega"
+            ],
+            "why": "Repair hue link se naye LSAs bante hain, sab SPF dobara chalate hain, aur sasta path (R3 se cost 21) apne aap phir jeet jaata hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Khud theek ho gaya",
+        "text": "Ek link down hua, uske paas ke do routers ne naye LSAs flood kiye, aur har router ne same updated map se dobara calculate kiya. Kisi ko static route nahi badalna pada; traffic bas backup link par chala gaya.",
+        "facts": [
+          ["LSAs flooded", "2"],
+          ["SPF reruns", "Har router"],
+          ["Recovery", "Ek second se kam"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Packet types",
+      "items": [
+        ["1 Hello", "Neighbours dhoondo, DR chuno"],
+        ["2 DBD", "LSA headers ki list"],
+        ["3 LSR", "Yeh LSAs bhej do"],
+        ["4 LSU", "Yeh lo poore LSAs"],
+        ["5 LSAck", "Mil gaye"]
+      ]
+    },
+    {
+      "title": "Neighbour states",
+      "items": [
+        ["Down → Init", "Hello suna"],
+        ["2-Way", "Unke Hello mein apna naam dekha"],
+        ["ExStart / Exchange", "Master chuno, DBDs swap karo"],
+        ["Loading", "LSAs fetch ho rahe hain"],
+        ["Full", "Databases match"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["IP protocol", "89"],
+        ["Multicast", "224.0.0.5 all, 224.0.0.6 DR/BDR"],
+        ["Timers", "Hello 10 s, dead 40 s, LSA refresh 30 min"],
+        ["Default cost", "100 Mbit/s ÷ link speed"],
+        ["LSA header", "20 bytes"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Watch a TLS handshake and its version", "hinglish": "TLS handshake aur uska version dekho" },
+      "why": { "en": "Connects to example.com and prints the negotiated TLS version, cipher and certificate details, the result of the Client Hello and Server Hello steps.", "hinglish": "example.com se connect karke negotiated TLS version, cipher aur certificate details print karta hai, jo Client Hello aur Server Hello steps ka result hai." },
+      "unix": "openssl s_client -connect example.com:443 -servername example.com -brief < /dev/null",
+      "windows": "curl.exe -v https://example.com -o NUL",
+      "expect": { "en": "Lines like 'TLSv1.3', 'TLS_AES_256_GCM_SHA384' or 'TLS_AES_128_GCM_SHA256', and the certificate subject and issuer. The curl -v output shows the same handshake as '* TLSv1.3 (OUT), TLS handshake, Client hello'. Exact cipher and issuer vary.", "hinglish": "'TLSv1.3', 'TLS_AES_256_GCM_SHA384' ya 'TLS_AES_128_GCM_SHA256' jaisi lines, aur certificate subject aur issuer. curl -v output wahi handshake '* TLSv1.3 (OUT), TLS handshake, Client hello' ki tarah dikhata hai. Exact cipher aur issuer badalte hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Read a certificate's dates", "hinglish": "Certificate ki dates padho" },
+      "why": { "en": "The browser checks Not Before and Not After. This prints them for example.com so you can see how an expired certificate would be caught.", "hinglish": "Browser Not Before aur Not After check karta hai. Ye example.com ke liye unhe print karta hai taaki dikhe expired certificate kaise pakda jaata hai." },
+      "unix": "openssl s_client -connect example.com:443 -servername example.com < /dev/null 2>/dev/null | openssl x509 -noout -dates -subject -issuer",
+      "windows": "$tcp = New-Object Net.Sockets.TcpClient('example.com',443); $ssl = New-Object Net.Security.SslStream($tcp.GetStream()); $ssl.AuthenticateAsClient('example.com'); $ssl.RemoteCertificate | Select Subject, Issuer, NotBefore, NotAfter",
+      "expect": { "en": "notBefore and notAfter dates (or NotBefore/NotAfter in PowerShell), plus subject and issuer. The dates differ over time as the certificate is renewed.", "hinglish": "notBefore aur notAfter dates (PowerShell mein NotBefore/NotAfter), saath mein subject aur issuer. Certificate renew hone par dates badalti rehti hain." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Find the Client Hello and its SNI", "hinglish": "Client Hello aur uska SNI dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark. The Client Hello is sent in clear text, so the site name in server_name is visible.", "hinglish": "Lesson ka .pcap Wireshark mein kholo. Client Hello clear text mein jaata hai, isliye server_name mein site ka naam dikhta hai." },
+      "wireshark": "tls.handshake.type == 1",
+      "expect": { "en": "A Client Hello packet. Expand it to see supported_versions, key_share and server_name (example.com).", "hinglish": "Ek Client Hello packet. Ise expand karo to supported_versions, key_share aur server_name (example.com) dikhenge." },
+      "step": 2
+    },
+    {
+      "title": { "en": "See what is encrypted after Server Hello", "hinglish": "Server Hello ke baad kya encrypted hai dekho" },
+      "why": { "en": "In TLS 1.3 the certificate is encrypted, so it appears as Application Data. Compare with the TLS 1.2 scenario where it is readable.", "hinglish": "TLS 1.3 mein certificate encrypted hai, isliye Application Data ki tarah dikhta hai. TLS 1.2 scenario se compare karo jahan wo padha ja sakta hai." },
+      "wireshark": "tls.handshake.type == 11 || tls.record.content_type == 23",
+      "expect": { "en": "In the TLS 1.3 capture there is no readable Certificate message, only Application Data records. In the TLS 1.2 capture a Certificate message is shown.", "hinglish": "TLS 1.3 capture mein padhne layak Certificate message nahi hota, sirf Application Data records. TLS 1.2 capture mein Certificate message dikhta hai." },
+      "step": 4
+    }
+  ]
+}

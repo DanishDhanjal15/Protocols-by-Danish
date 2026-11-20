@@ -1,0 +1,35 @@
+{
+  "commands": [
+    {
+      "title": { "en": "See your IPv6 addresses", "hinglish": "Apne IPv6 addresses dekho" },
+      "why": { "en": "Shows your link-local fe80:: address and any global address built by SLAAC.", "hinglish": "Tumhara link-local fe80:: address aur SLAAC se bana koi bhi global address dikhata hai." },
+      "windows": "ipconfig | findstr /i \"IPv6\"",
+      "unix": "ip -6 addr",
+      "expect": { "en": "An fe80:: link-local address, and if your network offers IPv6 a global address starting with 2xxx: or 3xxx:. If you only see fe80::, your network has no IPv6. On macOS use ifconfig | grep inet6.", "hinglish": "Ek fe80:: link-local address, aur agar tumhara network IPv6 deta hai to 2xxx: ya 3xxx: se shuru hone wala global address. Agar sirf fe80:: dikhe to tumhare network par IPv6 nahi hai. macOS par ifconfig | grep inet6 use karo." },
+      "step": 4
+    },
+    {
+      "title": { "en": "List IPv6 neighbours (the NDP cache)", "hinglish": "IPv6 neighbours list karo (NDP cache)" },
+      "why": { "en": "This is IPv6's replacement for the ARP cache, filled by Neighbor Solicitation and Advertisement.", "hinglish": "Yeh ARP cache ki IPv6 wali jagah hai, jo Neighbor Solicitation aur Advertisement se bharti hai." },
+      "windows": "netsh interface ipv6 show neighbors",
+      "unix": "ip -6 neigh",
+      "expect": { "en": "Entries mapping IPv6 addresses (such as your router's fe80:: address) to MAC addresses with a state like REACHABLE or STALE. Contents vary; on macOS use ndp -an.", "hinglish": "IPv6 addresses (jaise tumhare router ka fe80:: address) ko MAC addresses se map karti entries, REACHABLE ya STALE jaise state ke saath. Contents alag hote hain; macOS par ndp -an use karo." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Ping an IPv6 address", "hinglish": "Ek IPv6 address ko ping karo" },
+      "why": { "en": "Sends ICMPv6 Echo Request and Reply (types 128 and 129) to Google's public DNS.", "hinglish": "Google ke public DNS ko ICMPv6 Echo Request aur Reply (types 128 aur 129) bhejta hai." },
+      "windows": "ping -6 -n 3 2001:4860:4860::8888",
+      "unix": "ping -6 -c 3 2001:4860:4860::8888",
+      "expect": { "en": "Three replies with times if your network has working IPv6; otherwise an error such as 'General failure' or 'Network is unreachable'. On macOS use ping6.", "hinglish": "Agar tumhare network par IPv6 chal raha hai to times ke saath teen replies; warna 'General failure' ya 'Network is unreachable' jaisa error. macOS par ping6 use karo." },
+      "step": 6
+    },
+    {
+      "title": { "en": "Filter Neighbor Discovery in the capture", "hinglish": "Capture mein Neighbor Discovery filter karo" },
+      "why": { "en": "Open the .pcap in Wireshark to see the RS, RA, NS and NA messages.", "hinglish": ".pcap Wireshark mein kholo aur RS, RA, NS aur NA messages dekho." },
+      "wireshark": "icmpv6.type >= 133 && icmpv6.type <= 136",
+      "expect": { "en": "Router Solicitation (133), Router Advertisement (134), Neighbor Solicitation (135) and Neighbor Advertisement (136) packets, all with hop limit 255.", "hinglish": "Router Solicitation (133), Router Advertisement (134), Neighbor Solicitation (135) aur Neighbor Advertisement (136) packets, sab hop limit 255 ke saath." },
+      "step": 1
+    }
+  ]
+}

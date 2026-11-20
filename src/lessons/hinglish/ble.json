@@ -1,0 +1,243 @@
+{
+  "tagline": "Fitness band tumhare phone ko heart rate kaise bhejta hai.",
+  "description": "Bluetooth Low Energy chhote battery devices ko coin cell par mahinon tak phones se baat karne deta hai. Device teen fixed channels par advertise karta hai, phone connect hota hai, aur phir dono GATT se chhote attribute reads, writes aur notifications badalte hain.",
+  "facts": [
+    ["Layers", "Link layer (2) se GATT (7) tak"],
+    ["Radio", "2.4 GHz, 2 MHz ke 40 channels"],
+    ["Advertising", "Channels 37, 38, 39"],
+    ["Advertising address", "0x8E89BED6"],
+    ["Max payload", "27 bytes (DLE ke saath 251)"],
+    ["Defined in", "Bluetooth Core Spec 5.x, Vol 6"]
+  ],
+  "legend": [
+    "Advertising broadcasts",
+    "Scanning aur GATT requests",
+    "Responses aur connection setup",
+    "Heart-rate notifications",
+    "Attacker aur pairing failures"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Pair-free heart rate streaming",
+      "summary": "Band advertise karta hai, phone connect hota hai, Heart Rate service dhoondta hai aur notifications subscribe karta hai.",
+      "steps": [
+        {
+          "title": "3 channels par advertise karo",
+          "desc": "37, 38 aur 39 par ADV_IND",
+          "detail": "Band har 100 ms mein jaagta hai aur teeno advertising channels par wahi ADV_IND bhejta hai, jo busy Wi-Fi channels ke beech ke gaps mein hain. Isme uska address, ek Flags field, naam aur Heart Rate service UUID 0x180D hota hai. Har advertising packet usi access address 0x8E89BED6 se shuru hota hai.",
+          "facts": [
+            ["Interval", "100 ms"],
+            ["Channels", "37 (2402 MHz), 38 (2426), 39 (2480)"],
+            ["Payload", "6-byte address + 16 bytes AdvData"]
+          ],
+          "quiz": {
+            "q": "Band advert ko teen channels par kyun dohrata hai?",
+            "options": [
+              "Teen guna zyada data bhejne ke liye",
+              "Taaki kisi bhi ek par sunne wala scanner ise sun le, chahe ek Wi-Fi se jam ho",
+              "Kyunki har channel alag hissa carry karta hai",
+              "Teen phones se pair karne ke liye"
+            ],
+            "why": "Scanners teen advertising channels ke beech hop karte hain. Teeno par wahi packet dohrane se interference ke bawajood use sune jane ki sambhavna badh jati hai."
+          }
+        },
+        {
+          "title": "Aur maango",
+          "desc": "SCAN_REQ aur SCAN_RSP",
+          "detail": "Fitness app UUID 0x180D ke liye scan kar raha hai. Agle ADV_IND ke theek baad, usi channel par 150 µs baad, phone SCAN_REQ bhejta hai. Band SCAN_RSP se jawab deta hai, jisme extra data hota hai jo 31-byte advert mein fit nahi hua: uski appearance (watch) aur transmit power.",
+          "facts": [
+            ["Packets ke beech gap", "150 µs (T_IFS)"],
+            ["Scan type", "Active"],
+            ["Extra data", "Appearance, TX power"]
+          ]
+        },
+        {
+          "title": "Connect",
+          "desc": "CONNECT_IND har parameter set karta hai",
+          "detail": "User jab app mein band par tap karta hai, phone agle advert ka intezaar karta hai aur CONNECT_IND se jawab deta hai. Ek 34-byte packet mein woh sab tay kar deta hai: connection ke liye naya access address aur CRC seed, 30 ms connection interval, timeout aur channel-hopping pattern. Phir dono advertising channels chhod dete hain.",
+          "facts": [
+            ["Naya access address", "0x5a3c9e71"],
+            ["Interval", "30 ms"],
+            ["Hop", "Har event par +7 channels"]
+          ],
+          "quiz": {
+            "q": "CONNECT_IND ke baad band ke packets kaunse access address se shuru honge?",
+            "options": [
+              "Pehle ki tarah 0x8E89BED6",
+              "0x5a3c9e71, jo phone ne chuna",
+              "Band ka MAC address",
+              "Zero"
+            ],
+            "why": "Har connection ko CONNECT_IND se apna random access address milta hai, taaki radios is connection ke packets ko hawa mein baaki sab se alag pehchan saken."
+          }
+        },
+        {
+          "title": "Services dhoondo",
+          "desc": "ATT Read By Group Type",
+          "detail": "GATT band ke data ko numbered attributes (handles) ki table ki tarah organise karta hai. Phone har primary service (type 0x2800) maangta hai. Jawab handle ranges list karta hai: Generic Access, Generic Attribute, aur Heart Rate handles 0x000C se 0x0011 par. Default 23-byte ATT packet mein sirf teen entries fit hoti hain, isliye phone baaki ke liye 0x0012 se phir maangta.",
+          "facts": [
+            ["Request", "Read By Group Type (0x10)"],
+            ["Heart Rate service", "Handles 0x000C–0x0011"],
+            ["L2CAP channel", "0x0004 (ATT)"]
+          ],
+          "quiz": {
+            "q": "Har entry 6 bytes ki hai aur ATT packet zyada se zyada 23 bytes ka. Ek response mein kitni services fit hoti hain?",
+            "options": [
+              "2",
+              "3",
+              "4",
+              "Sabhi"
+            ],
+            "why": "Opcode (1) + length (1) ke baad 21 bytes bachte hain, aur 21 / 6 = 3 poori entries."
+          }
+        },
+        {
+          "title": "Notifications on karo",
+          "desc": "CCCD mein 0x0001 likho",
+          "detail": "Heart Rate Measurement characteristic dhoondne ke baad (value handle 0x000E par, yahan nahi dikhayi), phone uske Client Characteristic Configuration Descriptor mein 0x000F par 0x0001 likhta hai. Yeh band ko kehta hai: bina maange mujhe naye values push karo. Band Write Response se confirm karta hai.",
+          "facts": [
+            ["Handle", "0x000F (CCCD)"],
+            ["Value", "01 00 (notifications on)"],
+            ["Reply", "Write Response (0x13)"]
+          ],
+          "quiz": {
+            "q": "Baad mein updates rokne ke liye phone CCCD mein kya likhega?",
+            "options": [
+              "0x0001",
+              "0x0002",
+              "0x0000",
+              "Use disconnect karna padega"
+            ],
+            "why": "Dono bits (notifications aur indications) ko 0x0000 par clear karne se updates band ho jate hain."
+          }
+        },
+        {
+          "title": "Heart rate aata hai",
+          "desc": "Handle Value Notifications",
+          "detail": "Ab, lagbhag har second, band handle 0x000E par ek flags byte aur heart rate ke saath notification bhejta hai. Notifications ATT level par acknowledge nahi hote; link layer ke SN/NESN bits pehle se pakka karte hain ki har packet pahunche. Beech mein dono har 30 ms par khali packets se connection zinda rakhte hain (yahan chhupe hue).",
+          "facts": [
+            ["Opcode", "0x1B notification"],
+            ["Payload", "Flags 0x06 + 1 byte bpm"],
+            ["Radio on time", "Har second kuch sau µs"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Screen par heart rate",
+        "text": "Band ne apni Heart Rate service advertise ki, phone ek CONNECT_IND se connect hua, ATT se service dhoondi aur CCCD mein likhkar notifications on kiye. Uske baad har reading band ko sirf ek chhota radio packet padti hai.",
+        "facts": [
+          ["Access addresses", "0x8E89BED6, phir per-connection"],
+          ["GATT service", "0x180D Heart Rate"],
+          ["Notification size", "7-byte ATT, 18-byte air packet"],
+          ["Pairing", "Public heart rate ke liye zaroori nahi"]
+        ]
+      }
+    },
+    "mitm": {
+      "name": "Just Works pairing aur MITM",
+      "summary": "Attacker phone aur band ke beech relay karta hai. Just Works notice nahi kar sakta; Numeric Comparison kar sakta hai.",
+      "steps": [
+        {
+          "title": "Fake band jawab deta hai",
+          "desc": "Attacker beech mein baitha hai",
+          "detail": "Attacker band ka advert aur address clone karta hai aur khud asli band se connect hota hai. Phone attacker se connect hota hai, use band samajhkar, aur pairing shuru karta hai taaki link encrypted ho. Band kehta hai ki uske paas display aur buttons nahi (NoInputNoOutput), jo Just Works method ko majboor karta hai.",
+          "facts": [
+            ["Phone IO", "DisplayYesNo"],
+            ["Band IO", "NoInputNoOutput"],
+            ["Method chosen", "Just Works"]
+          ],
+          "quiz": {
+            "q": "Just Works ke saath user pairing ke dauraan kya check karta hai?",
+            "options": [
+              "Dono screens par 6-digit number",
+              "Box par chhapa PIN",
+              "Kuch bhi nahi",
+              "Ek QR code"
+            ],
+            "why": "Just Works mein koi user step nahi hota, isi liye woh man in the middle ko detect nahi kar sakta."
+          }
+        },
+        {
+          "title": "Public keys badlo",
+          "desc": "Attacker ke saath ECDH, band ke saath nahi",
+          "detail": "LE Secure Connections elliptic-curve Diffie-Hellman use karta hai: har side 64-byte P-256 public key bhejti hai. Attacker phone ko apni key deta hai aur asli band ke saath bhi yahi karta hai, isliye uske paas har side ke liye ek shared key hoti hai. ECDH sirf sunne wale ko rokta hai, lekin yahan kuch sabit nahi karta ki kaunsi key kiski hai.",
+          "facts": [
+            ["Key", "P-256, 64 bytes (X, Y)"],
+            ["Packet", "69-byte L2CAP (DLE chahiye)"],
+            ["Passive sniffer", "Haar gaya"]
+          ]
+        },
+        {
+          "title": "Just Works succeed hota hai",
+          "desc": "Dono links “secure” hain",
+          "detail": "Confirm aur random values sahi nikalte hain, kyunki attacker ne unhe un keys se imaandari se compute kiya jo usne andar badli thi. Phone “Paired” dikhata hai. Attacker ab band ka sab kuch decrypt karta hai, heart-rate values badal sakta hai, aur band ko commands bhej sakta hai.",
+          "facts": [
+            ["Phone sochta hai", "Band ke saath paired"],
+            ["Reality", "Attacker ke through do links"],
+            ["Detected", "Nahi"]
+          ]
+        },
+        {
+          "title": "Defence: numbers compare karo",
+          "desc": "Numeric Comparison swap pakad leta hai",
+          "detail": "Agar band ke paas screen hai aur woh DisplayYesNo kehta hai, to Secure Connections Numeric Comparison use karta hai: har side dono public keys aur nonces se 6-digit number banati hai aur dikhati hai. Attacker ne keys badli, isliye phone 482913 dikhata hai aur band 107655. User No tap karta hai aur phone reason 0x0C ke saath abort kar deta hai. Agar attacker jhooth bole ki band ke paas display nahi, to MITM protection maangne wala phone reason 0x03 ke saath Just Works mana kar deta hai.",
+          "facts": [
+            ["Phone dikhata hai", "482 913"],
+            ["Band dikhata hai", "107 655"],
+            ["Result", "Pairing Failed 0x0C"]
+          ],
+          "quiz": {
+            "q": "Attacker beech mein ho to dono screens alag numbers kyun dikhati hain?",
+            "options": [
+              "Clocks alag hain",
+              "Har side ka number un public keys se compute hota hai jo usne asal mein dekhi, aur attacker ne unhe badal diya",
+              "Bluetooth random noise jodta hai",
+              "Band ka PIN alag hai"
+            ],
+            "why": "6-digit value dono public keys aur nonces ka hash hai. Keys badli hone par, jab tak attacker hash na tode, dono hashes match nahi kar sakte."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Encryption ko authentication chahiye",
+        "text": "Just Works ke saath LE Secure Connections ab bhi passive eavesdroppers ko rokta hai, lekin kuch sabit nahi karta ki dusri taraf kaun hai. Numeric Comparison ya Passkey Entry keys ko us cheez se jodta hai jo user dekhta hai, isliye man in the middle pakda jata hai. Purana LE Legacy Just Works aur bhi kamzor hai: record ki hui pairing offline crack ho sakti hai.",
+        "facts": [
+          ["Just Works", "MITM protection nahi"],
+          ["Numeric Comparison", "Dono taraf display chahiye"],
+          ["Fail reasons", "0x03 Auth Req, 0x0C Numeric Comparison"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Advertising PDUs",
+      "items": [
+        ["0x0 ADV_IND", "Connectable, scannable advert"],
+        ["0x3 SCAN_REQ", "Scanner aur maangta hai"],
+        ["0x4 SCAN_RSP", "Extra advert data"],
+        ["0x5 CONNECT_IND", "Connection shuru karo"]
+      ]
+    },
+    {
+      "title": "ATT opcodes",
+      "items": [
+        ["0x10 / 0x11", "Read By Group Type req / rsp"],
+        ["0x08 / 0x09", "Read By Type req / rsp"],
+        ["0x12 / 0x13", "Write req / rsp"],
+        ["0x1B", "Notification (no ack)"],
+        ["0x1D / 0x1E", "Indication / confirmation"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["0x8E89BED6", "Advertising access address"],
+        ["0x180D / 0x2A37", "Heart Rate service / measurement"],
+        ["0x2800 / 0x2902", "Primary service / CCCD"],
+        ["ATT_MTU", "Default 23 bytes"],
+        ["L2CAP CIDs", "0x0004 ATT, 0x0006 SMP"]
+      ]
+    }
+  ]
+}

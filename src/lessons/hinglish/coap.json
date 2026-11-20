@@ -1,0 +1,237 @@
+{
+  "tagline": "Chhote battery sensors ke liye HTTP-style requests, UDP par.",
+  "description": "CoAP chhote devices ko web jaisa baat karne ka tareeka deta hai: /sensors/temp jaise paths par GET, PUT, POST aur DELETE, aur 2.05 aur 4.04 jaise response codes ke saath. Yeh UDP par 4-byte header ke saath chalta hai aur apni halki reliability jodta hai, aur Observe client ko polling ke bina updates paane deta hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "UDP 5683 (DTLS ke saath 5684)"],
+    ["Defined in", "RFC 7252, Observe RFC 7641"],
+    ["Header", "4 bytes fixed"],
+    ["Message types", "CON, NON, ACK, RST"],
+    ["Reliability", "ACKs + exponential backoff"]
+  ],
+  "legend": [
+    "App se requests",
+    "ACKs aur successful replies",
+    "Observe notifications",
+    "Errors aur losses"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Temperature padho aur observe karo",
+      "summary": "Piggybacked reply ke saath confirmable GET, phir NON aur CON notifications ke saath Observe.",
+      "steps": [
+        {
+          "title": "GET, confirmable",
+          "desc": "UDP par CON message ki tarah GET /sensors/temp",
+          "detail": "Home app ek chhote battery-powered sensor se temperature chahta hai. CoAP chhote devices ke liye HTTP jaisa hai, lekin UDP port 5683 par 4-byte header ke saath chalta hai. Request type CON (confirmable) hai: sender acknowledgement chahta hai. Path do Uri-Path options, \"sensors\" aur \"temp\", ki tarah bheja jaata hai.",
+          "facts": [
+            ["Header", "4 bytes + token + options"],
+            ["Type", "CON (ACK chahiye)"],
+            ["Code", "0.01 GET"]
+          ],
+          "quiz": {
+            "q": "Pehle Uri-Path option ka byte 0xB7 hai. Iska kya matlab hai?",
+            "options": [
+              "Option 11, 7 bytes lamba",
+              "Option 7, 11 bytes lamba",
+              "Code 1.83",
+              "Token B7"
+            ],
+            "why": "High nibble = delta 11 (Uri-Path, kyunki pichla option 0 tha), low nibble = length 7 (\"sensors\")."
+          }
+        },
+        {
+          "title": "Piggybacked ACK",
+          "desc": "Ek hi message mein ACK aur 2.05 Content",
+          "detail": "Sensor ke paas value ready hai, isliye woh ACK ke andar hi jawab deta hai: piggybacked response. ACK Message ID dohrata hai (taaki CON confirm ho) aur token (taaki app ko pata chale yeh kaunsi request ka jawab hai). Code 2.05 Content, Content-Format text/plain, Max-Age 60 s, aur payload 22.5.",
+          "facts": [
+            ["Type", "ACK, wahi MID 0x7d34"],
+            ["Code", "2.05 Content (0x45)"],
+            ["Payload", "22.5 (°C), Max-Age 60 s"]
+          ],
+          "quiz": {
+            "q": "Code 2.05 ek byte mein bheja jaata hai. Kaunsa?",
+            "options": [
+              "0x25",
+              "0x45",
+              "0x205",
+              "0x05"
+            ],
+            "why": "3 bits class, 5 bits detail: 2 << 5 | 5 = 64 + 5 = 69 = 0x45."
+          }
+        },
+        {
+          "title": "Observe: subscribe",
+          "desc": "Observe = 0 ke saath GET",
+          "detail": "Polling sensor ki battery waste karti hai. Uski jagah app wahi GET Observe option 0 ke saath bhejta hai, matlab \"mujhe register karo\". Woh naya token use karta hai, jo har future notification par label lagayega. Sensor ACK se confirm karta hai jisme current value aur Observe sequence number, 12, hota hai.",
+          "facts": [
+            ["Request option", "Observe = 0 (register)"],
+            ["Token", "c4 09 5e 12"],
+            ["Pehla reply", "Observe = 12, 22.5"]
+          ]
+        },
+        {
+          "title": "NON notification",
+          "desc": "Nayi value, ACK ki zaroorat nahi",
+          "detail": "Jab temperature 22.7 ho jaata hai, sensor ek notification push karta hai. Yeh type NON (non-confirmable) hai: bhejo aur bhool jao, battery aur radio ke liye sasta. Isme sensor ka chuna naya Message ID hai, lekin Observe request wala hi token, aur Observe number 13 ho jaata hai taaki app purane ya reorder hue messages pakad sake.",
+          "facts": [
+            ["Type", "NON (ACK nahi)"],
+            ["Token", "Observe request wala hi"],
+            ["Observe", "13 (har baar badhta hai)"]
+          ],
+          "quiz": {
+            "q": "Notification ka Message ID bilkul naya hai. App ko kaise pata chalta hai ki yeh uski temperature subscription ka hai?",
+            "options": [
+              "Message ID se",
+              "Token se",
+              "UDP checksum se",
+              "Pata nahi chal sakta"
+            ],
+            "why": "Message IDs har message ke liye hote hain (ACKs aur duplicates ke liye). Token har response ko original request se jodta hai."
+          }
+        },
+        {
+          "title": "CON notification",
+          "desc": "Kabhi kabhi: kya aap abhi bhi wahan ho?",
+          "detail": "Kabhi kabhi (kam se kam din mein ek baar) sensor notification ko CON ki tarah bhejta hai. App ko empty ACK (code 0.00, wahi Message ID) se jawab dena hota hai. Retries ke baad bhi ACK na aaye to sensor app ko apni observer list se hata deta hai. Is tarah dead subscribers saaf hote hain.",
+          "facts": [
+            ["Type", "CON 2.05, Observe 14"],
+            ["Reply", "Empty ACK, code 0.00"],
+            ["ACK nahi aaya?", "Observer hata diya jaata hai"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Polling ke bina updates",
+        "text": "Ek CON GET ka jawab ACK ke andar mil gaya. Observe ke saath sensor ne phir changes khud push kiye, zyadatar sasti NON messages ki tarah, kabhi kabhi CON ke saath ye check karne ke liye ki app abhi bhi sun raha hai ya nahi.",
+        "facts": [
+          ["Sabse chhota message", "4 bytes (empty ACK)"],
+          ["Matching", "ACKs ke liye MID, responses ke liye token"],
+          ["Observe numbers", "12, 13, 14"],
+          ["Transport", "UDP 5683"]
+        ]
+      }
+    },
+    "lost-con": {
+      "name": "Lost CON: backoff ke saath retransmission",
+      "summary": "Request do baar kho jaati hai; CoAP ACK aane tak doubling timeouts ke saath use dobara bhejta hai.",
+      "steps": [
+        {
+          "title": "CON kho jaata hai",
+          "desc": "Radio noise request kha jaata hai",
+          "detail": "App Message ID 0x7d40 ke saath GET /sensors/temp CON ki tarah bhejta hai. Interference ka ek burst use sensor tak pahunchne se pehle drop kar deta hai. UDP ko kuch pata nahi chalta; CoAP ka apna timer pakadta hai. Pehla timeout 2 aur 3 seconds ke beech random chuna jaata hai (ACK_TIMEOUT 2 s × 1.5 tak random factor); yahan 2.4 s.",
+          "facts": [
+            ["MID", "0x7d40"],
+            ["Pehla timeout", "2.4 s (random 2–3 s)"],
+            ["Max retries", "4 (MAX_RETRANSMIT)"]
+          ]
+        },
+        {
+          "title": "Retry, do guna der intezaar",
+          "desc": "Exponential backoff: 2.4 s, phir 4.8 s",
+          "detail": "2.4 s baad bhi ACK nahi aaya, to app bilkul wahi message, wahi Message ID, dobara bhejta hai. Woh bhi kho jaata hai. Timeout double hokar 4.8 s ho jaata hai; 7.2 s par teesri copy pahunch jaati hai. Sensor wahi MID ke saath ACK karta hai. MID same rehta hai, isliye jis sensor ko do copies milti, use pata chal jaata ki yeh duplicate hai.",
+          "facts": [
+            ["Bheja gaya", "0 s, 2.4 s, 7.2 s"],
+            ["Timeout", "Har try par double"],
+            ["Haar maanta hai", "4 retries ke baad, shuru se 62–93 s"]
+          ],
+          "quiz": {
+            "q": "Pehla timeout 2.4 s tha. Agar doosri copy kho jaaye to teesri copy kab bheji jaati hai?",
+            "options": [
+              "4.8 s",
+              "7.2 s",
+              "9.6 s",
+              "Doosri ke 2.4 s baad"
+            ],
+            "why": "Copy 2 2.4 s par, phir do guna intezaar (4.8 s): 2.4 + 4.8 = 7.2 s."
+          }
+        }
+      ],
+      "outro": {
+        "title": "UDP par reliable",
+        "text": "CoAP ne UDP ke upar bas kaafi reliability jodi: wahi Message ID ke saath CON dobara bhejo, har baar wait double karo, 4 retries tak. Teesri copy pahunch gayi.",
+        "facts": [
+          ["ACK_TIMEOUT", "2 s × random 1–1.5"],
+          ["Backoff", "Har retry par double"],
+          ["MAX_RETRANSMIT", "4"]
+        ]
+      }
+    },
+    "not-found": {
+      "name": "4.04 Not Found",
+      "summary": "Aisi resource maangna jo node ke paas nahi hai, piggybacked 4.04 lautata hai.",
+      "steps": [
+        {
+          "title": "Humidity maango",
+          "desc": "GET /sensors/humidity",
+          "detail": "App maan leta hai ki har sensor node humidity bhi naapta hai aur /sensors/humidity maangta hai. Is node mein sirf temperature sensor hai.",
+          "facts": [
+            ["Path", "/sensors/humidity"],
+            ["Type", "CON GET"],
+            ["MID", "0x7d50"]
+          ]
+        },
+        {
+          "title": "4.04 Not Found",
+          "desc": "Chhote reason ke saath piggybacked error",
+          "detail": "Sensor ACK ke andar code 4.04 (byte 0x84) se jawab deta hai, bilkul HTTP 404 ki tarah. Woh payload mein chhota diagnostic text jod sakta hai. Apps GET /.well-known/core se pata laga sakte hain ki node asal mein kya offer karta hai, jo uski resources list karta hai.",
+          "facts": [
+            ["Code", "4.04 Not Found (0x84)"],
+            ["Type", "ACK, MID 0x7d50"],
+            ["Discover", "GET /.well-known/core"]
+          ],
+          "quiz": {
+            "q": "One-byte Code field mein 4.04 kaise likha jaata hai?",
+            "options": [
+              "0x44",
+              "0x84",
+              "0x404",
+              "0x4F"
+            ],
+            "why": "4 << 5 | 4 = 128 + 4 = 132 = 0x84."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Galat path",
+        "text": "CoAP errors HTTP jaise dikhte hain lekin class.detail ki tarah ek byte mein pack hote hain. 4.04 ka matlab path exist nahi karta; GET /.well-known/core dikhata hai ki kya exist karta hai.",
+        "facts": [
+          ["Code byte", "0x84"],
+          ["HTTP equivalent", "404"],
+          ["Discovery", "/.well-known/core (RFC 6690)"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Message types",
+      "items": [
+        ["CON (0)", "Confirmable: ACK chahiye"],
+        ["NON (1)", "Non-confirmable: bhejo aur bhool jao"],
+        ["ACK (2)", "CON confirm karta hai, response bhi carry kar sakta hai"],
+        ["RST (3)", "Main yeh message process nahi kar sakta"]
+      ]
+    },
+    {
+      "title": "Codes",
+      "items": [
+        ["0.01–0.04", "GET, POST, PUT, DELETE"],
+        ["2.01 / 2.04 / 2.05", "Created / Changed / Content"],
+        ["4.00 / 4.04", "Bad Request / Not Found"],
+        ["5.00", "Internal Server Error"],
+        ["Byte", "class << 5 | detail"]
+      ]
+    },
+    {
+      "title": "Options",
+      "items": [
+        ["6 Observe", "Register / sequence number"],
+        ["11 Uri-Path", "Har path segment ke liye ek"],
+        ["12 Content-Format", "0 text/plain, 50 JSON, 60 CBOR"],
+        ["14 Max-Age", "Value kitne seconds fresh rehti hai"],
+        ["Encoding", "Delta nibble | length nibble"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "See your current Wi-Fi connection", "hinglish": "Apna current Wi-Fi connection dekho" },
+      "why": { "en": "Shows the SSID, band, channel and security type your laptop negotiated with the access point.", "hinglish": "Dikhata hai ki tumhare laptop ne access point ke saath kaunsa SSID, band, channel aur security type negotiate kiya." },
+      "windows": "netsh wlan show interfaces",
+      "unix": "nmcli -f IN-USE,SSID,CHAN,RATE,SECURITY dev wifi",
+      "expect": { "en": "You will see fields like SSID, Radio type, Channel and Authentication (for example WPA2-Personal) with Cipher CCMP. Values depend on your network.", "hinglish": "SSID, Radio type, Channel aur Authentication (jaise WPA2-Personal) aur Cipher CCMP jaise fields dikhenge. Values tumhare network par depend karti hain." },
+      "step": 1
+    },
+    {
+      "title": { "en": "List nearby networks and their beacons", "hinglish": "Aas-paas ke networks aur unke beacons list karo" },
+      "why": { "en": "Lists the networks whose beacons your laptop hears, with their security.", "hinglish": "Un networks ko list karta hai jinke beacons tumhara laptop sunta hai, unki security ke saath." },
+      "windows": "netsh wlan show networks mode=bssid",
+      "unix": "nmcli dev wifi list",
+      "expect": { "en": "A list of SSIDs with signal strength, channel and authentication such as WPA2 or WPA3. Output varies by place.", "hinglish": "SSIDs ki list signal strength, channel aur WPA2 ya WPA3 jaisi authentication ke saath. Output jagah ke hisaab se alag hota hai." }
+    },
+    {
+      "title": { "en": "Find the 4-way handshake in the capture", "hinglish": "Capture mein 4-way handshake dhoondo" },
+      "why": { "en": "Open the .pcap in Wireshark and filter for EAPOL key messages.", "hinglish": ".pcap Wireshark mein kholo aur EAPOL key messages filter karo." },
+      "wireshark": "eapol",
+      "expect": { "en": "Four EAPOL-Key frames: message 1 with the ANonce, message 2 with SNonce and MIC, message 3 with the GTK, message 4 as the final ack.", "hinglish": "Chaar EAPOL-Key frames: message 1 mein ANonce, message 2 mein SNonce aur MIC, message 3 mein GTK, message 4 aakhri ack." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Show beacons and deauthentication frames", "hinglish": "Beacons aur deauthentication frames dikhao" },
+      "why": { "en": "Management frame subtype 8 is a Beacon and subtype 12 is a Deauthentication.", "hinglish": "Management frame subtype 8 Beacon hai aur subtype 12 Deauthentication." },
+      "wireshark": "wlan.fc.type_subtype == 8 || wlan.fc.type_subtype == 12",
+      "expect": { "en": "Beacons showing SSID HomeNet and the RSN element, plus the deauth frames (reason 15 or 7) in the other scenarios.", "hinglish": "SSID HomeNet aur RSN element dikhate beacons, aur dusre scenarios mein deauth frames (reason 15 ya 7)." },
+      "step": 1
+    }
+  ]
+}

@@ -1,0 +1,278 @@
+{
+  "tagline": "Windows shared drive par files kaise kholta hai.",
+  "description": "SMB Windows file shares aur zyaadatar NAS boxes ke peeche ka protocol hai. Dialect chunne aur login karne ke baad client share se connect hota hai, CREATE se files kholta hai, padhta hai aur band karta hai, sab port 445 par ek hi TCP connection par. SMB 3 signing aur encryption jodta hai; purane SMBv1 ko band kar dena chahiye.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP 445 (NetBIOS framing header)"],
+    ["Defined in", "Microsoft [MS-SMB2]"],
+    ["Header", "64 bytes, 0xFE 'SMB', little-endian"],
+    ["Dialects", "2.0.2, 2.1, 3.0, 3.0.2, 3.1.1"],
+    ["Security", "Signing, AES encryption (3.x)"]
+  ],
+  "legend": [
+    "Handshake aur success",
+    "Laptop ke requests",
+    "Server responses",
+    "Encrypted SMB3",
+    "Attack traffic"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "\\\\fileserver\\share par file kholo",
+      "summary": "Port 445 par NEGOTIATE, NTLM login, TREE_CONNECT, CREATE, READ aur CLOSE.",
+      "steps": [
+        {
+          "title": "Port 445 par TCP",
+          "desc": "SMB seedha TCP par chalta hai",
+          "detail": "Danish File Explorer mein \\\\fileserver\\share kholta hai. Windows TCP port 445 se connect hota hai. Phir har SMB message ke aage 4-byte NetBIOS Session Service header lagta hai: ek type byte (0) aur 24-bit length, taaki receiver ko pata ho ki TCP stream mein har message kahan khatam hota hai.",
+          "facts": [
+            ["Port", "TCP 445 (direct hosting)"],
+            ["Framing", "4-byte NBSS header: type + 24-bit length"],
+            ["Network", "Office LAN, < 1 ms"]
+          ]
+        },
+        {
+          "title": "NEGOTIATE",
+          "desc": "Dialect chuno: 2.0.2 … 3.1.1",
+          "detail": "Client wo har SMB2/3 dialect list karta hai jo wo bolta hai, 0x0202 se 0x0311 tak, saath mein 3.1.1 ke negotiate contexts: random salt ke saath SHA-512 pre-authentication hash, aur jo ciphers wo support karta hai. Server sabse naya common dialect, 3.1.1, aur AES-128-GCM chunta hai. 64-byte SMB2 header dekho jo 0xFE 'SMB' se shuru hota hai.",
+          "facts": [
+            ["Offered", "0x0202, 0x0210, 0x0300, 0x0302, 0x0311"],
+            ["Chosen", "0x0311 (SMB 3.1.1)"],
+            ["Header", "64 bytes, 0xFE 'SMB' se shuru"]
+          ],
+          "quiz": {
+            "q": "Client 2.0.2, 2.1, 3.0, 3.0.2 aur 3.1.1 offer karta hai. Server 3.1.1 tak support karta hai. Wo kaun sa chunta hai?",
+            "options": [
+              "2.0.2, sabse safe",
+              "3.1.1, jo dono support karte hain unmein sabse high",
+              "3.0, beech ka",
+              "Sab ke sab"
+            ],
+            "why": "Server wo sabse high dialect chunta hai jo dono sides jaanti hain. 3.1.1 pre-auth integrity aur AES-GCM jodta hai."
+          }
+        },
+        {
+          "title": "SESSION_SETUP",
+          "desc": "NTLM se login karo (do round trips)",
+          "detail": "Laptop yahan Kerberos use nahi kar raha, isliye NTLM par fall back karta hai, jo SPNEGO blobs ke andar jaata hai. Round 1: client NEGOTIATE kehta hai, server random CHALLENGE aur status MORE_PROCESSING_REQUIRED se jawab deta hai. Round 2: client challenge ka jawab dekar prove karta hai ki use password pata hai (password khud kabhi nahi bheja jaata). Server domain controller se check karta hai aur SUCCESS deta hai, ab signed.",
+          "facts": [
+            ["Round 1", "NEGOTIATE → CHALLENGE (0xC0000016)"],
+            ["Round 2", "AUTHENTICATE → STATUS_SUCCESS"],
+            ["Password", "Kabhi nahi bheja jaata; challenge response bheja jaata hai"]
+          ],
+          "quiz": {
+            "q": "Pehle SESSION_SETUP reply mein error status kyun hai?",
+            "options": [
+              "Password galat tha",
+              "MORE_PROCESSING_REQUIRED ka matlab bas ek aur round chahiye",
+              "Dialect unsupported hai",
+              "Share exist nahi karta"
+            ],
+            "why": "0xC0000016 failure nahi hai. Ye client ko batata hai ki login ke aur steps hain; yahan NTLM challenge."
+          }
+        },
+        {
+          "title": "TREE_CONNECT",
+          "desc": "\\\\fileserver\\share se connect karo",
+          "detail": "Ab client share se attach hota hai. Path \\\\fileserver\\share UTF-16LE mein bheja jaata hai, har character ke liye do bytes. Server ShareType DISK ke saath reply karta hai aur TreeId 1 assign karta hai, jo is share ke har baad ke request mein jaata hai. Ab se har message signed hai.",
+          "facts": [
+            ["Path", "\\\\fileserver\\share"],
+            ["TreeId", "1"],
+            ["Signing", "On: Flags 0x08 + 16-byte signature"]
+          ]
+        },
+        {
+          "title": "CREATE (file kholo)",
+          "desc": "CREATE ka matlab open bhi hai",
+          "detail": "File padhne ke liye SMB disposition FILE_OPEN ke saath CREATE use karta hai, matlab \"sirf tab kholo jab pehle se exist kare\". Client reports\\q3-notes.txt ke liye read access maangta hai. Server file ke times, uska size (1180 bytes) aur 16-byte FileId ke saath jawab deta hai jo is open handle ka naam hai.",
+          "facts": [
+            ["Name", "reports\\q3-notes.txt"],
+            ["Disposition", "FILE_OPEN (1)"],
+            ["Result", "FILE_OPENED, 1180 bytes, FileId"]
+          ],
+          "quiz": {
+            "q": "Kaun sa SMB2 command existing file ko padhne ke liye kholta hai?",
+            "options": [
+              "OPEN",
+              "READ",
+              "FILE_OPEN ke saath CREATE",
+              "TREE_CONNECT"
+            ],
+            "why": "SMB2 mein alag OPEN nahi hai. CREATE dono karta hai, aur CreateDisposition tay karta hai ki open, create ya overwrite karna hai."
+          }
+        },
+        {
+          "title": "READ aur CLOSE",
+          "desc": "Bytes padho, handle chhodo",
+          "detail": "READ FileId use karke offset 0 se 1180 bytes maangta hai. Response data ko header start se offset 80 par rakhta hai. Phir CLOSE handle release karta hai. File contents signed jaate hain par encrypted nahi: signing tampering rokta hai, par LAN capture karne wala ab bhi unhe padh sakta hai.",
+          "facts": [
+            ["READ", "Offset 0 par 1180 bytes"],
+            ["DataOffset", "80 (64 header + 16 body)"],
+            ["CLOSE", "FileId free karta hai"]
+          ],
+          "quiz": {
+            "q": "Signing on hai, encryption off. LAN capture karne wala kya kar sakta hai?",
+            "options": [
+              "Kuch bhi nahi",
+              "File contents padh sakta hai, par bina pakde unhe badal nahi sakta",
+              "File ko bina detection ke badal sakta hai",
+              "Password padh sakta hai"
+            ],
+            "why": "Signing integrity protect karta hai, privacy nahi. Contents chhupane ke liye SMB 3 encryption chahiye."
+          }
+        }
+      ],
+      "outro": {
+        "title": "File padh li gayi",
+        "text": "Saat SMB exchanges ne LAN par 8 milliseconds se kam liye: dialect chuna, login kiya, share se attach hue, file kholi, padhi aur band ki. Login ke baad har message signed tha, isliye raste mein koi use badal nahi sakta tha.",
+        "facts": [
+          ["Dialect", "SMB 3.1.1"],
+          ["Login", "2 round trips mein NTLM"],
+          ["Handles", "TreeId 1, ek FileId"],
+          ["Total time", "7.3 ms"]
+        ]
+      }
+    },
+    "encrypted": {
+      "name": "Encryption on ke saath SMB 3.1.1",
+      "summary": "Server encryption require karta hai, isliye login ke baad har message AES-GCM transform header mein wrap hota hai.",
+      "steps": [
+        {
+          "title": "Negotiate aur login",
+          "desc": "Wahi shuruaat, par server encryption chahta hai",
+          "detail": "Is baar admin ne share (ya poore server) ke liye encryption on kar di hai. NEGOTIATE pehle jaise hi AES-128-GCM ke saath SMB 3.1.1 par settle hota hai. Aakhri SESSION_SETUP response SessionFlags ENCRYPT_DATA set karta hai: ab se har message encrypted hona chahiye.",
+          "facts": [
+            ["Dialect", "3.1.1"],
+            ["Cipher", "AES-128-GCM"],
+            ["SessionFlags", "0x0004 ENCRYPT_DATA"]
+          ]
+        },
+        {
+          "title": "Sab kuch 0xFD 'SMB' ke andar",
+          "desc": "TRANSFORM_HEADER asli command chhupa deta hai",
+          "detail": "Ab TREE_CONNECT, CREATE aur READ har ek 52-byte TRANSFORM_HEADER mein wrap hota hai jo 0xFD 'SMB' se shuru hota hai. Isme nonce, GCM tag aur SessionId hota hai; original 64-byte header aur body ciphertext hain. Capture ye bhi nahi bata sakta ki andar kaun sa command hai, sirf uska size dikhta hai.",
+          "facts": [
+            ["Header", "0xFD 'SMB', 52 bytes"],
+            ["Hidden", "Command, path, file names, data"],
+            ["Visible", "SessionId, sizes"]
+          ],
+          "quiz": {
+            "q": "Encrypted SMB3 packet dekhne par observer ab bhi kya seekh sakta hai?",
+            "options": [
+              "File name",
+              "Share path",
+              "SessionId aur message size",
+              "File contents"
+            ],
+            "why": "Transform header khud clear hai: SessionId, nonce, size. Asli request ki har cheez encrypted hai."
+          }
+        },
+        {
+          "title": "File, encrypted",
+          "desc": "READ data wire par ciphertext hai",
+          "detail": "READ response wahi 1180 bytes carry karta hai, par ab GCM tag ke saath ciphertext ki tarah. Koi bhi change tag tod deta hai, isliye encryption privacy aur integrity dono deti hai, aur SMB ko alag signature ki zaroorat nahi. Keemat: thoda CPU, jo modern AES instructions bahut chhota bana deti hain.",
+          "facts": [
+            ["Privacy", "Haan"],
+            ["Integrity", "Haan (GCM tag)"],
+            ["Turn on", "Set-SmbServerConfiguration -EncryptData $true"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Private aur tamper-proof",
+        "text": "Encryption required hone par wahi requests 0xFD 'SMB' transform headers mein wrap hue. Capture mein sirf session IDs aur sizes dikhte hain, share, file name ya contents nahi.",
+        "facts": [
+          ["Signing", "Sirf integrity"],
+          ["Encryption", "Integrity + privacy"],
+          ["Cipher", "AES-128-GCM"]
+        ]
+      }
+    },
+    "smbv1": {
+      "name": "SMBv1 worm: SMBv1 disable kyun hai",
+      "summary": "Ek worm SMB1 ke saath port 445 ko probe karta hai. Purana server jawab deta hai; modern wala connection reset kar deta hai.",
+      "steps": [
+        {
+          "title": "Worm port 445 scan karta hai",
+          "desc": "Aisi machines dhoondta hai jo ab bhi SMBv1 bolti hain",
+          "detail": "Office network ka ek PC WannaCry/NotPetya family ke worm se infected hai. Wo port 445 par har address se connect hota hai aur sirf purana SMB1 dialect \"NT LM 0.12\" offer karta hai. Jo machines SMB1 accept karti hain aur jinmein 2017 ka MS17-010 patch nahi hai, unhe bina kisi password ke remotely kabze mein liya ja sakta hai. Hum yahan sirf harmless pehla message dikhate hain.",
+          "facts": [
+            ["Target", "LAN bhar mein TCP 445"],
+            ["Offers", "Sirf SMB1 dialect \"NT LM 0.12\""],
+            ["Known flaw", "MS17-010 (EternalBlue), 2017 mein patched"]
+          ]
+        },
+        {
+          "title": "Purana server jawab deta hai",
+          "desc": "SMBv1 abhi on: worm ko andar jaane ka rasta mil gaya",
+          "detail": "Purane server mein SMBv1 abhi bhi enabled hai, isliye wo negotiation ka jawab deta hai aur worm apne exploit stage par aage badhta hai. Aise worms flat networks mein minutes mein machine se machine phail jaate hain, aur raste mein files encrypt karte jaate hain. Fix koi clever detection nahi, target hatana hai: patch karo, aur SMBv1 off karo.",
+          "facts": [
+            ["Old server", "SMBv1 enabled, unpatched"],
+            ["Risk", "Remote code execution, login ke bina"],
+            ["Spread", "Minutes, flat LAN mein"]
+          ],
+          "quiz": {
+            "q": "Is tarah ke SMBv1 worm ke khilaf sabse effective defence kya hai?",
+            "options": [
+              "Lamba password",
+              "SMBv1 disable karo, MS17-010 lagao, aur network segments ke beech 445 block karo",
+              "FTP use karo",
+              "Share ka naam badlo"
+            ],
+            "why": "Flaw ko password ki zaroorat hi nahi. SMBv1 hatana, patch karna aur 445 tak kaun pahunch sakta hai ye limit karna rasta band kar deta hai."
+          }
+        },
+        {
+          "title": "SMBv1 off: connection reset",
+          "desc": "Modern server seedha mana kar deta hai",
+          "detail": "Worm file server par bhi try karta hai. Wahan SMBv1 disabled hai (Windows 10 1709 aur Server 2019 se default), isliye koi common dialect nahi hai. Server bas TCP connection reset kar deta hai. Exploit karne ko kuch nahi. Danish ka laptop normal tarah SMB 3.1.1 use karta rehta hai.",
+          "facts": [
+            ["Server", "SMBv1 disabled"],
+            ["Answer", "TCP RST"],
+            ["Check", "Get-SmbServerConfiguration | Select EnableSMB1Protocol"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Purana darwaza hata do",
+        "text": "SMBv1 dashakon purana hai aur 2017 ke WannaCry aur NotPetya outbreaks ka entry point tha. Defence simple hai: patch karo, SMBv1 har jagah disable karo, SMB signing ya encryption require karo, aur port 445 ko kabhi internet par expose mat karo.",
+        "facts": [
+          ["Disable", "Har machine par SMBv1"],
+          ["Patch", "MS17-010 aur baad ke"],
+          ["Firewall", "Internet edge par aur segments ke beech 445 block karo"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Commands",
+      "items": [
+        ["NEGOTIATE", "Dialect aur capabilities chuno"],
+        ["SESSION_SETUP", "Login (Kerberos ya NTLM)"],
+        ["TREE_CONNECT", "\\\\server\\share se attach karo"],
+        ["CREATE", "File kholo ya banao"],
+        ["READ / WRITE", "Bytes move karo"],
+        ["CLOSE", "FileId release karo"],
+        ["LOGOFF", "Session khatam karo"]
+      ]
+    },
+    {
+      "title": "Magic numbers",
+      "items": [
+        ["0xFF 'SMB'", "SMB1 (disable karo)"],
+        ["0xFE 'SMB'", "SMB2/3 header, 64 bytes"],
+        ["0xFD 'SMB'", "SMB3 encrypted (transform header)"],
+        ["0xC0000016", "MORE_PROCESSING_REQUIRED"],
+        ["0x0311", "Dialect SMB 3.1.1"]
+      ]
+    },
+    {
+      "title": "Ports",
+      "items": [
+        ["445", "TCP par SMB"],
+        ["139", "NetBIOS par SMB (legacy)"]
+      ]
+    }
+  ]
+}

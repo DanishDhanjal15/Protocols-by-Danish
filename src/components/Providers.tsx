@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { LessonMeta } from "@/lib/catalog";
 import { Lang, STRINGS, Strings } from "@/lib/i18n";
 import { loadProgress, Progress, saveProgress, touchStreak } from "@/lib/progress";
+import type { ContentLang } from "@/lib/text";
 import { CommandPalette } from "./CommandPalette";
 
 interface AppCtx {
@@ -15,6 +16,8 @@ interface AppCtx {
   updateProgress: (fn: (p: Progress) => Progress) => void;
   paletteOpen: boolean;
   layer: number;
+  contentLang: ContentLang;
+  setContentLang: (l: ContentLang) => void;
   setLayer: (n: number) => void;
   setPaletteOpen: (v: boolean) => void;
 }
@@ -32,6 +35,7 @@ export function Providers({ catalog, children }: { catalog: LessonMeta[]; childr
   const [progress, setProgress] = useState<Progress>({ done: [], quiz: {}, streak: { day: "", count: 0 } });
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [layer, setLayer] = useState(0);
+  const [contentLang, setContentLangState] = useState<ContentLang>("en");
 
   useEffect(() => {
     // read browser-only state after hydration
@@ -40,6 +44,8 @@ export function Providers({ catalog, children }: { catalog: LessonMeta[]; childr
     try {
       const l = localStorage.getItem("pbd:lang");
       if (l === "hi" || l === "en") setLangState(l);
+      const c = localStorage.getItem("pbd:content-lang");
+      if (c === "en" || c === "hinglish") setContentLangState(c);
     } catch {}
   }, []);
 
@@ -51,6 +57,13 @@ export function Providers({ catalog, children }: { catalog: LessonMeta[]; childr
     setLangState(l);
     try {
       localStorage.setItem("pbd:lang", l);
+    } catch {}
+  }, []);
+
+  const setContentLang = useCallback((l: ContentLang) => {
+    setContentLangState(l);
+    try {
+      localStorage.setItem("pbd:content-lang", l);
     } catch {}
   }, []);
 
@@ -74,8 +87,8 @@ export function Providers({ catalog, children }: { catalog: LessonMeta[]; childr
   }, []);
 
   const value = useMemo(
-    () => ({ catalog, lang, setLang, t: STRINGS[lang], progress, updateProgress, paletteOpen, setPaletteOpen, layer, setLayer }),
-    [catalog, lang, setLang, progress, updateProgress, paletteOpen, layer]
+    () => ({ catalog, lang, setLang, t: STRINGS[lang], progress, updateProgress, paletteOpen, setPaletteOpen, layer, setLayer, contentLang, setContentLang }),
+    [catalog, lang, setLang, progress, updateProgress, paletteOpen, layer, contentLang, setContentLang]
   );
 
   return (

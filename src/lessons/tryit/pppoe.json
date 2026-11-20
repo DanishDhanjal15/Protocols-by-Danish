@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find the discovery frames in the capture", "hinglish": "Capture mein discovery frames dhoondo" },
+      "why": { "en": "Open the .pcap in Wireshark and show only PPPoE discovery (PADI, PADO, PADR, PADS, PADT).", "hinglish": ".pcap Wireshark mein kholo aur sirf PPPoE discovery (PADI, PADO, PADR, PADS, PADT) dikhao." },
+      "wireshark": "pppoed",
+      "expect": { "en": "Four frames at the start (PADI, PADO, PADR, PADS) and a PADT at the end; the session ID appears in PADS.", "hinglish": "Shuru mein chaar frames (PADI, PADO, PADR, PADS) aur end mein ek PADT; session ID PADS mein dikhti hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Watch the CHAP login", "hinglish": "CHAP login dekho" },
+      "why": { "en": "Filter the PPP login exchange: Challenge, Response, then Success or Failure.", "hinglish": "PPP login exchange filter karo: Challenge, Response, phir Success ya Failure." },
+      "wireshark": "chap",
+      "expect": { "en": "A 16-byte challenge, a response with the 16-byte MD5 hash and the username, then Success (code 3), or Failure (code 4) in the wrong-password scenario.", "hinglish": "16-byte challenge, 16-byte MD5 hash aur username wala response, phir Success (code 3), ya wrong-password scenario mein Failure (code 4)." },
+      "step": 4
+    },
+    {
+      "title": { "en": "See the IP address handed out by IPCP", "hinglish": "IPCP se mila IP address dekho" },
+      "why": { "en": "IPCP, not DHCP, gives the public IP and DNS on a PPPoE line.", "hinglish": "PPPoE line par public IP aur DNS DHCP nahi, IPCP deta hai." },
+      "wireshark": "ipcp",
+      "expect": { "en": "Configure-Request with 0.0.0.0, a Configure-Nak suggesting 198.51.100.7 and the DNS servers, then a Configure-Ack.", "hinglish": "0.0.0.0 wala Configure-Request, 198.51.100.7 aur DNS servers suggest karta Configure-Nak, phir Configure-Ack." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Check your MTU and whether you are on PPPoE", "hinglish": "Apna MTU check karo aur dekho PPPoE par ho ya nahi" },
+      "why": { "en": "A router on PPPoE uses MTU 1492; your own PC usually shows 1500 on its LAN, and the router's WAN page lists the PPPoE login.", "hinglish": "PPPoE par router MTU 1492 use karta hai; tumhara PC apne LAN par aam taur par 1500 dikhata hai, aur router ka WAN page PPPoE login list karta hai." },
+      "windows": "netsh interface ipv4 show subinterfaces",
+      "unix": "ip link show",
+      "expect": { "en": "A table of interfaces with their MTU, usually 1500 for Ethernet and Wi-Fi. A 1492 value appears only on a machine that itself dials PPPoE. Output varies by machine.", "hinglish": "Interfaces ki table unke MTU ke saath, Ethernet aur Wi-Fi ke liye aam taur par 1500. 1492 value sirf us machine par dikhti hai jo khud PPPoE dial karti hai. Output machine ke hisaab se alag hota hai." }
+    }
+  ]
+}

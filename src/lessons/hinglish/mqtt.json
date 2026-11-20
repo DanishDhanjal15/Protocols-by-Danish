@@ -1,0 +1,302 @@
+{
+  "tagline": "Lakhon sensors ke liye chhote publish/subscribe messages.",
+  "description": "MQTT devices ko ek central broker ke zariye jodta hai. Sensors home/kitchen/temp jaise topics par messages publish karte hain, aur jo bhi matching topic par subscribed hai use copy mil jaati hai. Headers sirf 2 bytes ke ho sakte hain, aur QoS, retained messages aur last wills jaise features ise kamzor networks ke liye fit banate hain.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP 1883, 8883 (TLS)"],
+    ["Defined in", "OASIS MQTT 3.1.1 (2014), 5.0 (2019)"],
+    ["Pattern", "Broker ke zariye publish/subscribe"],
+    ["Smallest packet", "2 bytes (PINGREQ)"],
+    ["Delivery", "QoS 0, 1, 2"]
+  ],
+  "legend": [
+    "Handshake aur acknowledgements",
+    "Clients se packets",
+    "Broker se messages",
+    "Keep-alive aur retries",
+    "Failures aur attacks"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Sensor, broker aur dashboard",
+      "summary": "Will ke saath CONNECT, wildcards ke saath SUBSCRIBE, ek retained value, QoS 1 publishing, pings, aur will ka fire hona.",
+      "steps": [
+        {
+          "title": "Sensor CONNECT bhejta hai",
+          "desc": "Client ID, keep alive, login aur last will",
+          "detail": "Ek chhota temperature sensor port 1883 par broker se connect hota hai. Uska CONNECT kehta hai: protocol MQTT level 4 (3.1.1), keep alive 60 s, client ID livingroom-sensor, username aur password, aur last will: agar main gayab ho jaun, to home/livingroom/status par \"offline\" publish karo. Broker return code 0 ke saath CONNACK se jawab deta hai.",
+          "facts": [
+            ["Connect flags", "0xEE: user, pass, will retain, will QoS 1, will, clean"],
+            ["Keep alive", "60 s"],
+            ["CONNACK", "0 = accepted"]
+          ],
+          "quiz": {
+            "q": "CONNECT ka pehla byte 0x10 hai. Uske do halves ka kya matlab hai?",
+            "options": [
+              "Version 1, length 0",
+              "Packet type 1 (CONNECT), flags 0",
+              "QoS 1, no retain",
+              "16 bytes aage aate hain"
+            ],
+            "why": "High 4 bits packet type hain (1 = CONNECT). Low 4 bits flags hain, jinhe CONNECT use nahi karta."
+          }
+        },
+        {
+          "title": "Dashboard subscribe karta hai",
+          "desc": "SUBSCRIBE home/+/temp aur home/+/status",
+          "detail": "Danish ka dashboard bhi connect hota hai, phir topic filters se subscribe karta hai. + wildcard bilkul ek level match karta hai, isliye home/+/temp har room ka temperature pakad leta hai. Dono QoS 1 par maange gaye hain. SUBACK har filter ke liye QoS 1 grant karta hai, usi order mein.",
+          "facts": [
+            ["Filters", "home/+/temp, home/+/status"],
+            ["+", "Ek level; # = baaki sare levels"],
+            ["Granted", "QoS 1, QoS 1"]
+          ],
+          "quiz": {
+            "q": "home/+/temp kaunsa topic match NAHI karta?",
+            "options": [
+              "home/kitchen/temp",
+              "home/livingroom/temp",
+              "home/floor1/kitchen/temp",
+              "home/garage/temp"
+            ],
+            "why": "+ ka matlab bilkul ek level. home/floor1/kitchen/temp mein beech mein do levels hain; home/# use match karta."
+          }
+        },
+        {
+          "title": "Retained message",
+          "desc": "Last known value turant aa jaati hai",
+          "detail": "Kitchen sensor ne pehle RETAIN flag ke saath 21.5 publish kiya tha, isliye broker ne use topic ki last known value ke taur par rakh liya. Naya subscriber use turant paata hai, agli reading ka intezaar nahi karna padta. Is PUBLISH mein RETAIN bit set hai taaki dashboard ko pata chale ki yeh stored value hai, fresh nahi.",
+          "facts": [
+            ["Topic", "home/kitchen/temp"],
+            ["Value", "21.5"],
+            ["Pehla byte", "0x33: PUBLISH, QoS 1, RETAIN"]
+          ]
+        },
+        {
+          "title": "QoS 1 ke saath PUBLISH",
+          "desc": "Sensor → broker → dashboard, har hop acknowledged",
+          "detail": "Living-room sensor packet ID 1 ke saath QoS 1 par 23.4 publish karta hai. QoS 1 ka matlab \"at least once\": broker use store karta hai aur PUBACK se jawab deta hai. Phir broker use har matching subscriber ko, yahan dashboard ko, apne packet ID ke saath forward karta hai, aur dashboard ke PUBACK ka intezaar karta hai. Har hop alag se acknowledge hota hai.",
+          "facts": [
+            ["QoS 0", "At most once, ack nahi"],
+            ["QoS 1", "At least once: PUBLISH → PUBACK"],
+            ["QoS 2", "Exactly once: 4-packet exchange"]
+          ],
+          "quiz": {
+            "q": "Sensor ka PUBLISH broker tak pahunch gaya, lekin PUBACK kho gaya. Sensor kya karta hai?",
+            "options": [
+              "Kuch nahi, deliver ho gaya",
+              "DUP flag ke saath PUBLISH dobara bhejta hai",
+              "DISCONNECT bhejta hai",
+              "QoS 0 par switch karta hai"
+            ],
+            "why": "PUBACK ke bina sender ko pata nahi chalta, isliye woh DUP=1 ke saath dobara bhejta hai. Isiliye QoS 1 duplicates deliver kar sakta hai."
+          }
+        },
+        {
+          "title": "PINGREQ / PINGRESP",
+          "desc": "Shaant connection ko zinda rakhna",
+          "detail": "Sensor sirf tab report karta hai jab temperature badalta hai. 60 seconds tak kuch bhejne ko na ho to woh PINGREQ bhejta hai, sirf 2 bytes (0xC0 0x00), aur broker PINGRESP (0xD0 0x00) se jawab deta hai. Isse prove hota hai ki dono ends aur beech ka path zinda hai, aur ghar ke router ki NAT entry expire nahi hoti.",
+          "facts": [
+            ["PINGREQ", "0xC0 0x00"],
+            ["PINGRESP", "0xD0 0x00"],
+            ["Broker timeout", "1.5 × keep alive = 90 s"]
+          ]
+        },
+        {
+          "title": "Last will",
+          "desc": "Sensor gayab; broker uski taraf se bolta hai",
+          "detail": "Sensor ki battery khatam ho jaati hai. Woh kabhi DISCONNECT nahi bhejta, to broker intezaar karta hai. 90 s (1.5 × keep alive) tak koi packet na aane par woh connection chhod deta hai aur sensor ka will, home/livingroom/status par \"offline\", retained publish karta hai. Dashboard sensor ko offline dikhata hai. Clean DISCONNECT will ko discard kar deta.",
+          "facts": [
+            ["Trigger", "90 s tak koi packet nahi"],
+            ["Will", "home/livingroom/status = offline"],
+            ["Nahi bheja jaata agar", "Client DISCONNECT bheje"]
+          ],
+          "quiz": {
+            "q": "Broker client ka last will kab publish karta hai?",
+            "options": [
+              "Har DISCONNECT par",
+              "Jab connection DISCONNECT ke bina kho jaaye",
+              "Har keep-alive period par",
+              "Jab client subscribe kare"
+            ],
+            "why": "Will unexpected loss ke liye hai: timeouts, toote hue connections. Polite DISCONNECT use cancel kar deta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Publish, subscribe, survive",
+        "text": "Sensor aur dashboard ne kabhi seedhe ek doosre se baat nahi ki. Broker ne topics match kiye, naye aane walon ke liye last value rakhi, har QoS 1 hop acknowledge kiya, aur sensor ke gayab hone par uska last will bola.",
+        "facts": [
+          ["Use hue packet types", "CONNECT, CONNACK, SUBSCRIBE, SUBACK, PUBLISH, PUBACK, PINGREQ, PINGRESP"],
+          ["Sabse chhota", "2 bytes"],
+          ["Will fire hua", "90 s silence ke baad"]
+        ]
+      }
+    },
+    "reconnect": {
+      "name": "Broker unreachable: persistent session",
+      "summary": "Dashboard ka connection toot jaata hai, woh Clean Session 0 ke saath reconnect karta hai aur uske liye queue hue messages paata hai.",
+      "steps": [
+        {
+          "title": "Pings ka jawab nahi aata",
+          "desc": "Broker tak ka path toot jaata hai",
+          "detail": "Dashboard (client ID dashboard-danish) persistent session use karta hai: woh Clean Session = 0 ke saath connect hua tha aur QoS 1 par subscribe kiya tha. Phir Danish ka internet connection gir jaata hai. Uske PINGREQ ko PINGRESP nahi milta, isliye timeout ke baad client connection ko dead maan leta hai.",
+          "facts": [
+            ["Session", "Clean Session = 0 (persistent)"],
+            ["Symptom", "PINGRESP nahi"],
+            ["Client action", "Connection drop karo, reconnect karo"]
+          ]
+        },
+        {
+          "title": "Broker messages queue karta hai",
+          "desc": "Session broker par zinda rehta hai",
+          "detail": "Is beech sensor publish karta rehta hai. Kyunki dashboard ka session persistent hai aur subscription QoS 1 hai, broker har matching message ko phenkne ke bajaye uske liye store kar leta hai.",
+          "facts": [
+            ["Queue hue", "dashboard-danish ke liye"],
+            ["Kyun", "Persistent session + QoS 1 subscription"],
+            ["QoS 0 messages", "Aam taur par queue nahi hote"]
+          ]
+        },
+        {
+          "title": "Backoff ke saath retry",
+          "desc": "Line down rehne tak SYNs fail hote hain",
+          "detail": "Client library connection retry karti hai, har baar zyada der ruk kar (2 s, 4 s, 8 s…) taaki hazaaron devices wapas aa rahe broker par toot na padein. Internet wapas aane tak yeh SYNs kahin nahi pahunchte.",
+          "facts": [
+            ["Retry gaps", "2 s, 4 s, 8 s… (capped)"],
+            ["Backoff kyun", "Reconnect storm se bachne ke liye"],
+            ["Saath mein", "Random jitter"]
+          ]
+        },
+        {
+          "title": "Session present",
+          "desc": "Clean Session 0 ke saath CONNECT",
+          "detail": "Line wapas aa gayi. Client wahi client ID aur Clean Session = 0 ke saath reconnect karta hai. CONNACK Session Present = 1 ke saath aata hai: broker ke paas abhi bhi subscriptions aur queue hue messages hain, isliye client ko dobara subscribe karne ki zaroorat bhi nahi.",
+          "facts": [
+            ["CONNECT flags", "Clean Session = 0"],
+            ["CONNACK", "Session Present = 1, code 0"],
+            ["Re-subscribe?", "Zaroorat nahi"]
+          ],
+          "quiz": {
+            "q": "Agar client Clean Session = 1 ke saath reconnect karta, to 2 queue hue messages ka kya hota?",
+            "options": [
+              "Phir bhi deliver ho jaate",
+              "Purane session ke saath phenk diye jaate",
+              "Do baar bheje jaate",
+              "Agle reconnect tak rakhe jaate"
+            ],
+            "why": "Clean Session = 1 broker ko kehta hai ki purani session state discard kar do, queue hue messages aur subscriptions samet."
+          }
+        },
+        {
+          "title": "Queue hue messages deliver hue",
+          "desc": "Dono readings aati hain, phir PUBACKs",
+          "detail": "Broker turant do stored PUBLISH packets order mein bhejta hai, aur client har ek ko acknowledge karta hai. Danish ka graph bina koi reading khoye gap bhar leta hai.",
+          "facts": [
+            ["Deliver hue", "23.9, phir 24.3"],
+            ["Order", "Bana raha"],
+            ["Har ek ka", "Packet ID se PUBACK"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Kuch nahi khoya",
+        "text": "Kyunki session persistent tha aur subscription QoS 1 use karti thi, broker ne client ke door rehte messages rakhe. Reconnect par Session Present = 1 ne client ko bataya ki uski subscriptions abhi bhi hain.",
+        "facts": [
+          ["CONNECT", "Clean Session = 0"],
+          ["CONNACK", "Session Present = 1"],
+          ["Queued", "2 QoS 1 messages"],
+          ["MQTT 5 ka naam", "Clean Start + Session Expiry"]
+        ]
+      }
+    },
+    "open-broker": {
+      "name": "Anonymous open broker",
+      "summary": "Scanner default settings par chhode gaye broker ke har topic ko padh leta hai; login zaroori karne se woh ruk jaata hai.",
+      "steps": [
+        {
+          "title": "Anonymous CONNECT accept hua",
+          "desc": "Na username, na password, code 0",
+          "detail": "Internet devices ke search engines port 1883 par hazaaron brokers list karte hain. Scanner is broker se bina username ya password ke connect hota hai. Broker default settings ke saath install hua tha, jo anonymous clients allow karti hain, isliye woh CONNACK 0: accepted se jawab deta hai.",
+          "facts": [
+            ["Username", "Koi nahi"],
+            ["CONNACK", "0 (accepted)"],
+            ["Wajah", "allow_anonymous true"]
+          ]
+        },
+        {
+          "title": "SUBSCRIBE #",
+          "desc": "Sab kuch, retained secrets samet",
+          "detail": "Scanner # par subscribe karta hai, yaani har topic. Retained messages ek saath aa jaate hain: room temperatures, lekin home/frontdoor/lock = unlocked bhi, jo chor ko kaam ki baat batata hai. Agar broker allow karta, to scanner devices ko commands bhi publish kar sakta tha.",
+          "facts": [
+            ["Filter", "#"],
+            ["Leak hua", "Sensor data, lock state"],
+            ["Aur bura", "Commands bhi publish ho sakte the"]
+          ],
+          "quiz": {
+            "q": "Kaunsi setting is attacker ko CONNECT par hi rok deti?",
+            "options": [
+              "Zyada QoS",
+              "Username aur password zaroori karna (aur har topic par ACLs)",
+              "Lamba keep alive",
+              "Retained messages band karna"
+            ],
+            "why": "Anonymous access band karo, TLS par credentials zaroori karo, aur ACLs lagao taaki har client sirf apne topics dekhe."
+          }
+        },
+        {
+          "title": "Defence: login zaroori karo",
+          "desc": "CONNACK 5: not authorized",
+          "detail": "Danish broker theek karta hai: anonymous access band, har client ke liye password, per-topic ACLs, aur port 8883 par TLS taaki passwords clear mein na jaayein. Wahi anonymous CONNECT ab CONNACK return code 5, Not authorized, paata hai, aur broker connection close kar deta hai.",
+          "facts": [
+            ["CONNACK", "5 (Not authorized)"],
+            ["Port", "TLS ke saath 8883"],
+            ["ACLs", "Har client sirf apne topics"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Broker ko lock karo",
+        "text": "Anonymous access wala MQTT broker har message, aur aksar control, internet par kisi ko bhi de deta hai. TLS par credentials zaroori karo, per-topic ACLs lagao, aur agar zaroori na ho to broker ko publicly expose mat karo.",
+        "facts": [
+          ["Attack", "Anonymous CONNECT + SUBSCRIBE #"],
+          ["Defence", "Auth, TLS 8883, ACLs, firewall"],
+          ["Reject hota hai", "CONNACK 5 se"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Packet types (first byte)",
+      "items": [
+        ["0x10", "CONNECT"],
+        ["0x20", "CONNACK"],
+        ["0x3X", "PUBLISH (X = DUP, QoS, RETAIN)"],
+        ["0x40", "PUBACK"],
+        ["0x82", "SUBSCRIBE"],
+        ["0x90", "SUBACK"],
+        ["0xC0 / 0xD0", "PINGREQ / PINGRESP"],
+        ["0xE0", "DISCONNECT"]
+      ]
+    },
+    {
+      "title": "Ideas",
+      "items": [
+        ["+", "Ek topic level"],
+        ["#", "Baaki sare levels"],
+        ["Retained", "Broker har topic ka last message rakhta hai"],
+        ["Last will", "Client gayab ho to publish hota hai"],
+        ["Clean session 0", "Broker subscriptions + queue rakhta hai"],
+        ["Remaining length", "1–4 bytes, 7 bits har ek"]
+      ]
+    },
+    {
+      "title": "MQTT 5 adds",
+      "items": [
+        ["Reason codes", "Har ack par"],
+        ["Properties", "Message expiry, content type, user properties"],
+        ["Session expiry", "Clean session ki jagah"],
+        ["Shared subscriptions", "$share/group/topic"]
+      ]
+    }
+  ]
+}

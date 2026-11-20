@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Check the IMAPS port", "hinglish": "IMAPS port check karo" },
+      "why": { "en": "IMAPS on port 993 starts TLS from the first byte. This only opens a TCP connection and does not log in.", "hinglish": "Port 993 par IMAPS pehle byte se TLS shuru karta hai. Ye sirf TCP connection kholta hai, login nahi karta." },
+      "windows": "Test-NetConnection imap.gmail.com -Port 993",
+      "unix": "nc -vz imap.gmail.com 993",
+      "expect": { "en": "TcpTestSucceeded : True (or 'succeeded'). Results vary by network.", "hinglish": "TcpTestSucceeded : True (ya 'succeeded'). Result network ke hisaab se badal sakta hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "See the server greeting and capabilities", "hinglish": "Server greeting aur capabilities dekho" },
+      "why": { "en": "Connect over TLS and the server sends its untagged * OK greeting with CAPABILITY list (IDLE, MOVE and so on). We only read it and then log out.", "hinglish": "TLS par connect karo to server apni untagged * OK greeting CAPABILITY list ke saath bhejta hai (IDLE, MOVE waghera). Hum sirf ise padhte hain aur phir log out kar dete hain." },
+      "unix": "printf 'a1 CAPABILITY\\r\\na2 LOGOUT\\r\\n' | openssl s_client -quiet -connect imap.gmail.com:993",
+      "expect": { "en": "A line starting with '* OK' and a '* CAPABILITY IMAP4rev1 ... IDLE ...' line, then 'a1 OK' and 'a2 OK'. The exact list varies by provider.", "hinglish": "'* OK' se shuru hone wali line aur '* CAPABILITY IMAP4rev1 ... IDLE ...' line, phir 'a1 OK' aur 'a2 OK'. Exact list provider ke hisaab se badalti hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Spot the tagged commands in the capture", "hinglish": "Capture mein tagged commands pakdo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark to see the tags (a0, a1 ...) and the untagged * lines before TLS starts.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur TLS shuru hone se pehle tags (a0, a1 ...) aur untagged * lines dekho." },
+      "wireshark": "imap",
+      "expect": { "en": "The greeting, the STARTTLS command and its reply. After that the packets become TLS and are unreadable.", "hinglish": "Greeting, STARTTLS command aur uska reply. Uske baad packets TLS ban jaate hain aur padhe nahi ja sakte." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Find the encrypted login", "hinglish": "Encrypted login dhoondo" },
+      "why": { "en": "After STARTTLS the LOGIN is inside TLS. Filter on TLS application data to see only the opaque records.", "hinglish": "STARTTLS ke baad LOGIN TLS ke andar hota hai. TLS application data par filter karo to sirf opaque records dikhte hain." },
+      "wireshark": "tls.record.content_type == 23",
+      "expect": { "en": "A few small records, matching the lesson's roughly 53 and 121 byte login records. You cannot read the username or password.", "hinglish": "Kuch chhote records, jo lesson ke lagbhag 53 aur 121 byte wale login records se match karte hain. Username ya password padh nahi sakte." },
+      "step": 3
+    }
+  ]
+}

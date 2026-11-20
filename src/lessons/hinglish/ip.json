@@ -1,0 +1,311 @@
+{
+  "tagline": "Har packet par laga address, router ke through router tak.",
+  "description": "IPv4 har packet par source aur destination address lagata hai taaki routers use ek-ek hop karke sahi network tak pahunchate rahein. Yeh delivery ka promise nahi karta. Yeh TTL se hops ginta hai taaki khoye hue packets hamesha ghoomte na rahein, aur jab link chhota ho to packets ko fragments mein kaat bhi sakta hai.",
+  "facts": [
+    ["Layer", "Network (Layer 3)"],
+    ["Address size", "32 bits (4 bytes)"],
+    ["Header", "20 bytes, options ke saath 60 tak"],
+    ["Delivery", "Best effort, koi ACK nahi"],
+    ["Loop guard", "TTL, har router ghatata hai"],
+    ["Defined in", "RFC 791"]
+  ],
+  "legend": [
+    "Laptop ka packet",
+    "Server ka reply",
+    "Fragments",
+    "ICMP messages",
+    "Errors aur drops"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Ek packet, teen routers",
+      "summary": "Ek connection request hop by hop web server tak jati hai, aur har router par ek TTL kam hota hai.",
+      "steps": [
+        {
+          "title": "Local ya nahi?",
+          "desc": "Laptop destination ko apne network se compare karta hai",
+          "detail": "Laptop 203.0.113.10 se connection kholna chahta hai. Uska apna network 192.168.1.0/24 hai, aur destination uske bahar hai, isliye packet default gateway ke paas jata hai. IP header mein final address hota hai; Ethernet header mein gateway ka MAC.",
+          "facts": [
+            ["Destination", "203.0.113.10 (not local)"],
+            ["Next hop", "192.168.1.1 (default gateway)"],
+            ["TTL", "64 (Linux default)"]
+          ],
+          "quiz": {
+            "q": "Laptop Ethernet header mein kaunsa MAC address daalta hai?",
+            "options": [
+              "Web server ka MAC",
+              "Home router ka MAC",
+              "Broadcast MAC ff:ff:ff:ff:ff:ff",
+              "Apna hi MAC do baar"
+            ],
+            "why": "Ethernet sirf link ke agle device tak pahunchta hai. Router next hop hai, isliye uska MAC frame mein jata hai; server ka address sirf IP header mein rehta hai."
+          }
+        },
+        {
+          "title": "Pehla hop: home router",
+          "desc": "TTL 64 se 63, naya Ethernet header",
+          "detail": "Home router purana Ethernet header hata deta hai, TTL ek kam karta hai aur header checksum dobara nikalta hai, kyunki header badal gaya. Woh private source address ko public se bhi badalta hai (yeh NAT hai, uska apna lesson hai). Phir packet ko ISP link ke liye naye frame mein lapet deta hai.",
+          "facts": [
+            ["TTL", "64 → 63"],
+            ["Checksum", "Dobara compute hua"],
+            ["Source", "192.168.1.10 → 198.51.100.7 (NAT)"]
+          ],
+          "quiz": {
+            "q": "ISP router ko is packet mein kaunsa TTL dikhega?",
+            "options": [
+              "64",
+              "63",
+              "62",
+              "1"
+            ],
+            "why": "Abhi tak sirf home router ne ise chhua hai, aur usne 64 ko 63 kiya. ISP router forward karte waqt ise phir ghatayega."
+          }
+        },
+        {
+          "title": "ISP ke across",
+          "desc": "Longest prefix match route chunta hai",
+          "detail": "ISP router ke paas hazaron routes hain. Kai routes 203.0.113.10 se match kar sakte hain, jaise default route 0.0.0.0/0 aur 203.0.113.0/24. Woh sabse specific wala, yaani longest prefix, chunta hai, aur packet ko TTL 62 ke saath core router ki taraf bhejta hai.",
+          "facts": [
+            ["Route used", "203.0.113.0/24 via core"],
+            ["Rule", "Longest prefix wins"],
+            ["TTL", "63 → 62"]
+          ],
+          "quiz": {
+            "q": "Table mein 0.0.0.0/0, 203.0.0.0/8 aur 203.0.113.0/24 hain. Kaunsa use hoga?",
+            "options": [
+              "0.0.0.0/0, yeh sab kuch match karta hai",
+              "203.0.0.0/8, yeh pehle add hua tha",
+              "203.0.113.0/24, sabse specific",
+              "Teeno, packet copy hota hai"
+            ],
+            "why": "Routers hamesha matching route mein se longest prefix wala chunte hain, kyunki woh destination ko sabse precisely describe karta hai."
+          }
+        },
+        {
+          "title": "Aakhri hop deliver karta hai",
+          "desc": "Core router directly connected hai",
+          "detail": "Core router dekhta hai ki 203.0.113.0/24 uske apne ek port par hai, isliye koi next router nahi hai. Woh ARP se server ka MAC dhoondhta hai aur packet TTL 61 ke saath deliver karta hai. NAT ke baad IP addresses kabhi nahi badle; har hop par sirf Ethernet header badla gaya.",
+          "facts": [
+            ["TTL at server", "61"],
+            ["Hops", "3 routers"],
+            ["Har hop par badla", "MACs, TTL, checksum"]
+          ]
+        },
+        {
+          "title": "Reply wapas aata hai",
+          "desc": "Naya packet, naya TTL",
+          "detail": "Server apne packet se jawab deta hai, jo TTL 64 se shuru hota hai. Ho sakta hai woh wapas alag path se aaye, kyunki har router khud decide karta hai. Home router laptop ko dene se pehle address wapas 192.168.1.10 mein translate karta hai.",
+          "facts": [
+            ["Server shuru karta hai", "TTL 64"],
+            ["Laptop ko dikhta hai", "TTL 61"],
+            ["Round trip", "28 ms"]
+          ],
+          "quiz": {
+            "q": "Server TTL 64 ke saath unhi teen routers ke through bhejta hai. Laptop par kaunsa TTL pahunchega?",
+            "options": [
+              "64",
+              "63",
+              "61",
+              "0"
+            ],
+            "why": "Teen routers har ek ek ghatate hain: 64 − 3 = 61. Reply ka TTL dekhna andaza lagane ka tez tareeka hai ki host kitna door hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Deliver hua, hop by hop",
+        "text": "Kisi router ko poora path nahi pata tha. Har ek ne destination address dekha, best route chuna, TTL ghataya aur packet ko naye Ethernet frame mein aage bhej diya. Yeh simple rule, baar-baar repeat hokar, poora internet packets ko move karta hai.",
+        "facts": [
+          ["Routers crossed", "3"],
+          ["TTL", "64 → 61"],
+          ["Header size", "20 bytes"],
+          ["Round trip", "28 ms"]
+        ]
+      }
+    },
+    "fragment": {
+      "name": "Bada packet, chhota link",
+      "summary": "1500-byte ping ko aise link se guzarna hai jo sirf 1400 bytes leta hai, isliye router use do hisson mein kaat deta hai.",
+      "steps": [
+        {
+          "title": "Full-size packet",
+          "desc": "ping -s 1472 -M dont: 1500 bytes, DF off",
+          "detail": "Laptop 1500-byte ping bhejta hai: 20 bytes IP header, 8 bytes ICMP header aur 1472 bytes data. Normal Ethernet itna bada packet le sakta hai (uska MTU). Don’t Fragment flag off hai, isliye routers ise tod sakte hain.",
+          "facts": [
+            ["Total length", "1500 bytes"],
+            ["DF flag", "0 (may fragment)"],
+            ["Identification", "0x8a21"]
+          ]
+        },
+        {
+          "title": "Fragments mein kata",
+          "desc": "Agle link ka MTU 1400 hai",
+          "detail": "Core router se server tak ka link ek tunnel hai jiska MTU 1400 hai. Router IP header ke baad ke 1480 bytes ko aise tukdon mein kaatta hai jinka size 8 ka multiple ho: 1376 bytes aur 104 bytes. Har tukde ko apna IP header milta hai, same Identification ke saath, aur pehle par More Fragments (MF) flag set hota hai.",
+          "facts": [
+            ["Fragment 1", "1376 bytes, offset 0, MF = 1"],
+            ["Fragment 2", "104 bytes, offset 1376, MF = 0"],
+            ["Offset unit", "8 bytes (field holds 172)"]
+          ],
+          "quiz": {
+            "q": "Fragment 1 mein 1376 bytes hain. Fragment 2 ka offset kya hoga?",
+            "options": [
+              "0",
+              "1",
+              "1376",
+              "1400"
+            ],
+            "why": "Offset batata hai ki yeh tukda original data mein kahan se shuru hota hai. Pehla tukda bytes 0–1375 cover karta hai, isliye doosra 1376 se shuru hota hai (1376 ÷ 8 = 172 ke roop mein store hota hai)."
+          }
+        },
+        {
+          "title": "Reassembly aur reply",
+          "desc": "Sirf destination tukde wapas jodta hai",
+          "detail": "Routers fragments ko kabhi nahi jodte; sirf final host jodta hai. Server same source, destination, protocol aur Identification wale tukde jama karta hai, MF ke bina wala aane tak rukta hai, phir 1500-byte packet dobara banata hai. Uska reply bhi uske 1400-byte link ke liye bada hai, isliye server khud use fragment karta hai.",
+          "facts": [
+            ["Reassembled by", "Sirf destination"],
+            ["Matched on", "Src, dst, protocol, ID"],
+            ["Agar ek tukda kho jaye", "Poora packet phenk diya jata hai"]
+          ],
+          "quiz": {
+            "q": "Reply ka fragment 2 kho gaya. Kya hoga?",
+            "options": [
+              "IP sirf fragment 2 dobara bhejta hai",
+              "Laptop timeout ke baad fragment 1 drop kar deta hai; ping lost count hota hai",
+              "Laptop akele fragment 1 use karta hai",
+              "Core router ise dobara banata hai"
+            ],
+            "why": "IP mein retransmission nahi hota. Har tukde ke bina packet nahi ban sakta, isliye receiver reassembly timeout (Linux par 30 s) ke baad haar maan leta hai."
+          }
+        },
+        {
+          "title": "Agar DF set ho?",
+          "desc": "Router mana karta hai aur MTU report karta hai",
+          "detail": "Aajkal zyadatar traffic Don’t Fragment set karta hai, kyunki fragments slow hote hain aur aasani se kho jate hain. Ab core router packet ko tod nahi sakta, isliye use drop kar deta hai aur link ke MTU ke saath ICMP “Fragmentation needed” wapas bhejta hai. Sender chhote packets bhejna seekh leta hai. Ise Path MTU Discovery kehte hain.",
+          "facts": [
+            ["ICMP", "Type 3, code 4"],
+            ["Next-hop MTU", "1400"],
+            ["ping says", "Message too long, mtu=1400"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Toda, le gaye, wapas joda",
+        "text": "Jab DF off ho, router packet ko chhote link mein fit karne ke liye kaat sakta hai, aur sirf destination use wapas jodta hai. Jab DF on ho, router use drop karke MTU report kar deta hai. Modern stacks doosra tareeka pasand karte hain aur apne packets ko poore path ke hisaab se size karte hain.",
+        "facts": [
+          ["Fragment sizes", "8 bytes ke multiples"],
+          ["Sab tukdon mein same", "Identification"],
+          ["Aakhri tukda", "MF = 0"],
+          ["DF set", "ICMP 3/4 + MTU"]
+        ]
+      }
+    },
+    "loop": {
+      "name": "Routing loop: TTL khatam",
+      "summary": "Do routers ek doosre ki taraf point karte hain, packet TTL zero hone tak uchhalta hai, aur ek ICMP error wapas aata hai.",
+      "steps": [
+        {
+          "title": "Galat route",
+          "desc": "Do routers same network ek doosre ko bhejte hain",
+          "detail": "Ek engineer ne route galat type kar diya. ISP router 203.0.113.0/24 ko core router ko bhejta hai, aur core router, jiska server se direct link toot gaya hai, use wapas ISP router ko bhej deta hai. Laptop ko iska kuch pata nahi aur woh apna packet normal tarah bhejta hai.",
+          "facts": [
+            ["ISP router kehta hai", "203.0.113.0/24 → core"],
+            ["Core router kehta hai", "203.0.113.0/24 → ISP"],
+            ["Laptop TTL", "64"]
+          ]
+        },
+        {
+          "title": "Ping-pong",
+          "desc": "Har bounce ek TTL leta hai",
+          "detail": "Core router packet ko ISP router ko wapas bhejta hai, jo use phir core ko bhejta hai, aur yeh chalta rehta hai. Har pass TTL ek kam karta hai. TTL ke bina yeh packet, aur iske baad ka har packet, tab tak loop karta jab tak link bhar na jaye.",
+          "facts": [
+            ["Bounce time", "Lagbhag 0.5 ms"],
+            ["TTL per bounce", "−1"],
+            ["TTL ke bina", "Hamesha loop karta"]
+          ],
+          "quiz": {
+            "q": "Packet core router tak TTL 62 ke saath pahuncha. Wapas bheje jane ke baad TTL khatam hone tak aur kitne bounces?",
+            "options": [
+              "Kabhi nahi, hamesha loop karta hai",
+              "Lagbhag 60",
+              "Exactly 2",
+              "Packet size par depend karta hai"
+            ],
+            "why": "Har router forward karne se pehle TTL ek ghatata hai, isliye lagbhag 61 ka TTL lagbhag 61 aur hops chalta hai, phir packet drop ho jata hai."
+          }
+        },
+        {
+          "title": "TTL zero ho gaya",
+          "desc": "ISP router ko yeh TTL 1 ke saath milta hai",
+          "detail": "Lagbhag 58 bounces baad core router packet ko TTL 1 ke saath deta hai. ISP router ko ise 0 karna padta, jo allowed nahi hai, isliye woh packet phenk deta hai. Router ko TTL 0 wala packet kabhi forward nahi karna chahiye.",
+          "facts": [
+            ["Aaya", "TTL 1 ke saath"],
+            ["Action", "Drop"],
+            ["Total bounces", "Lagbhag 61"]
+          ]
+        },
+        {
+          "title": "Time Exceeded",
+          "desc": "ICMP type 11 sender ko wapas jata hai",
+          "detail": "ISP router sender ko ICMP Time Exceeded message se bata deta hai ki kya hua. Woh drop hue packet ka IP header aur pehle 8 bytes quote karta hai, taaki laptop ise sahi connection se match kar sake. Home router ise laptop ke private address mein translate kar deta hai.",
+          "facts": [
+            ["ICMP", "Type 11, code 0"],
+            ["From", "198.51.100.1 (ISP router)"],
+            ["Quoted TTL", "1"]
+          ],
+          "quiz": {
+            "q": "Is destination ke liye traceroute kya dikhayega?",
+            "options": [
+              "Sirf server ka address",
+              "ISP aur core routers baar-baar, jab tak woh haar na maan le",
+              "Kuch bhi nahi",
+              "Home router 30 baar"
+            ],
+            "why": "Traceroute us router ko list karta hai jahan har TTL khatam hua. Loop mein wahi do routers baari-baari aate hain, jo routing loop ki classic nishani hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "TTL ne network bacha liya",
+        "text": "Routing loop kuch deliver nahi kar sakta, lekin TTL yeh pakka karta hai ki har looping packet ek fixed number of hops ke baad mar jaye, jama na ho. ICMP error, aur traceroute, seedha un do routers ki taraf ishaara karte hain jo ek doosre se agree nahi karte.",
+        "facts": [
+          ["Error", "ICMP 11 / 0"],
+          ["Traceroute mein nishani", "Do hops repeat hote hain"],
+          ["Fix", "Route sahi karo"],
+          ["Packets lost", "Sab, fix hone tak"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Header fields",
+      "items": [
+        ["Version / IHL", "4, aur header length 4-byte words mein"],
+        ["Total length", "Header + data, max 65535"],
+        ["Identification", "Ek packet ke fragments ko group karta hai"],
+        ["Flags", "DF (don’t fragment), MF (more fragments)"],
+        ["Fragment offset", "Position 8-byte units mein"],
+        ["TTL", "Bache hue hops; har router par −1"],
+        ["Protocol", "1 ICMP, 6 TCP, 17 UDP"]
+      ]
+    },
+    {
+      "title": "Routing rules",
+      "items": [
+        ["Local destination", "Seedha uske MAC ko bhejo"],
+        ["Remote destination", "Gateway ke MAC ko bhejo"],
+        ["Kai matching routes", "Longest prefix wins"],
+        ["Default route", "0.0.0.0/0, sab match karta hai"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["Ethernet MTU", "1500 bytes"],
+        ["Min header", "20 bytes"],
+        ["Default TTL", "64 Linux/macOS, 128 Windows"],
+        ["Private ranges", "10/8, 172.16/12, 192.168/16"]
+      ]
+    }
+  ]
+}

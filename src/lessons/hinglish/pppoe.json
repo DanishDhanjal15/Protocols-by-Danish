@@ -1,0 +1,263 @@
+{
+  "tagline": "Tumhara home router broadband network mein login kaise karta hai.",
+  "description": "Kai fibre aur DSL providers router ko online aane se pehle login karwate hain. PPPoE Ethernet par ISP ka access concentrator dhoondta hai, phir uske andar PPP chalata hai jo link settings agree karta hai, tumhara username aur password check karta hai, aur tumhara public IP address aur DNS servers deta hai.",
+  "facts": [
+    ["Layer", "Data link (Layer 2)"],
+    ["EtherTypes", "0x8863 discovery, 0x8864 session"],
+    ["Login", "PPP ke andar CHAP ya PAP"],
+    ["Overhead", "8 bytes (MTU 1492)"],
+    ["Defined in", "RFC 2516 (PPPoE), RFC 1661 (PPP)"]
+  ],
+  "legend": [
+    "Discovery aur link setup",
+    "Login (CHAP)",
+    "Accepted",
+    "Tumhara internet traffic",
+    "Hang up karna",
+    "Errors"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Router dial in karta hai",
+      "summary": "Router ISP dhoondta hai, CHAP se login karta hai, public IP paata hai, traffic carry karta hai, phir hang up karta hai.",
+      "steps": [
+        {
+          "title": "ISP ke liye awaaz lagao",
+          "desc": "PADI broadcast, phir PADO offer",
+          "detail": "Router ko abhi ISP ka MAC address nahi pata, isliye woh WAN port par PADI broadcast karta hai. Jo bhi access concentrator ise sunta hai woh PADO se jawab de sakta hai. Router ka Host-Uniq tag bina badle wapas aata hai taaki use pata chale ki offer uski apni request ka jawab hai.",
+          "facts": [
+            ["PADI to", "ff:ff:ff:ff:ff:ff"],
+            ["EtherType", "0x8863 (Discovery)"],
+            ["Session ID", "0 (abhi nahi)"]
+          ],
+          "quiz": {
+            "q": "PADI broadcast address par jata hai. Kyun?",
+            "options": [
+              "Broadcasts tez hote hain",
+              "Router ko abhi koi ISP MAC address nahi pata",
+              "PPPoE mein unicast nahi hota",
+              "Seedha RADIUS server tak pahunchne ke liye"
+            ],
+            "why": "DHCP ki tarah, pehla message broadcast hota hai kyunki router ko pata nahi kaun jawab dega. Replies unicast hote hain."
+          }
+        },
+        {
+          "title": "Ek offer chuno",
+          "desc": "PADR request, PADS session ID deta hai",
+          "detail": "Router pehla offer chunta hai aur unicast PADR bhejta hai, jisme AC-Cookie echo karke sabit karta hai ki usne sach mein PADO dekha tha. Concentrator PADS se jawab deta hai jisme session ID hota hai, yahan 0x1a2b. Ab se har frame EtherType 0x8864 aur isi ID ka use karta hai.",
+          "facts": [
+            ["Chosen AC", "bras-01.isp.example"],
+            ["Session ID", "0x1a2b"],
+            ["Discovery mein laga", "4 frames, lagbhag 7 ms"]
+          ],
+          "quiz": {
+            "q": "PADR khud kaunsa Session ID carry karta hai?",
+            "options": [
+              "0",
+              "0x1a2b",
+              "Host-Uniq value",
+              "0xffff"
+            ],
+            "why": "Session ID sirf PADS reply se banta hai, isliye usse pehle ke har discovery message mein 0 hota hai."
+          }
+        },
+        {
+          "title": "Link settings agree karo",
+          "desc": "LCP Configure-Request aur Ack, dono taraf",
+          "detail": "Ab session ke andar PPP shuru hota hai. Har side apne chahiye options ke saath LCP Configure-Request bhejti hai, aur dusri side unhe acknowledge karti hai. ISP 1492-byte MRU maangta hai aur kehta hai ki login CHAP with MD5 se hoga. Har side looped lines pakadne ke liye ek random magic number bhi chunti hai.",
+          "facts": [
+            ["PPP protocol", "0xc021 (LCP)"],
+            ["MRU", "1492 bytes"],
+            ["Login method", "CHAP (MD5)"]
+          ],
+          "quiz": {
+            "q": "MRU 1500 ki jagah 1492 kyun hai?",
+            "options": [
+              "ISP bandwidth bacha raha hai",
+              "PPPoE aur PPP headers 1500-byte Ethernet frame ke 8 bytes le lete hain",
+              "1492 ek CHAP rule hai",
+              "Fibre 1500 bytes carry nahi kar sakti"
+            ],
+            "why": "PPPoE header ke 6 bytes aur PPP protocol field ke 2 bytes 1500-byte Ethernet payload ke andar baithte hain, aur IP ke liye 1492 bachte hain."
+          }
+        },
+        {
+          "title": "Sabit karo tum kaun ho",
+          "desc": "CHAP challenge, response, success",
+          "detail": "Concentrator 16 random bytes bhejta hai. Router identifier, apna broadband password aur challenge ko MD5 se hash karta hai, aur sirf hash aur username bhejta hai. Concentrator RADIUS server se puchta hai, jo stored password ke saath wahi hisaab karta hai. Dono match karte hain, isliye jawab Success hota hai.",
+          "facts": [
+            ["PPP protocol", "0xc223 (CHAP)"],
+            ["Password bheja?", "Nahi, sirf MD5 hash"],
+            ["Checked by", "RADIUS server"]
+          ],
+          "quiz": {
+            "q": "Koi CHAP Response capture kar leta hai. Kya woh use replay karke baad mein login kar sakta hai?",
+            "options": [
+              "Haan, yahi password hai",
+              "Nahi, agla login naye random challenge ka use karta hai",
+              "Sirf usi din",
+              "Haan, agar woh MAC spoof kare"
+            ],
+            "why": "Hash challenge par depend karta hai, jo har baar fresh hota hai. Purana response naye challenge se match nahi karega."
+          }
+        },
+        {
+          "title": "IP address lo",
+          "desc": "IPCP public IP aur DNS deta hai",
+          "detail": "Yahan DHCP nahi hai. Router IPCP se address 0.0.0.0 aur DNS 0.0.0.0 maangta hai, jiska matlab hai “please batao”. Concentrator Configure-Nak se jawab deta hai jo 198.51.100.7 aur DNS servers 192.0.2.53 aur 192.0.2.54 bhar deta hai. Router un values ke saath phir maangta hai aur Ack paata hai.",
+          "facts": [
+            ["Public IP", "198.51.100.7"],
+            ["DNS", "192.0.2.53, 192.0.2.54"],
+            ["ISP side", "198.51.100.1"]
+          ],
+          "quiz": {
+            "q": "Router IP 0.0.0.0 maangta hai. Concentrator kya wapas bhejta hai?",
+            "options": [
+              "0.0.0.0 ke saath Configure-Ack",
+              "198.51.100.7 suggest karta Configure-Nak",
+              "Configure-Reject",
+              "DHCP Offer"
+            ],
+            "why": "Nak ka matlab hai “woh value nahi, yeh use karo”. Router phir suggested address ke saath apni request dohrata hai."
+          }
+        },
+        {
+          "title": "Asli traffic carry karo",
+          "desc": "PPPoE ke andar PPP ke andar IP packets",
+          "detail": "Laptop web connection kholta hai. Router laptop ke private address ko 198.51.100.7 se badalta hai aur packet ko PPP header (protocol 0x0021) aur PPPoE session header mein lapet deta hai. Woh TCP MSS ko bhi ghata kar 1452 kar deta hai taaki full-size segments 1492 bytes mein fit ho jayein.",
+          "facts": [
+            ["Stack", "Ethernet → PPPoE → PPP → IPv4 → TCP"],
+            ["Extra bytes", "Har packet par 8"],
+            ["TCP MSS", "1452 (clamped)"]
+          ],
+          "quiz": {
+            "q": "MTU 1492 hai. Sabse bada TCP payload (MSS) kitna fit hota hai?",
+            "options": [
+              "1460",
+              "1452",
+              "1492",
+              "1500"
+            ],
+            "why": "1492 minus IP header ke 20 bytes minus TCP header ke 20 bytes se 1452 bachta hai."
+          }
+        },
+        {
+          "title": "Hang up",
+          "desc": "LCP Terminate, phir PADT",
+          "detail": "Router reboot hota hai ya user disconnect karta hai to PPP tameez se LCP Terminate-Request aur Terminate-Ack se band hota hai. Phir router PPPoE session ko khatam karne ke liye PADT bhejta hai, taaki ISP session ID aur public IP free kar sake.",
+          "facts": [
+            ["PPP close", "Terminate-Request / Ack"],
+            ["PPPoE close", "PADT (code 0xa7)"],
+            ["Freed", "Session 0x1a2b, IP 198.51.100.7"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Login, use, logout",
+        "text": "PPPoE ne chaar discovery frames mein ISP dhoondha, phir PPP ne LCP se link set kiya, CHAP se password check kiya aur IPCP se address diya. Uske baad har packet 8 extra bytes carry karta hai, isliye PPPoE links 1492-byte MTU use karte hain.",
+        "facts": [
+          ["Discovery", "PADI → PADO → PADR → PADS"],
+          ["PPP phases", "LCP → CHAP → IPCP"],
+          ["Public IP", "198.51.100.7"],
+          ["MTU", "1492"]
+        ]
+      }
+    },
+    "chap-fail": {
+      "name": "Galat broadband password",
+      "summary": "Router ISP ko theek se dhoondta hai, lekin uska CHAP response match nahi karta aur session tod diya jata hai.",
+      "steps": [
+        {
+          "title": "Session up ho jata hai",
+          "desc": "Discovery aur LCP normal kaam karte hain",
+          "detail": "Discovery aur LCP koi password check nahi karte, isliye shuru mein sab normal dikhta hai. Router ko session ID milti hai aur woh link options agree karta hai, jisme login method CHAP hai.",
+          "facts": [
+            ["Discovery", "OK"],
+            ["Session ID", "0x1a2b"],
+            ["LCP", "Agreed"]
+          ]
+        },
+        {
+          "title": "Challenge ka jawab do",
+          "desc": "Hash galat password se bana hai",
+          "detail": "Kisi ne router ki settings mein password typo ke saath daala. Router phir bhi use challenge ke saath hash karta hai aur result bhejta hai. Packet mein kuch galat nahi dikhta, kyunki password khud kabhi nahi bheja jata.",
+          "facts": [
+            ["Username", "danish@isp.example"],
+            ["Password", "Galat (typo)"],
+            ["Hash", "Match nahi karta"]
+          ],
+          "quiz": {
+            "q": "ISP ko kaise pata chalta hai ki password galat hai?",
+            "options": [
+              "Woh response se password decrypt kar leta hai",
+              "Woh expected hash compute karke compare karta hai",
+              "Router bata deta hai",
+              "LCP report karta hai"
+            ],
+            "why": "RADIUS wahi identifier, challenge aur stored password par MD5 compute karta hai. Alag result ka matlab alag password."
+          }
+        },
+        {
+          "title": "Rejected",
+          "desc": "CHAP Failure, phir session band",
+          "detail": "Concentrator CHAP Failure bhejta hai, LCP Terminate-Request se PPP band karta hai, aur PADT se PPPoE session khatam karta hai. Router authentication error dikhata hai (aksar “PPP authentication failed”) aur thodi der baad retry karta hai. Baar-baar fail hone par line kuch der ke liye block ho sakti hai.",
+          "facts": [
+            ["CHAP code", "4 (Failure)"],
+            ["Then", "LCP Terminate + PADT"],
+            ["Router dikhata hai", "Authentication failed"]
+          ],
+          "quiz": {
+            "q": "Is baar PADT kaun bhejta hai?",
+            "options": [
+              "Router",
+              "ISP ka concentrator",
+              "RADIUS server",
+              "Koi nahi, time out hota hai"
+            ],
+            "why": "ISP ne tay kiya ki login fail hua, isliye woh apna banaya session khatam karta hai. Koi bhi side PADT bhej sakti hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Password theek hone tak internet nahi",
+        "text": "Discovery aur LCP bina password ke succeed hote hain, isliye galat password sirf CHAP step par dikhta hai. ISP Failure se jawab deta hai aur sab kuch tod deta hai. CHAP password kabhi nahi bhejta, isliye fix hamesha router par hota hai: ISP se mile exact username aur password dobara daalo.",
+        "facts": [
+          ["Failed at", "CHAP Response"],
+          ["Error", "CHAP Failure (code 4)"],
+          ["Fix", "Router par credentials dobara daalo"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Discovery codes (0x8863)",
+      "items": [
+        ["PADI 0x09", "Router broadcast karta hai: mujhe kaun serve karega?"],
+        ["PADO 0x07", "Concentrator offer karta hai"],
+        ["PADR 0x19", "Router ek chunta hai"],
+        ["PADS 0x65", "Session ID confirmed"],
+        ["PADT 0xa7", "Session khatam (koi bhi side)"]
+      ]
+    },
+    {
+      "title": "PPP protocols (0x8864)",
+      "items": [
+        ["0xc021 LCP", "Link options: MRU, auth method, magic number"],
+        ["0xc223 CHAP", "Challenge/response login"],
+        ["0xc023 PAP", "Plain-text login (bachna)"],
+        ["0x8021 IPCP", "IP address aur DNS"],
+        ["0x0021", "Ek IPv4 packet"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["PPPoE + PPP overhead", "8 bytes"],
+        ["MTU / MRU", "1492"],
+        ["TCP MSS", "1452"],
+        ["Common tags", "Service-Name 0x0101, AC-Name 0x0102, Host-Uniq 0x0103, AC-Cookie 0x0104"]
+      ]
+    }
+  ]
+}

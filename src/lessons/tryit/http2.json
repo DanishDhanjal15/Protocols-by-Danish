@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Confirm a site speaks HTTP/2", "hinglish": "Confirm karo ki site HTTP/2 bolti hai" },
+      "why": { "en": "curl asks for h2 through ALPN and prints which protocol version was used.", "hinglish": "curl ALPN se h2 maangta hai aur print karta hai ki kaun sa protocol version use hua." },
+      "windows": "curl.exe -sI --http2 -o NUL -w \"%{http_version}\\n\" https://www.google.com/",
+      "unix": "curl -sI --http2 -o /dev/null -w '%{http_version}\\n' https://www.google.com/",
+      "expect": { "en": "Prints 2 when HTTP/2 was negotiated (or 3 if your curl prefers HTTP/3). It depends on the server and your curl build.", "hinglish": "HTTP/2 negotiate hone par 2 print hota hai (ya 3 agar tumhara curl HTTP/3 prefer kare). Yeh server aur tumhare curl build par depend karta hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "See the h2 negotiation in detail", "hinglish": "h2 negotiation detail mein dekho" },
+      "why": { "en": "Verbose output shows the ALPN result and the HTTP/2 streams curl opens.", "hinglish": "Verbose output ALPN ka result aur curl dwara kholi gayi HTTP/2 streams dikhata hai." },
+      "windows": "curl.exe -v --http2 https://example.com/ -o NUL",
+      "unix": "curl -v --http2 https://example.com/ -o /dev/null",
+      "expect": { "en": "A line like “ALPN: server accepted h2” and “using HTTP/2”, then a request on Stream ID 1 with :method and :path pseudo-headers. Exact text varies by curl version.", "hinglish": "“ALPN: server accepted h2” aur “using HTTP/2” jaisi line, phir Stream ID 1 par :method aur :path pseudo-headers wali request. Exact text curl version ke hisaab se badalta hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "List the HTTP/2 frames in the capture", "hinglish": "Capture mein HTTP/2 frames list karo" },
+      "why": { "en": "The lesson capture is decrypted, so Wireshark shows every frame with its stream number.", "hinglish": "Lesson capture decrypted hai, isliye Wireshark har frame ko uske stream number ke saath dikhata hai." },
+      "wireshark": "http2",
+      "expect": { "en": "SETTINGS, WINDOW_UPDATE, HEADERS and DATA frames. Look for stream IDs 1, 3 and 5 in the main scenario.", "hinglish": "SETTINGS, WINDOW_UPDATE, HEADERS aur DATA frames. Main scenario mein stream IDs 1, 3 aur 5 dekho." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Follow one stream", "hinglish": "Ek stream follow karo" },
+      "why": { "en": "Filtering on a stream number isolates a single request and its response from the others.", "hinglish": "Stream number par filter karne se ek request aur uska response baaki se alag ho jaata hai." },
+      "wireshark": "http2.streamid == 3",
+      "expect": { "en": "Only the frames of stream 3: the HEADERS for /style.css and its response. Frames of other streams are hidden.", "hinglish": "Sirf stream 3 ke frames: /style.css ka HEADERS aur uska response. Doosri streams ke frames chhup jaate hain." },
+      "step": 7
+    }
+  ]
+}

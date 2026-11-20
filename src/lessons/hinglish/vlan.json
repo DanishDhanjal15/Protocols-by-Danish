@@ -1,0 +1,233 @@
+{
+  "tagline": "Ek switch, kai alag networks, ek 4-byte tag.",
+  "description": "VLAN ek physical switch ko kai alag networks mein baant deta hai. Ports ko ek VLAN number diya jata hai, aur frames khud kabhi ek VLAN se dusre mein nahi jate. Jo links kai VLANs carry karte hain woh har frame mein 4-byte 802.1Q tag jodte hain, aur router rules allow karein to VLANs ke beech traffic move karta hai.",
+  "facts": [
+    ["Layer", "Data link (Layer 2)"],
+    ["Tag size", "4 bytes (TPID 0x8100 + TCI)"],
+    ["VLAN IDs", "1–4094 (12 bits)"],
+    ["Priority", "3 bits (PCP, 802.1p)"],
+    ["Port types", "Access (untagged), trunk (tagged)"],
+    ["Defined in", "IEEE 802.1Q"]
+  ],
+  "legend": [
+    "Office traffic (VLAN 10)",
+    "Guest traffic (VLAN 20)",
+    "Broadcasts aur lookups",
+    "Replies",
+    "Blocked ya errors"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Do VLANs aur router on a stick",
+      "summary": "Office aur guest devices ek hi switch share karte hain lekin alag rehte hain; router office traffic ko guest VLAN tak le jata hai.",
+      "steps": [
+        {
+          "title": "Same VLAN, no tag",
+          "desc": "Access ports plain Ethernet frames bhejte hain",
+          "detail": "Ports 1 aur 2 VLAN 10 ke access ports hain. Office PC file server ko ek normal frame bhejta hai, bina kisi tag ke. Switch yaad rakhta hai ki frame VLAN 10 port par aaya, isliye woh use sirf dusre VLAN 10 ports ya trunk ko hi forward karega.",
+          "facts": [
+            ["Port 1", "Access, VLAN 10"],
+            ["Cable par tag", "Koi nahi"],
+            ["Pahunch sakta hai", "VLAN 10 ports + trunk"]
+          ],
+          "quiz": {
+            "q": "File server ka MAC switch ko pata nahi hai. Yeh frame kahan flood hota hai?",
+            "options": [
+              "Switch ke har port par",
+              "Sirf VLAN 10 ports aur trunk par",
+              "Sirf router wale trunk par",
+              "Kahin nahi, drop ho jata hai"
+            ],
+            "why": "Har VLAN apna broadcast domain hai. Flooding VLAN 10 ke andar hi rehti hai, isliye guest ports 3 aur 4 ise kabhi nahi dekhte."
+          }
+        },
+        {
+          "title": "Broadcast VLAN 20 mein hi rehta hai",
+          "desc": "Guest phone apna gateway dhoondta hai",
+          "detail": "Guest phone ARP se puchta hai ki 192.168.20.1 kiske paas hai. Switch yeh broadcast lobby screen aur trunk par flood karta hai, lekin office ports par nahi. Trunk par frame ko ek tag milta hai jo kehta hai VLAN 20, taaki router jaan sake ki yeh kaunse network se aaya.",
+          "facts": [
+            ["Flooded to", "Port 4 aur trunk 24"],
+            ["Office ports", "Kabhi nahi dekhte"],
+            ["Trunk par tag", "0x8100, VLAN 20"]
+          ]
+        },
+        {
+          "title": "Trunk par upar, tag 10 ke saath",
+          "desc": "Office PC ko lobby screen chahiye",
+          "detail": "Office PC ko 192.168.20.40 par lobby screen chahiye. Woh alag subnet hai, isliye PC frame ko apne gateway ke MAC par bhejta hai. Switch use trunk se bahar forward karta hai aur source MAC aur type ke beech 4-byte tag daal deta hai: 0x8100, phir VLAN 10.",
+          "facts": [
+            ["Destination MAC", "00:1e:bd:4a:7c:01 (gateway)"],
+            ["Trunk tag", "VLAN 10"],
+            ["IP destination", "192.168.20.40"]
+          ],
+          "quiz": {
+            "q": "Is frame ke liye trunk wala tag kaunsa VLAN ID carry karta hai?",
+            "options": [
+              "10, jis VLAN se aaya",
+              "20, jis VLAN mein ja raha hai",
+              "1, default VLAN",
+              "Koi tag nahi, trunks untagged hote hain"
+            ],
+            "why": "Switch sirf itna jaanta hai ki frame kahan se aaya. Woh use incoming port ke VLAN ka tag lagata hai. Use VLAN 20 mein le jana router ka kaam hai."
+          }
+        },
+        {
+          "title": "Router on a stick",
+          "desc": "VLAN 10 par andar, VLAN 20 par bahar, same cable",
+          "detail": "Router ka ek physical port do sub-interfaces mein bata hai: ek VLAN 10 (192.168.10.1) ke liye aur ek VLAN 20 (192.168.20.1) ke liye. Woh tag padhta hai, packet ko kisi bhi router ki tarah route karta hai (naye MACs, TTL 64 se 63) aur use usi cable par VLAN 20 tag ke saath wapas bhej deta hai.",
+          "facts": [
+            ["In on", "Gi0/0.10, tag 10"],
+            ["Out on", "Gi0/0.20, tag 20"],
+            ["TTL", "64 → 63"]
+          ],
+          "quiz": {
+            "q": "Router jab packet ko VLAN 10 se VLAN 20 mein le jata hai to usme kya badalta hai?",
+            "options": [
+              "Sirf IP addresses",
+              "VLAN tag, dono MACs aur TTL",
+              "Kuch bhi nahi",
+              "Sirf TCP port"
+            ],
+            "why": "Routing Ethernet header badalti hai (naya source aur destination MAC), TTL ghatati hai, aur naya sub-interface apna tag lagata hai. IP addresses wahi rehte hain."
+          }
+        },
+        {
+          "title": "Tag hata, deliver ho gaya",
+          "desc": "Access ports tag kabhi nahi dikhate",
+          "detail": "Switch VLAN 20 aur ek destination MAC dekhta hai jo usne port 4 par seekha tha. Woh tag hata deta hai aur lobby screen ko plain frame bhejta hai. Screen ko pata hi nahi ki VLANs hote hain; use bas router ke MAC se ek frame dikhta hai.",
+          "facts": [
+            ["Out of", "Port 4 (access, VLAN 20)"],
+            ["Tag", "Hata diya"],
+            ["Screen ko dikhta hai", "Normal Ethernet"]
+          ]
+        },
+        {
+          "title": "Reply wapas aata hai",
+          "desc": "Wahi safar ulta: 20 upar, 10 neeche",
+          "detail": "Screen apne gateway ko SYN-ACK se jawab deti hai. Trunk par woh tag 20 ke saath upar jata hai, router use route karta hai, aur woh tag 10 ke saath neeche aata hai. Switch tag hata deta hai aur port 1 par office PC ko de deta hai.",
+          "facts": [
+            ["Trunk par upar", "Tag 20"],
+            ["Trunk par neeche", "Tag 10"],
+            ["Trunk crossings", "Har direction mein 2"]
+          ],
+          "quiz": {
+            "q": "Har inter-VLAN packet trunk ko do baar cross karta hai. Isse kya pata chalta hai?",
+            "options": [
+              "Kuch nahi, yeh free hai",
+              "Trunk par double traffic hota hai, to woh bottleneck ban sakta hai",
+              "Packet screen ko do baar bheja jata hai",
+              "VLAN tags packet size double kar dete hain"
+            ],
+            "why": "Router on a stick sasta aur simple hai, lekin VLANs ke beech traffic trunk ko dono taraf use karta hai. Bade networks Layer 3 switch use karte hain jo andar hi route karta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Ek switch par alag networks",
+        "text": "Access ports har device ko ek VLAN mein daal dete hain, device ko pata bhi nahi chalta. Trunk dono VLANs ko 4-byte 802.1Q tag ke saath router tak le jata hai, aur router tag, MACs aur TTL badal kar packets ko unke beech move karta hai.",
+        "facts": [
+          ["Access port", "Untagged, ek VLAN"],
+          ["Trunk", "Tagged, kai VLANs"],
+          ["VLANs ke beech", "Router chahiye"],
+          ["Tag", "0x8100 + 12-bit VLAN ID"]
+        ]
+      }
+    },
+    "acl-block": {
+      "name": "Guest office server try karta hai",
+      "summary": "Guest phone office file share kholne ki koshish karta hai; router ki access list use drop kar deti hai aur wajah batati hai.",
+      "steps": [
+        {
+          "title": "Guest 445 par dastak deta hai",
+          "desc": "Guest phone office file share try karta hai",
+          "detail": "Guest Wi-Fi par koi office file server ko port 445 par kholne ki koshish karta hai. Phone VLAN 20 mein hai aur server VLAN 10 mein, isliye switch use seedha deliver nahi kar sakta. Woh kisi bhi dusre subnet ke packet ki tarah tag 20 ke saath trunk par upar jata hai.",
+          "facts": [
+            ["From", "192.168.20.33 (VLAN 20)"],
+            ["To", "192.168.10.50:445 (VLAN 10)"],
+            ["Trunk tag", "VLAN 20"]
+          ],
+          "quiz": {
+            "q": "Kya switch is frame ko seedha port 2 par bhej sakta hai, jahan server hai?",
+            "options": [
+              "Haan, use server ka MAC pata hai",
+              "Nahi, frame VLAN 20 mein hai aur port 2 VLAN 10 mein",
+              "Haan, agar phone server ka MAC use kare",
+              "Sirf agar frame broadcast ho"
+            ],
+            "why": "Switch kabhi frame ko VLANs ke beech move nahi karta. Sahi MAC hone par bhi VLAN 20 ka frame VLAN 10 port se bahar nahi ja sakta. Sirf router unhe jod sakta hai, aur woh pehle rules check kar sakta hai."
+          }
+        },
+        {
+          "title": "ACL kehti hai nahi",
+          "desc": "Guest VLAN office VLAN tak nahi pahunch sakta",
+          "detail": "VLAN 20 sub-interface par ek access control list hai: 192.168.20.0/24 se 192.168.10.0/24 tak sab kuch deny, baaki sab permit. Packet deny line se match karta hai, isliye router use tag 10 ke saath neeche bhejne ke bajaye phenk deta hai.",
+          "facts": [
+            ["ACL line", "deny 192.168.20.0/24 → 192.168.10.0/24"],
+            ["Then", "permit any (internet)"],
+            ["Result", "Dropped"]
+          ]
+        },
+        {
+          "title": "Administratively prohibited",
+          "desc": "ICMP type 3, code 13",
+          "detail": "Kai routers phir ek ICMP error wapas bhejte hain: Destination Unreachable, code 13, jiska matlab hai kisi rule ne ise block kiya. Woh blocked packet ka shuruaati hissa quote karta hai taaki phone ise sahi connection se match kar sake. App timeout ka intezaar karne ke bajaye turant fail ho jata hai.",
+          "facts": [
+            ["ICMP", "Type 3, code 13"],
+            ["Sent from", "192.168.20.1 (gateway)"],
+            ["Quotes", "IP header + TCP ke 8 bytes"]
+          ],
+          "quiz": {
+            "q": "Agar router packet ko chupchap drop kar deta, to phone ko kya dikhta?",
+            "options": [
+              "Wahi error, bas der se",
+              "Kuch nahi: woh SYN retry karta hai aur aakhir mein time out hota hai",
+              "Server se TCP RST",
+              "Ek ARP reply"
+            ],
+            "why": "Koi jawab na aane par TCP SYN ko badhte gaps ke saath kuch baar resend karta hai aur phir haar maan leta hai. Kuch admins ise pasand karte hain kyunki isse attacker ko kam jaankari milti hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "VLANs alag karte hain, router faisla karta hai",
+        "text": "VLANs switch par guest aur office frames ko alag rakhte hain, lekin unke beech jo kuch route hota hai woh router ke rules jitna hi safe hai. Yahan access list ne guest-to-office traffic block kiya aur ICMP code 13 message ne phone ko wajah batayi.",
+        "facts": [
+          ["Separation", "Layer 2 par VLANs"],
+          ["Policy", "Router par ACL"],
+          ["Error", "ICMP type 3 code 13"],
+          ["Silent drop", "Uski jagah timeout"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "802.1Q tag",
+      "items": [
+        ["TPID", "0x8100 (2 bytes, jahan EtherType hota tha wahan baithta hai)"],
+        ["PCP", "3 bits priority (0–7)"],
+        ["DEI", "1 bit: busy hone par pehle drop ho sakta hai"],
+        ["VLAN ID", "12 bits: 1–4094 usable"],
+        ["Then", "Original EtherType"]
+      ]
+    },
+    {
+      "title": "Port types",
+      "items": [
+        ["Access", "Ek VLAN, frames untagged"],
+        ["Trunk", "Kai VLANs, frames tagged"],
+        ["Native VLAN", "Woh ek VLAN jo trunk untagged bhejta hai"],
+        ["Sub-interface", "Har VLAN ke liye router port, jaise Gi0/0.10"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["VLAN 0 / 4095", "Reserved"],
+        ["VLAN 1", "Zyadatar switches par default"],
+        ["Max tagged frame", "1518 bytes (+4 FCS = 1522)"],
+        ["ICMP 3/13", "Communication administratively prohibited"]
+      ]
+    }
+  ]
+}

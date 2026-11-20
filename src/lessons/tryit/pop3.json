@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Check the secure POP3 port", "hinglish": "Secure POP3 port check karo" },
+      "why": { "en": "POP3S on port 995 starts TLS immediately. This only opens a TCP connection to a public mail server and logs in to nothing.", "hinglish": "Port 995 par POP3S turant TLS shuru karta hai. Ye sirf public mail server se TCP connection kholta hai, kahin login nahi karta." },
+      "windows": "Test-NetConnection pop.gmail.com -Port 995",
+      "unix": "nc -vz pop.gmail.com 995",
+      "expect": { "en": "TcpTestSucceeded : True (or 'succeeded'). Results vary by network.", "hinglish": "TcpTestSucceeded : True (ya 'succeeded'). Result network ke hisaab se badal sakta hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "See the server certificate on POP3S", "hinglish": "POP3S par server certificate dekho" },
+      "why": { "en": "Port 995 starts with TLS, so the server shows its certificate first. This only reads the certificate and sends no mail commands.", "hinglish": "Port 995 TLS se shuru hota hai, isliye server pehle apna certificate dikhata hai. Ye sirf certificate padhta hai, koi mail command nahi bhejta." },
+      "unix": "openssl s_client -connect pop.gmail.com:995 -brief < /dev/null",
+      "expect": { "en": "Lines such as the TLS version (TLSv1.3), the cipher, and a certificate subject for the server. Exact values vary.", "hinglish": "TLS version (TLSv1.3), cipher aur server ke certificate subject jaisi lines. Exact values badalti hain." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find the clear-text password in the capture", "hinglish": "Capture mein clear-text password dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and filter POP3 commands. In the port 110 scenarios the password is readable.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur POP3 commands filter karo. Port 110 wale scenarios mein password padha ja sakta hai." },
+      "wireshark": "pop.request.command == \"PASS\"",
+      "expect": { "en": "The PASS packet whose bytes include the password as plain text. In the POP3S scenario you only see TLS records instead.", "hinglish": "PASS packet jiske bytes mein password plain text mein hai. POP3S scenario mein uski jagah sirf TLS records dikhte hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Show only POP3 replies", "hinglish": "Sirf POP3 replies dikhao" },
+      "why": { "en": "Every POP3 reply is +OK or -ERR. Filtering on them shows the whole flow quickly.", "hinglish": "Har POP3 reply +OK ya -ERR hota hai. Inpar filter karne se poora flow jaldi dikhta hai." },
+      "wireshark": "pop.response.indicator == \"-ERR\"",
+      "expect": { "en": "In the bad-password scenario you will see the -ERR [AUTH] reply. Change it to \"+OK\" to see the successful ones.", "hinglish": "bad-password scenario mein -ERR [AUTH] reply dikhega. Successful wale dekhne ke liye ise \"+OK\" kar do." },
+      "step": 1
+    }
+  ]
+}

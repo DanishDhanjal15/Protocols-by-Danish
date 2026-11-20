@@ -1,0 +1,278 @@
+{
+  "tagline": "\"Sign in with…\": app ko password diye bina andar aane do.",
+  "description": "OAuth 2.0 ek app ko doosre service par aapke account ka limited access deta hai, bina kabhi aapka password dekhe. OpenID Connect ek ID token jodta hai, ek signed JWT jo app ko batata hai ki aap kaun ho. PKCE ke saath authorization code flow websites aur mobile apps ke liye safe default hai.",
+  "facts": [
+    ["Layer", "Application (7), HTTPS par"],
+    ["Main flow", "Authorization code + PKCE"],
+    ["Tokens", "Access, refresh, ID (JWT)"],
+    ["Front channel", "Browser redirects"],
+    ["Back channel", "App → /token seedha"],
+    ["Defined in", "RFC 6749, RFC 7636, OIDC Core"]
+  ],
+  "legend": [
+    "Browser requests",
+    "Server replies aur redirects",
+    "Tokens (back channel)",
+    "API calls",
+    "Errors aur attacks"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "example-idp se sign in karo",
+      "summary": "Danish apne example-idp account se ek photo app mein sign in karta hai; app ko tokens milte hain, uska password kabhi nahi.",
+      "steps": [
+        {
+          "title": "'Sign in' par click karo",
+          "desc": "App browser ko identity provider par redirect karti hai",
+          "detail": "App ek secret random string banati hai, code_verifier, aur use apne paas rakhti hai. Wo redirect URL mein sirf uska SHA-256 hash, code_challenge, bhejti hai. URL mein state (forged callbacks rokta hai) aur nonce (ID token ko is login se jodta hai) bhi hote hain. Yahan sab traffic HTTPS hai; packets encrypted records dikhate hain, aur text andar ke HTTP ko describe karta hai.",
+          "facts": [
+            ["Response", "302 Found"],
+            ["code_challenge", "E9Melhoa2Owv… (S256)"],
+            ["Kept secret", "code_verifier (app ke andar)"]
+          ],
+          "quiz": {
+            "q": "Redirect verifier khud ki jagah verifier ka hash kyun le jaata hai?",
+            "options": [
+              "Hashes chhote hote hain",
+              "URL browser aur logs se guzarta hai; verifier sirf app ko pata hona chahiye",
+              "Identity provider lambi strings nahi padh sakta",
+              "Client ID chhupane ke liye"
+            ],
+            "why": "Redirect URL mein jo bhi hai wo leak ho sakta hai. Hash akela bekaar hai; baad mein app original verifier dikhakar prove karti hai ki usne hi ye login shuru kiya tha."
+          }
+        },
+        {
+          "title": "Authorize request",
+          "desc": "Browser identity provider se poochta hai",
+          "detail": "Browser redirect follow karke accounts.example-idp.com/authorize par jaata hai. Provider check karta hai ki client_id registered hai aur redirect_uri file par maujood ek se bilkul match karta hai, phir apna sign-in page dikhata hai. Photo app ye page kabhi nahi dekhti.",
+          "facts": [
+            ["response_type", "code"],
+            ["scope", "openid email profile photos.read"],
+            ["redirect_uri", "Bilkul match karna chahiye"]
+          ]
+        },
+        {
+          "title": "Provider par login karo",
+          "desc": "Password sirf example-idp ko jaata hai",
+          "detail": "Danish apna email aur password identity provider ke page par type karta hai. Password provider ke paas jaata hai aur kahin nahi. Provider second factor bhi maang sakta hai. Phir wo ek consent screen dikhata hai jisme app kya chahti hai wo list hota hai.",
+          "facts": [
+            ["Password sent to", "Sirf identity provider ko"],
+            ["2FA", "Provider handle karta hai"],
+            ["Next", "Consent screen"]
+          ]
+        },
+        {
+          "title": "Consent, phir code",
+          "desc": "One-time authorization code ke saath wapas redirect",
+          "detail": "Danish Allow par click karta hai. Provider browser ko app ke callback par code=SplxlOBeZQQYbYS6WxSbIA aur wahi state ke saath redirect karta hai. Code short-lived (aksar 60 s) aur single-use hota hai. App check karti hai ki state wahi hai jo usne oauth_tx cookie mein store kiya tha.",
+          "facts": [
+            ["Code", "SplxlOBeZQ…, single use"],
+            ["Lifetime", "Lagbhag 1 minute"],
+            ["state", "App check karti hai"]
+          ],
+          "quiz": {
+            "q": "Code browser aur uske address bar se guzra. Use dekhne wale ko isse use karne se kya rokta hai?",
+            "options": [
+              "Kuch nahi; codes public hote hain",
+              "Ise exchange karne ke liye code_verifier chahiye (aur yahan client secret bhi)",
+              "Codes sirf Sunday ko chalte hain",
+              "state parameter"
+            ],
+            "why": "/token endpoint code ke badle tokens tabhi deta hai jab caller wo verifier dikhaye jiska hash shuru mein bheja gaya tha. Confidential apps apne secret se bhi authenticate karti hain."
+          }
+        },
+        {
+          "title": "Back-channel token swap",
+          "desc": "App code aur verifier ke badle tokens leti hai",
+          "detail": "Ab app ka server seedha provider ke /token endpoint se baat karta hai; browser involve nahi hai. Wo code, redirect_uri, code_verifier aur apne client credentials bhejta hai. Provider verifier ko hash karta hai, stored challenge se compare karta hai, aur access token, refresh token aur ID token lautata hai.",
+          "facts": [
+            ["Sends", "code + code_verifier + client auth"],
+            ["Gets", "access, refresh aur ID tokens"],
+            ["Access token life", "3600 s"]
+          ]
+        },
+        {
+          "title": "ID token padho",
+          "desc": "Ek JWT jo batata hai kaun login hua",
+          "detail": "ID token teen base64url parts hai jo dots se jude hain: header, payload, signature. Header decode hokar {\"alg\":\"RS256\",\"kid\":\"2026-11-a\",\"typ\":\"JWT\"} banta hai. Payload decode hokar {\"iss\":\"https://accounts.example-idp.com\",\"sub\":\"248289761001\",\"aud\":\"photoapp-7f3a\",\"iat\":1795078800,\"exp\":1795082400,\"nonce\":\"n-0S6_WzA2Mj\",\"email\":\"danish@example.com\",\"email_verified\":true,\"name\":\"Danish\"} banta hai. App provider ki public key (kid 2026-11-a) se RS256 signature check karti hai, phir iss, aud, exp aur nonce, aur apna session shuru karti hai.",
+          "facts": [
+            ["sub", "248289761001 (stable user ID)"],
+            ["aud", "photoapp-7f3a"],
+            ["Checked", "Signature, iss, aud, exp, nonce"]
+          ],
+          "quiz": {
+            "q": "ID token ka payload sirf base64url-encoded hai, encrypted nahi. Ye theek kyun hai?",
+            "options": [
+              "Base64 koi decode nahi kar sakta",
+              "Ye HTTPS par jaata hai aur signature kisi ko ise badalne nahi deta",
+              "Payload khali hai",
+              "Browser use delete kar deta hai"
+            ],
+            "why": "Base64url sirf encoding hai. Secrecy back channel par TLS se aati hai; integrity RS256 signature se, jo ek character badalne par fail ho jaata hai."
+          }
+        },
+        {
+          "title": "API call karo",
+          "desc": "Har request par bearer token",
+          "detail": "Danish ki photos dikhane ke liye app Photos API ko Authorization: Bearer at_dDqmuXhcmm7… ke saath call karti hai. API check karti hai ki token valid hai, expire nahi hua, aur photos.read scope shamil hai. Jis ke paas bearer token hai wo use use kar sakta hai, isliye ye sirf HTTPS par hi jaana chahiye.",
+          "facts": [
+            ["Header", "Authorization: Bearer …"],
+            ["Scope needed", "photos.read"],
+            ["Result", "200 OK, 2 photos"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Password share kiye bina sign in",
+        "text": "Browser ne app ka request provider tak pahunchaya aur one-time code wapas laya. App ne wo code, apne PKCE verifier ke saath, seedhe back channel par tokens se badla. ID token batata hai ki Danish kaun hai; access token app ko uski photos padhne deta hai aur usse zyaada kuch nahi.",
+        "facts": [
+          ["Password seen by app", "Kabhi nahi"],
+          ["Front channel", "Code ke saath redirects"],
+          ["Back channel", "Code + verifier → tokens"],
+          ["Proof of identity", "Signed ID token (JWT)"]
+        ]
+      }
+    },
+    "stolen-code": {
+      "name": "Churaya hua authorization code vs PKCE",
+      "summary": "Ek malicious browser extension callback URL se code copy karti hai aur use redeem karne ki race lagati hai.",
+      "steps": [
+        {
+          "title": "Code leak ho jaata hai",
+          "desc": "Malicious extension callback URL padhti hai",
+          "detail": "Danish ke paas ek kharab browser extension hai jo uske har visit kiye URL ko padh sakti hai. Jab provider callback par redirect karta hai, extension code copy karke apne owner ko bhej deti hai. Wahi leak ek mobile app se bhi ho sakta hai jo same redirect scheme register kare, ya logs se.",
+          "facts": [
+            ["Leaked", "Authorization code + state"],
+            ["Not leaked", "code_verifier (app se kabhi bahar nahi gaya)"],
+            ["Code valid for", "Lagbhag 60 s"]
+          ]
+        },
+        {
+          "title": "PKCE ke bina",
+          "desc": "Purane setup par kya hota",
+          "detail": "Agar app public client hoti (mobile ya single-page app ke paas secret nahi hota) aur PKCE use nahi hota, to akela code kaafi hota. Attacker use public client_id ke saath /token par post karta aur Danish ka access token le leta. Mobile apps par ye ek asli attack class thi.",
+          "facts": [
+            ["Attacker needs", "Sirf code"],
+            ["Gets", "Access + refresh tokens"],
+            ["Damage", "Granted scopes ka full access"]
+          ],
+          "quiz": {
+            "q": "PKCE hone par /token call karte waqt attacker ke paas kya nahi hota?",
+            "options": [
+              "client_id",
+              "code_verifier jiska hash pehle redirect mein tha",
+              "redirect_uri",
+              "HTTPS connection"
+            ],
+            "why": "Verifier app ke andar hi raha. Attacker ne sirf challenge (ek hash) dekha, aur SHA-256 ulta karke verifier nahi nikaal sakta."
+          }
+        },
+        {
+          "title": "PKCE ke saath: refused",
+          "desc": "invalid_grant: verifier missing",
+          "detail": "PKCE ke saath provider ne code issue karte waqt code_challenge store kiya tha. Attacker ke request mein code_verifier nahi hai, isliye check fail hota hai aur provider 400 invalid_grant se jawab deta hai. Kuch pal baad asli app code ko normal tarah redeem kar leti hai. Achhe providers tab bhi tokens revoke kar dete hain jab wahi code do baar use ho.",
+          "facts": [
+            ["Response", "400 invalid_grant"],
+            ["Reason", "Matching code_verifier nahi"],
+            ["Real app", "Succeeds"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Churaya hua code bekaar hai",
+        "text": "PKCE code ko usi app se bandhta hai jisne login shuru kiya: sirf original verifier ka holder ise redeem kar sakta hai. Isiliye OAuth 2.1 PKCE ko har client ke liye mandatory banata hai, sirf mobile apps ke liye nahi.",
+        "facts": [
+          ["Attack", "Authorization code interception"],
+          ["Defence", "PKCE (S256), exact redirect_uri, short code life"],
+          ["Standard", "RFC 7636, OAuth 2.1"]
+        ]
+      }
+    },
+    "refresh": {
+      "name": "Expired access token → refresh",
+      "summary": "Ek ghante baad access token expire ho gaya; app naya lene ke liye refresh token use karti hai.",
+      "steps": [
+        {
+          "title": "API se 401",
+          "desc": "Access token ek ghante se purana hai",
+          "detail": "Danish lunch ke baad wapas aata hai. App Photos API ko apne purane access token ke saath call karti hai, par token ka exp nikal chuka hai. API WWW-Authenticate header ke saath 401 reply karti hai jo kehta hai invalid_token: token expired.",
+          "facts": [
+            ["Token age", "> 3600 s"],
+            ["Response", "401 Unauthorized"],
+            ["Header", "WWW-Authenticate: Bearer error=\"invalid_token\""]
+          ],
+          "quiz": {
+            "q": "App ko ab kya karna chahiye?",
+            "options": [
+              "Danish ko turant poore login se dobara guzaro",
+              "Naya access token lene ke liye /token par refresh token use karo",
+              "Wahi token tab tak retry karo jab tak chal na jaye",
+              "Danish se uska example-idp password maango"
+            ],
+            "why": "Refresh token isi kaam ke liye hai. Wo bina redirect aur login page ke chupchaap naya access token deta hai."
+          }
+        },
+        {
+          "title": "Refresh token use karo",
+          "desc": "Back channel par grant_type=refresh_token",
+          "detail": "App apna refresh token aur client credentials /token par post karti hai. Provider check karta hai ki refresh token abhi valid hai aur revoke nahi hua, phir naya access token lautata hai. Wo refresh token ko rotate bhi karta hai: purana kaam karna band kar deta hai, isliye churai hui copy use hone par pakdi jaati hai.",
+          "facts": [
+            ["Grant", "refresh_token"],
+            ["New access token", "3600 s"],
+            ["Refresh token", "Rotated (purana dead)"]
+          ]
+        },
+        {
+          "title": "Retry succeed hota hai",
+          "desc": "Wahi call, naya token",
+          "detail": "App naye bearer token ke saath API call dohrati hai aur photos pa leti hai. Danish ko kuch pata nahi chala. Agar refresh token revoke ho chuka hota (jaise usne apne account settings mein app ka access hata diya), to app ko use dobara login flow se bhejna padta.",
+          "facts": [
+            ["Result", "200 OK"],
+            ["User saw", "Kuch nahi"],
+            ["If revoked", "Poora login dobara"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Short-lived tokens, chupchaap renew",
+        "text": "Access tokens short-lived rakhe jaate hain taaki leak hua token sirf thodi der ke kaam ka ho. Refresh token, jo app ke server se kabhi bahar nahi jaata, unhe parde ke peeche renew karta hai aur har use par rotate hota hai.",
+        "facts": [
+          ["Access token", "Minutes se ek ghanta"],
+          ["Refresh token", "Days se months, rotated"],
+          ["Expired token error", "401 invalid_token"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Endpoints",
+      "items": [
+        ["/authorize", "Browser: login, consent, code lautata hai"],
+        ["/token", "Back channel: code ya refresh token → tokens"],
+        ["/userinfo", "OIDC: access token se profile claims"],
+        ["/.well-known/openid-configuration", "Discovery document"],
+        ["/jwks", "ID token signatures check karne ke liye public keys"]
+      ]
+    },
+    {
+      "title": "Parameters",
+      "items": [
+        ["response_type=code", "Authorization code flow"],
+        ["state", "Forged callbacks (CSRF) rokta hai"],
+        ["nonce", "ID token ko is login se jodta hai"],
+        ["code_challenge (S256)", "BASE64URL(SHA256(verifier))"],
+        ["scope=openid", "OAuth ko OpenID Connect banata hai"]
+      ]
+    },
+    {
+      "title": "Tokens",
+      "items": [
+        ["Access token", "APIs ko Bearer ki tarah bheja jaata hai; short-lived"],
+        ["Refresh token", "Naye access tokens deta hai; server par rakho"],
+        ["ID token", "User ke baare mein JWT; sirf app ke liye"],
+        ["Errors", "invalid_grant, invalid_client, invalid_token (401)"]
+      ]
+    }
+  ]
+}

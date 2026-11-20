@@ -1,0 +1,252 @@
+{
+  "tagline": "Network teams har router aur switch se counters kaise padhti hain.",
+  "description": "SNMP se monitoring server kisi device se numbered values (uptime, port par bytes, CPU load) maang sakta hai, aur kuch toot jaye to device khud chilla sakta hai. Har value ka ek OID hota hai, ek bade shared tree mein dotted address, aur messages ASN.1 BER mein pack hote hain, jo ek compact type-length-value format hai.",
+  "facts": [
+    ["Layer", "Application (UDP ke upar)"],
+    ["Ports", "UDP 161 queries, 162 traps"],
+    ["Encoding", "ASN.1 BER (type-length-value)"],
+    ["Versions", "v1, v2c (community), v3 (users + crypto)"],
+    ["Data model", "MIB, OIDs se address hota hai"],
+    ["Defined in", "RFC 3416, v3 in RFC 3414"]
+  ],
+  "legend": [
+    "Monitoring server se queries",
+    "Router se answers",
+    "Traps (bina maange alerts)",
+    "SNMPv3 encrypted",
+    "Problems aur attacks"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Router ko poll karna aur trap paana",
+      "summary": "Monitoring server uptime aur ek traffic counter padhta hai, phir router khud link failure report karta hai.",
+      "steps": [
+        {
+          "title": "GetRequest",
+          "desc": "Do values OID se maango",
+          "detail": "Har kuch minutes mein monitoring server router se sysUpTime.0 (1.3.6.1.2.1.1.3.0) aur ifInOctets.2 (interface 2 par received bytes) maangta hai. Message SNMPv2c hai: ek version number, community string “public”, aur request ID aur variable bindings ki list ke saath GetRequest PDU. Har binding ek OID hai jiski value khaali NULL hai jo bhari jaani hai.",
+          "facts": [
+            ["To", "192.168.10.1 : 161"],
+            ["Community", "public (plain text)"],
+            ["OIDs", "sysUpTime.0, ifInOctets.2"]
+          ],
+          "quiz": {
+            "q": "OID 1.3.6.1… se shuru hota hai. BER mein “1.3” kaise store hota hai?",
+            "options": [
+              "Do bytes: 01 03",
+              "Ek byte: 0x2B (40×1 + 3)",
+              "Text “1.3” ki tarah",
+              "Chhod diya jaata hai"
+            ],
+            "why": "BER pehle do arcs ko ek byte mein 40 × first + second ki tarah pack karta hai, isliye 1.3 ban jaata hai 43 = 0x2B. Isiliye wire par SNMP OIDs 2B 06 01 se shuru hote hain."
+          }
+        },
+        {
+          "title": "GetResponse",
+          "desc": "Values bhari hui, types ke saath",
+          "detail": "Router ka agent dono OIDs look up karta hai aur wahi request ID values bhar kar lautata hai. sysUpTime TimeTicks hai (second ke sau-wen hisse), ifInOctets Counter32 hai. Counter 3,141,592,653 ka top bit set hai, isliye BER aage 0x00 byte jodta hai taaki use negative na padha jaye.",
+          "facts": [
+            ["sysUpTime", "123456789 ticks ≈ 14 days"],
+            ["ifInOctets.2", "3141592653 bytes"],
+            ["Round trip", "LAN par 2 ms se kam"]
+          ],
+          "quiz": {
+            "q": "Paanch minute baad ifInOctets.2 3,179,092,653 padhta hai. Average traffic kitna tha?",
+            "options": [
+              "Lagbhag 1 Mbit/s",
+              "Lagbhag 125 kbit/s",
+              "Lagbhag 37.5 Mbit/s",
+              "Counters se pata nahi chal sakta"
+            ],
+            "why": "Counter 300 s mein 37,500,000 bytes badha: 125,000 bytes/s, yaani 1,000,000 bits per second. Graphs bilkul isi tarah ke difference se bante hain."
+          }
+        },
+        {
+          "title": "Link down ho jaata hai",
+          "desc": "Router bina maange trap bhejta hai",
+          "detail": "Teen minute baad interface 2 ka WAN cable fail ho jaata hai. Router poochne ka intezaar nahi karta: woh UDP port 162 par monitoring server ko SNMPv2-Trap bhejta hai. Varbinds batate hain kab (sysUpTime), kya hua (snmpTrapOID = linkDown) aur kaunsa port (ifIndex 2, admin up, operationally down).",
+          "facts": [
+            ["To", "192.168.10.5 : 162"],
+            ["Event", "linkDown (1.3.6.1.6.3.1.1.5.3)"],
+            ["Status", "Admin up, oper down"]
+          ],
+          "quiz": {
+            "q": "ifAdminStatus up(1) hai lekin ifOperStatus down(2) hai. Engineer ko isse kya pata chalta hai?",
+            "options": [
+              "Kisi ne jaanbujhkar port band kiya",
+              "Port up hona chahiye tha lekin link fail ho gaya",
+              "Router reboot hua",
+              "SNMP misconfigured hai"
+            ],
+            "why": "Admin status woh hai jo configuration chahti hai; oper status haqeeqat hai. Up lekin down ka matlab fault hai: cable, optics ya doosra end."
+          }
+        },
+        {
+          "title": "Traps acknowledge nahi hote",
+          "desc": "UDP par bhejo aur bhool jao",
+          "detail": "Trap ka koi reply nahi aata, isliye agar woh kho jaye to alert bas gayab ho jaata hai. Isiliye monitoring systems polling bhi jaari rakhte hain: agla GetRequest waise bhi ifOperStatus down dikha deta. SNMPv2c mein Inform message bhi hota hai, jo aisa trap hai jise receiver ko acknowledge karna padta hai.",
+          "facts": [
+            ["Trap ka reply", "Koi nahi"],
+            ["Safer option", "InformRequest (acknowledged)"],
+            ["Backup", "Regular polling"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Poll bhi hua, alert bhi mila",
+        "text": "Monitoring server ne ek hi GetRequest se router ki do numbered values padhi, aur link fail hote hi router ne trap push kiya. Har value ek OID par thi aur har byte ek type-length-value triple tha.",
+        "facts": [
+          ["Messages", "Get, Response, Trap"],
+          ["Ports", "161 polls, 162 traps"],
+          ["Encoding", "BER TLV"],
+          ["Security", "Sirf community string (v2c)"]
+        ]
+      }
+    },
+    "wrong-community": {
+      "name": "Galat community string",
+      "summary": "Community string mein typo ka matlab router request ko chupchaap ignore kar deta hai.",
+      "steps": [
+        {
+          "title": "Galat string ke saath poocho",
+          "desc": "“public” ki jagah community “pubilc”",
+          "detail": "Naye monitoring config mein community string mein typo hai. Packet bilkul theek bana hai, lekin router community ko apni list se compare karta hai aur koi match nahi milta.",
+          "facts": [
+            ["Community", "pubilc (typo)"],
+            ["To", "192.168.10.1 : 161"],
+            ["Format", "Valid SNMPv2c"]
+          ]
+        },
+        {
+          "title": "Khamoshi, phir retries",
+          "desc": "Koi error wapas nahi aata",
+          "detail": "SNMPv2c agents galat community par bilkul reply nahi karte, isliye attacker (ya confuse admin) ko kuch pata nahi chalta. Manager timeout ke baad retry karta hai, phir “No response from 192.168.10.1” report karta hai. Router ise snmpInBadCommunityNames mein ginta hai ya authenticationFailure trap bhej sakta hai.",
+          "facts": [
+            ["Router reply", "Koi nahi"],
+            ["Manager", "Retries ke baad timeout"],
+            ["Counter", "snmpInBadCommunityNames +1"]
+          ],
+          "quiz": {
+            "q": "Router “wrong password” ka jawab kyun nahi deta?",
+            "options": [
+              "UDP errors carry nahi kar sakta",
+              "Khamoshi password guess karne wale ko koi hint nahi deti",
+              "Woh port 162 par jawab deta hai",
+              "Woh deta hai, error status 5 ke saath"
+            ],
+            "why": "Reply dene se confirm ho jaata ki SNMP agent wahan hai aur guess galat tha. Khamoshi guessing ko slow aur andhi bana deti hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Timed out",
+        "text": "Galat community string bilkul dead device jaisa dikhta hai: koi answer nahi. Jab SNMP timeout ho, to device down maanne se pehle community, agent ki allowed-manager list aur UDP 161 par koi firewall check karo.",
+        "facts": [
+          ["Symptom", "Timeout"],
+          ["Wajah", "Community mismatch"],
+          ["Check", "Config, ACL, UDP 161 reachability"]
+        ]
+      }
+    },
+    "v3": {
+      "name": "Sniff hui community vs SNMPv3 authPriv",
+      "summary": "Attacker wire se community string padh leta hai; authentication aur encryption ke saath SNMPv3 kuch kaam ka nahi chhodta.",
+      "steps": [
+        {
+          "title": "Plain text mein community",
+          "desc": "Raaste mein koi bhi ise padh sakta hai",
+          "detail": "Mirror port (ya same network ki compromised machine) tak access wala attacker v2c GetRequest capture kar leta hai. Community string packet ke kuch bytes andar clear mein baithi hai, har OID aur baad mein har value ke saath.",
+          "facts": [
+            ["Attacker ko dikha", "Community “public”, OIDs, values"],
+            ["Encryption", "Koi nahi"],
+            ["Integrity check", "Koi nahi"]
+          ],
+          "quiz": {
+            "q": "Captured read-write community string se attacker kya kar sakta hai?",
+            "options": [
+              "Kuch nahi; woh hashed hai",
+              "SetRequests bhej kar router ka config badal sakta hai",
+              "Sirf uptime padh sakta hai",
+              "TLS traffic decrypt kar sakta hai"
+            ],
+            "why": "v1 aur v2c mein community string hi poori authentication hai. Write community se koi bhi SetRequests bhej sakta hai, jaise interfaces shut karne ke liye."
+          }
+        },
+        {
+          "title": "SNMPv3 authPriv par switch karo",
+          "desc": "User name, ek HMAC aur encrypted PDU",
+          "detail": "SNMPv3 mein message mein user name, security header aur encrypted scoped PDU hota hai. authPriv ka matlab user ke passwords se nikli do keys: ek poore message ko HMAC se sign karti hai taaki use badla ya forge na ja sake, doosri PDU ko AES se encrypt karti hai. OIDs ab chhup gaye hain.",
+          "facts": [
+            ["Security level", "authPriv (flags 0x07)"],
+            ["Auth", "HMAC-SHA-256"],
+            ["Privacy", "AES-128"]
+          ],
+          "quiz": {
+            "q": "Is SNMPv3 request mein sniffer ab bhi kya padh sakta hai?",
+            "options": [
+              "Password",
+              "Jin OIDs ko maanga ja raha hai",
+              "User name aur engine ID",
+              "Kuch bhi nahi"
+            ],
+            "why": "Header aur USM fields padhne laayak rehte hain taaki router ko pata chale kaunsi keys use karni hain. Passwords kabhi nahi bheje jaate, aur PDU encrypted hai."
+          }
+        },
+        {
+          "title": "Encrypted response",
+          "desc": "Values bhi chhupi hui",
+          "detail": "Router HMAC check karta hai, check karta hai ki engine boots aur time fresh hain (jo replayed packets rokta hai), decrypt karta hai, jawab deta hai, aur reply ko usi tarah encrypt karta hai. Sniffer ko noise ke do blobs aur ek user name dikhta hai.",
+          "facts": [
+            ["Replay window", "± 150 s engine time"],
+            ["Attacker ko dikha", "User name, sizes"],
+            ["Tamper check", "Har message par HMAC"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "authPriv ke saath SNMPv3 use karo",
+        "text": "Community strings clear text mein bheje gaye passwords hain, isliye v1 aur v2c sirf isolated management networks par, read-only, ACLs ke saath chalne chahiye. authPriv ke saath SNMPv3 har message sign aur encrypt karta hai aur baaki har jagah sahi choice hai.",
+        "facts": [
+          ["v2c risk", "Clear-text community"],
+          ["v3 noAuthNoPriv", "Sirf user name"],
+          ["v3 authNoPriv", "Signed, chhupa nahi"],
+          ["v3 authPriv", "Signed aur encrypted"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "PDU types (BER tag)",
+      "items": [
+        ["0xA0", "GetRequest"],
+        ["0xA1", "GetNextRequest (tree walk karta hai)"],
+        ["0xA2", "Response"],
+        ["0xA3", "SetRequest"],
+        ["0xA5", "GetBulkRequest"],
+        ["0xA6 / 0xA7", "InformRequest / SNMPv2-Trap"]
+      ]
+    },
+    {
+      "title": "Useful OIDs",
+      "items": [
+        ["1.3.6.1.2.1.1.3.0", "sysUpTime"],
+        ["1.3.6.1.2.1.1.5.0", "sysName"],
+        ["1.3.6.1.2.1.2.2.1.10.n", "Interface n par ifInOctets"],
+        ["1.3.6.1.2.1.2.2.1.8.n", "ifOperStatus (1 up, 2 down)"],
+        ["1.3.6.1.6.3.1.1.5.3", "linkDown trap"]
+      ]
+    },
+    {
+      "title": "BER types",
+      "items": [
+        ["0x02", "INTEGER"],
+        ["0x04", "OCTET STRING"],
+        ["0x05", "NULL"],
+        ["0x06", "OBJECT IDENTIFIER"],
+        ["0x30", "SEQUENCE"],
+        ["0x41 / 0x43", "Counter32 / TimeTicks"]
+      ]
+    }
+  ]
+}

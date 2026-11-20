@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "See the upgrade handshake in the capture", "hinglish": "Capture mein upgrade handshake dekho" },
+      "why": { "en": "The first packets are plain HTTP with Upgrade headers and a 101 reply.", "hinglish": "Pehle packets Upgrade headers wale plain HTTP aur 101 reply hain." },
+      "wireshark": "http.upgrade || http.response.code == 101",
+      "expect": { "en": "A GET with Upgrade: websocket and Sec-WebSocket-Key, then 101 Switching Protocols with Sec-WebSocket-Accept. Values differ in your copy.", "hinglish": "Upgrade: websocket aur Sec-WebSocket-Key wala GET, phir Sec-WebSocket-Accept ke saath 101 Switching Protocols. Tumhari copy mein values alag ho sakti hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "List the WebSocket frames", "hinglish": "WebSocket frames list karo" },
+      "why": { "en": "After the upgrade Wireshark decodes frames: text, ping, pong and close.", "hinglish": "Upgrade ke baad Wireshark frames decode karta hai: text, ping, pong aur close." },
+      "wireshark": "websocket",
+      "expect": { "en": "Frames with Opcode, Mask and Payload length. Browser frames show Mask: True, server frames Mask: False.", "hinglish": "Opcode, Mask aur Payload length wale frames. Browser frames mein Mask: True aur server frames mein Mask: False dikhta hai." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Show only ping, pong and close", "hinglish": "Sirf ping, pong aur close dikhao" },
+      "why": { "en": "Control frames have opcodes 8, 9 and 10.", "hinglish": "Control frames ke opcodes 8, 9 aur 10 hote hain." },
+      "wireshark": "websocket.opcode >= 8",
+      "expect": { "en": "A ping, its pong with the same payload, and the close frame with status 1000.", "hinglish": "Ek ping, same payload wala uska pong, aur status 1000 wala close frame." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Try the upgrade handshake yourself", "hinglish": "Upgrade handshake khud try karo" },
+      "why": { "en": "Send the same headers a browser sends to a public echo server and see the 101 reply. This is a normal read-only request.", "hinglish": "Browser jaise hi headers ek public echo server ko bhejo aur 101 reply dekho. Yeh ek normal read-only request hai." },
+      "windows": "curl.exe -i -N --max-time 5 -H \"Connection: Upgrade\" -H \"Upgrade: websocket\" -H \"Sec-WebSocket-Version: 13\" -H \"Sec-WebSocket-Key: UHJvdG9jb2xzQnlEYW5pcw==\" https://echo.websocket.events/",
+      "unix": "curl -i -N --max-time 5 -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: UHJvdG9jb2xzQnlEYW5pcw==' https://echo.websocket.events/",
+      "expect": { "en": "HTTP/1.1 101 Switching Protocols with a Sec-WebSocket-Accept header, then a few binary bytes before curl times out after 5 s. The public service may change or be offline.", "hinglish": "Sec-WebSocket-Accept header ke saath HTTP/1.1 101 Switching Protocols, phir curl ke 5 s mein time out hone se pehle kuch binary bytes. Public service badal sakti hai ya offline ho sakti hai." },
+      "step": 1
+    }
+  ]
+}

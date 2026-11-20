@@ -1,0 +1,27 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Look at a CDN's cache headers", "hinglish": "CDN ke cache headers dekho" },
+      "why": { "en": "A HEAD request shows Cache-Control, Age and often an X-Cache style header without downloading the body.", "hinglish": "HEAD request body download kiye bina Cache-Control, Age aur aksar X-Cache jaisa header dikha deti hai." },
+      "windows": "curl.exe -sI https://www.cloudflare.com/",
+      "unix": "curl -sI https://www.cloudflare.com/",
+      "expect": { "en": "Response headers such as cache-control, age and cf-cache-status (HIT, MISS or DYNAMIC). Names and values vary by CDN and by time.", "hinglish": "cache-control, age aur cf-cache-status (HIT, MISS ya DYNAMIC) jaise response headers. Naam aur values CDN aur waqt ke hisaab se badalte hain." },
+      "step": 6
+    },
+    {
+      "title": { "en": "See the CDN name behind a site", "hinglish": "Site ke peeche CDN ka naam dekho" },
+      "why": { "en": "Sites using a CDN usually have a CNAME pointing at the CDN's domain.", "hinglish": "CDN use karne wali sites ka aksar CNAME CDN ke domain ki taraf point karta hai." },
+      "windows": "nslookup www.cloudflare.com 1.1.1.1",
+      "unix": "dig www.cloudflare.com @1.1.1.1",
+      "expect": { "en": "One or more anycast IP addresses, possibly after a CNAME. The addresses differ depending on where you are.", "hinglish": "Ek ya zyada anycast IP addresses, shayad CNAME ke baad. Addresses is par depend karte hain ki tum kahan ho." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find cache HIT and MISS in the capture", "hinglish": "Capture mein cache HIT aur MISS dhoondo" },
+      "why": { "en": "The lesson capture uses plain HTTP so the caching headers are visible.", "hinglish": "Lesson capture plain HTTP use karta hai taaki caching headers dikhein." },
+      "wireshark": "http contains \"X-Cache\"",
+      "expect": { "en": "Responses with Cache-Control, Age and X-Cache lines; the first shows MISS with Age 0 and the later one HIT with Age 1800.", "hinglish": "Cache-Control, Age aur X-Cache lines wale responses; pehla Age 0 ke saath MISS dikhata hai aur baad wala Age 1800 ke saath HIT." },
+      "step": 5
+    }
+  ]
+}

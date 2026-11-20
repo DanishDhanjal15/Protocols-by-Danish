@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Time the three-way handshake", "hinglish": "Three-way handshake ka time naapo" },
+      "why": { "en": "curl can report how long the TCP connect took, which is one round trip to the server.", "hinglish": "curl bata sakta hai ki TCP connect mein kitna time laga, jo server tak ek round trip hota hai." },
+      "windows": "curl.exe -s -o NUL -w \"connect: %{time_connect}s\\n\" https://example.com",
+      "unix": "curl -s -o /dev/null -w 'connect: %{time_connect}s\\n' https://example.com",
+      "expect": { "en": "A line like 'connect: 0.021s'. The value depends on your distance to the server; it is roughly one round trip, as in step 1.", "hinglish": "'connect: 0.021s' jaisi line. Value server se tumhari doori par depend karti hai; yeh lagbhag ek round trip hai, jaise step 1 mein." },
+      "step": 1
+    },
+    {
+      "title": { "en": "See your open TCP connections and their states", "hinglish": "Apne open TCP connections aur unke states dekho" },
+      "why": { "en": "Shows ESTABLISHED, LISTEN and TIME-WAIT connections on your own machine.", "hinglish": "Apni machine par ESTABLISHED, LISTEN aur TIME-WAIT connections dikhata hai." },
+      "windows": "netstat -an -p TCP",
+      "unix": "ss -tan",
+      "expect": { "en": "A table of local and remote addresses with a state column. The entries differ on every machine; on macOS use netstat -an -p tcp.", "hinglish": "Local aur remote addresses ki table, state column ke saath. Entries har machine par alag hoti hain; macOS par netstat -an -p tcp use karo." },
+      "step": 6
+    },
+    {
+      "title": { "en": "Get a refused connection", "hinglish": "Refused connection dekho" },
+      "why": { "en": "Connecting to a closed port on your own machine shows the RST behaviour from the second scenario.", "hinglish": "Apni hi machine ke closed port se connect karne par doosre scenario wala RST behaviour dikhta hai." },
+      "windows": "Test-NetConnection 127.0.0.1 -Port 8080",
+      "unix": "nc -vz 127.0.0.1 8080",
+      "expect": { "en": "Windows reports TcpTestSucceeded : False; nc reports 'Connection refused'. This assumes nothing of yours listens on port 8080.", "hinglish": "Windows TcpTestSucceeded : False batata hai; nc 'Connection refused' batata hai. Maan ke chal rahe hain ki tumhari koi cheez port 8080 par listen nahi kar rahi." }
+    },
+    {
+      "title": { "en": "Find the handshake and the lost segment", "hinglish": "Handshake aur kho gaya segment dhoondo" },
+      "why": { "en": "Open the .pcap in Wireshark and use these filters.", "hinglish": ".pcap Wireshark mein kholo aur yeh filters lagao." },
+      "wireshark": "tcp.flags.syn == 1 || tcp.analysis.retransmission || tcp.analysis.duplicate_ack",
+      "expect": { "en": "The SYN and SYN-ACK packets, plus the duplicate ACK and the retransmitted segment in the first scenario.", "hinglish": "SYN aur SYN-ACK packets, aur pehle scenario mein duplicate ACK aur dobara bheja gaya segment." },
+      "step": 4
+    }
+  ]
+}

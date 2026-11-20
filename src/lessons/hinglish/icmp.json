@@ -1,0 +1,268 @@
+{
+  "tagline": "Internet ke error messages, aur ping ke peeche ka tool.",
+  "description": "ICMP woh tareeka hai jisse routers aur hosts IP packets ki problems report karte hain: “too many hops”, “us host tak nahi pahunch sakte”, “packet too big”. Isme ek simple echo request aur reply bhi hota hai, jise ping use karta hai yeh test karne ke liye ki host jawab deta hai ya nahi aur kitna time lagta hai. Traceroute in error messages par bana hai aur path ka map banata hai.",
+  "facts": [
+    ["Layer", "Network (Layer 3), IP ke andar chalta hai"],
+    ["IP protocol", "1"],
+    ["Header", "8 bytes"],
+    ["Common types", "0 reply, 3 unreachable, 8 request, 11 time exceeded"],
+    ["Tools", "ping, traceroute / tracert"],
+    ["Defined in", "RFC 792"]
+  ],
+  "legend": [
+    "Laptop ki requests aur probes",
+    "Echo replies",
+    "Routers ke ICMP errors",
+    "Failures aur drops"
+  ],
+  "scenarios": {
+    "ping": {
+      "name": "ping example.com",
+      "summary": "Teen echo requests aur teen replies naapte hain ki server jawab deta hai ya nahi aur kitni tez.",
+      "steps": [
+        {
+          "title": "Echo request",
+          "desc": "Type 8, id 0x1a2b, seq 1, 56 bytes of data",
+          "detail": "ping ek ICMP Echo Request bhejta hai: type 8, code 0, ek identifier jo is ping run ko mark karta hai, aur sequence number 1. 56 data bytes ki shuruaat send time se hoti hai, jo ping reply se wapas padhkar round trip naapta hai.",
+          "facts": [
+            ["Type / code", "8 / 0"],
+            ["Size", "56 data + 8 ICMP + 20 IP = 84 bytes"],
+            ["Identifier", "0x1a2b"]
+          ]
+        },
+        {
+          "title": "Echo reply",
+          "desc": "Type 0, same id, same seq, same data",
+          "detail": "Server ka operating system khud jawab deta hai; koi program chalna zaroori nahi. Woh message ko type 0 mein badalta hai, addresses swap karta hai aur bilkul wahi identifier, sequence number aur data wapas bhejta hai. ping identifier match karke time print karta hai.",
+          "facts": [
+            ["Type / code", "0 / 0"],
+            ["Round trip", "24.1 ms"],
+            ["TTL seen", "61 (3 routers away)"]
+          ],
+          "quiz": {
+            "q": "ping ko kaise pata chalta hai ki yeh reply uski apni request ka hai?",
+            "options": [
+              "TTL se",
+              "Identifier aur sequence number se",
+              "Sirf reply ke size se",
+              "Server ke MAC address se"
+            ],
+            "why": "Reply identifier aur sequence number copy karta hai. Identifier is ping run ko pehchanta hai; sequence number batata hai ki yeh kaunsi request ka jawab hai."
+          }
+        },
+        {
+          "title": "Har second mein ek",
+          "desc": "seq 2 aur 3 aate hain",
+          "detail": "ping har second ek request bhejta rehta hai, aur sequence number har baar badhta hai. Replies mein koi number missing ho to matlab woh request ya uska reply kho gaya. Round-trip times thoda upar-neeche hote hain kyunki router queues badalti rehti hain.",
+          "facts": [
+            ["Interval", "1 second"],
+            ["seq 2", "23.8 ms"],
+            ["seq 3", "25.0 ms"]
+          ]
+        },
+        {
+          "title": "Summary",
+          "desc": "3 sent, 3 received, 0% loss",
+          "detail": "Ctrl+C dabane par ping batata hai kitne replies wapas aaye aur minimum, average aur maximum round-trip time. Isse do sawalon ka jawab ek saath mil jata hai: host reachable hai ya nahi, aur time ke hisaab se kitna door hai.",
+          "facts": [
+            ["Loss", "0%"],
+            ["rtt min/avg/max", "23.8 / 24.3 / 25.0 ms"],
+            ["Bytes per ping", "98 on the wire"]
+          ],
+          "quiz": {
+            "q": "ping 3 sent, 2 received dikhata hai. Tum kya keh sakte ho?",
+            "options": [
+              "Server down hai",
+              "Ek request ya uska reply kho gaya",
+              "Server ne ek ping refuse kiya",
+              "DNS fail ho gaya"
+            ],
+            "why": "ICMP dobara nahi bheja jata, isliye reply missing hona bas yeh batata hai ki do packets mein se ek raste mein kho gaya. Down server ek bhi jawab nahi deta."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Reachable, 24 ms door",
+        "text": "ping ne sirf do ICMP types use kiye: echo request aur echo reply. Data ka identifier, sequence number aur timestamp loss dhoondhne aur round trip naapne ke liye kaafi hain.",
+        "facts": [
+          ["Types used", "8 aur 0"],
+          ["Data size", "56 bytes"],
+          ["Average RTT", "24.3 ms"]
+        ]
+      }
+    },
+    "traceroute": {
+      "name": "traceroute: path ka map banao",
+      "summary": "TTL 1, 2, 3 ke probes har router ko Time Exceeded bhejkar apna address batane par majboor karte hain.",
+      "steps": [
+        {
+          "title": "TTL 1",
+          "desc": "Pehle router par mar jata hai",
+          "detail": "traceroute TTL 1 ka probe bhejta hai. Home router use 0 kar deta hai, drop karna padta hai, aur apne address se ICMP Time Exceeded wapas bhejta hai. Ab laptop ko hop 1 pata chal gaya. Asli traceroute har hop ke liye teen probes bhejta hai; yahan ek dikhaya gaya hai.",
+          "facts": [
+            ["Probe", "Echo request, TTL 1"],
+            ["Answer from", "192.168.1.1 (hop 1)"],
+            ["Time", "0.9 ms"]
+          ],
+          "quiz": {
+            "q": "Time Exceeded kaunse address se aata hai?",
+            "options": [
+              "Web server",
+              "Home router",
+              "Laptop",
+              "ISP ka DNS server"
+            ],
+            "why": "Jis router par TTL zero hota hai woh error apne address se bhejta hai. Wahi address traceroute us hop ke liye print karta hai."
+          }
+        },
+        {
+          "title": "TTL 2",
+          "desc": "Ek router aur aage",
+          "detail": "Agla probe TTL 2 ka hai. Home router use 1 karke forward karta hai; ISP router use 0 karta hai aur report karta hai. Reply ghar wapas aate hue ek router cross karta hai, isliye TTL 63 ke saath pahunchta hai.",
+          "facts": [
+            ["Probe", "TTL 2"],
+            ["Answer from", "198.51.100.1 (hop 2)"],
+            ["Time", "8.2 ms"]
+          ]
+        },
+        {
+          "title": "TTL 3",
+          "desc": "Core router apna address batata hai",
+          "detail": "TTL 3 ke saath probe core router tak pahunchta hai aur wahan khatam ho jata hai. Har hop ka time us router tak ka poora round trip hota hai, isliye probes jaise-jaise aage jate hain numbers badhte hain.",
+          "facts": [
+            ["Probe", "TTL 3"],
+            ["Answer from", "203.0.113.1 (hop 3)"],
+            ["Time", "17.6 ms"]
+          ],
+          "quiz": {
+            "q": "TTL 4 wale probe ko kya wapas milega?",
+            "options": [
+              "Aur ek Time Exceeded",
+              "Server se Echo Reply",
+              "Kuch nahi, TTL 4 bahut zyada hai",
+              "TCP RST"
+            ],
+            "why": "Server 4 hops door hai, isliye TTL 4 bas kaafi hai. Probe server tak pahunchta hai, jo echo request ka normal jawab deta hai, aur traceroute ruk jata hai."
+          }
+        },
+        {
+          "title": "TTL 4 server tak pahunchta hai",
+          "desc": "Echo reply trace khatam karta hai",
+          "detail": "Chautha probe teeno routers se bach jata hai aur server tak pahunchta hai, jo normal echo reply se jawab deta hai. traceroute destination ka jawab dekhta hai aur hops ki poori list print karta hai.",
+          "facts": [
+            ["Answer", "Echo reply from server"],
+            ["Hops", "4"],
+            ["Time", "24.0 ms"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Path, hop by hop",
+        "text": "traceroute ne ek safety feature ko map bana diya. TTL ko ek-ek karke badhakar usne path ke har router se apne address se Time Exceeded message bhijwaya. Windows tracert bhi echo requests ke saath isi tarah kaam karta hai; Linux traceroute default mein UDP probes use karta hai.",
+        "facts": [
+          ["Hop 1", "192.168.1.1"],
+          ["Hop 2", "198.51.100.1"],
+          ["Hop 3", "203.0.113.1"],
+          ["Hop 4", "203.0.113.10 (done)"]
+        ]
+      }
+    },
+    "unreachable": {
+      "name": "Reply nahi: unreachable host aur firewall",
+      "summary": "Ek ping ko Destination Host Unreachable milta hai; doosre ko kuch nahi milta kyunki firewall use drop kar deta hai.",
+      "steps": [
+        {
+          "title": "Band host ko ping karo",
+          "desc": "Aakhri router use dhoondh nahi paata",
+          "detail": "Laptop 203.0.113.99 ko ping karta hai, jo ek purana server hai aur band kar diya gaya hai. Request core router tak pahunchti hai, jo us network se directly connected hai. Woh ARP se host ka MAC address poochta hai, lekin koi jawab nahi deta.",
+          "facts": [
+            ["Target", "203.0.113.99"],
+            ["ARP tries", "3, har second ek"],
+            ["Answer", "Koi nahi"]
+          ]
+        },
+        {
+          "title": "Host unreachable",
+          "desc": "ICMP type 3, code 1",
+          "detail": "Lagbhag teen second ki khamoshi ke baad core router haar maan leta hai aur ping drop kar deta hai. Woh ping ki shuruaat quote karte hue ICMP Destination Unreachable, code 1 (host unreachable) bhejta hai. ping print karta hai “From 203.0.113.1 icmp_seq=1 Destination Host Unreachable”.",
+          "facts": [
+            ["ICMP", "Type 3, code 1"],
+            ["From", "203.0.113.1 (core router)"],
+            ["After", "Lagbhag 3 s"]
+          ],
+          "quiz": {
+            "q": "Destination Unreachable message kaun bhejta hai?",
+            "options": [
+              "Band host",
+              "Woh router jo deliver nahi kar paya",
+              "Laptop khud ko",
+              "Home router"
+            ],
+            "why": "Host band hai aur kuch keh nahi sakta. Aakhri router, jo ARP se use dhoondh nahi paya, problem report karta hai."
+          }
+        },
+        {
+          "title": "Firewall wale server ko ping karo",
+          "desc": "Khamoshi: request timed out",
+          "detail": "Ab laptop web server ko ping karta hai. Uska firewall ICMP echo requests ko bina kuch kahe drop karne ke liye set hai. Na reply aata hai na error, isliye ping bas wait karta hai aur timeout report karta hai. Phir bhi port 443 par website theek chalti hai.",
+          "facts": [
+            ["Target", "203.0.113.10"],
+            ["Firewall rule", "Drop ICMP echo"],
+            ["ping kehta hai", "Request timed out"]
+          ],
+          "quiz": {
+            "q": "Server ko ping timeout ho raha hai, lekin website load hoti hai. Kyun?",
+            "options": [
+              "Server down hai",
+              "Firewall pings drop karta hai lekin HTTPS allow karta hai",
+              "DNS toota hua hai",
+              "ICMP TCP se tez hai"
+            ],
+            "why": "Kai servers aur firewalls ping block kar dete hain. Timeout ka matlab bas itna hai ki echo reply wapas nahi aaya; yeh prove nahi karta ki host down hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Error, ya bas khamoshi",
+        "text": "Jab router packet deliver nahi kar pata to aam taur par ICMP Destination Unreachable se bata deta hai. Pings drop karne wala firewall kuch bhi nahi kehta. Isliye error message batata hai ki problem kahan hai, jabki khamoshi bas itna batati hai ki path par kuch jawab nahi de raha.",
+        "facts": [
+          ["Host unreachable", "ICMP 3/1"],
+          ["Port unreachable", "ICMP 3/3"],
+          ["Filtered", "Koi reply nahi"],
+          ["Ping timeout", "Host down hone ka saboot nahi"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Message types",
+      "items": [
+        ["0", "Echo reply"],
+        ["3", "Destination unreachable"],
+        ["5", "Redirect"],
+        ["8", "Echo request"],
+        ["11", "Time exceeded"]
+      ]
+    },
+    {
+      "title": "Type 3 codes",
+      "items": [
+        ["0", "Network unreachable"],
+        ["1", "Host unreachable"],
+        ["3", "Port unreachable"],
+        ["4", "Fragmentation needed (MTU ke saath)"],
+        ["13", "Policy se blocked"]
+      ]
+    },
+    {
+      "title": "Commands",
+      "items": [
+        ["ping host", "Echo requests, har second ek"],
+        ["traceroute -I host", "Linux, ICMP probes"],
+        ["tracert host", "Windows"],
+        ["mtr host", "ping + traceroute live"]
+      ]
+    }
+  ]
+}

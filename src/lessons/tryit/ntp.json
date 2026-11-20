@@ -1,0 +1,27 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Query a time server without changing your clock", "hinglish": "Apni clock badle bina time server se pucho" },
+      "why": { "en": "Sends one NTP request and prints the offset and delay, the two numbers computed from the four timestamps. It does not set your clock.", "hinglish": "Ek NTP request bhejta hai aur offset aur delay print karta hai, wo do numbers jo chaar timestamps se nikalte hain. Ye aapki clock set nahi karta." },
+      "windows": "w32tm /stripchart /computer:time.windows.com /samples:3 /dataonly",
+      "unix": "sntp time.google.com",
+      "expect": { "en": "Windows prints a few lines of time and an offset such as '+00.0123456s'. sntp prints something like '+0.004 +/- 0.020 time.google.com'. The numbers depend on your clock and network.", "hinglish": "Windows kuch lines time aur '+00.0123456s' jaisa offset print karta hai. sntp '+0.004 +/- 0.020 time.google.com' jaisa kuch print karta hai. Numbers aapki clock aur network pe depend karte hain." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Check your own clock's sync status", "hinglish": "Apni clock ka sync status check karo" },
+      "why": { "en": "Shows which server your machine syncs from, its stratum and the last offset.", "hinglish": "Dikhata hai ki aapki machine kaunse server se sync hoti hai, uska stratum aur last offset." },
+      "windows": "w32tm /query /status",
+      "unix": "timedatectl timesync-status",
+      "expect": { "en": "Fields such as Stratum, Source and Last Successful Sync Time (Windows) or Server, Stratum and Offset (Linux with systemd-timesyncd). Output varies; macOS has no equivalent, use 'sntp time.apple.com'.", "hinglish": "Stratum, Source aur Last Successful Sync Time (Windows) ya Server, Stratum aur Offset (systemd-timesyncd wala Linux) jaise fields. Output alag hota hai; macOS mein iska equivalent nahi, 'sntp time.apple.com' use karo." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Find the NTP packets in the capture", "hinglish": "Capture mein NTP packets dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and filter for NTP, then expand the packet to see T1 to T4.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur NTP filter karo, phir packet expand karke T1 se T4 dekho." },
+      "wireshark": "ntp",
+      "expect": { "en": "Pairs of mode 3 (client) and mode 4 (server) packets on UDP port 123, each 48 bytes, with Originate, Receive and Transmit timestamps.", "hinglish": "UDP port 123 pe mode 3 (client) aur mode 4 (server) packets ki jodiyan, har ek 48 bytes, Originate, Receive aur Transmit timestamps ke saath." },
+      "step": 1
+    }
+  ]
+}

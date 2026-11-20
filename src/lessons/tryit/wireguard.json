@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Show your own tunnel status", "hinglish": "Apne tunnel ka status dekho" },
+      "why": { "en": "If you run WireGuard yourself, this shows peers, last handshake time and transfer counters.", "hinglish": "Agar aap khud WireGuard chalate ho, to yeh peers, last handshake time aur transfer counters dikhata hai." },
+      "windows": "wg show",
+      "unix": "sudo wg show",
+      "expect": { "en": "Needs WireGuard installed and a tunnel up; otherwise the command is not found or prints nothing. You see each peer's public key, endpoint, allowed ips, 'latest handshake: N seconds ago' (stays under about 2 minutes while active) and bytes sent and received. Output varies.", "hinglish": "WireGuard install aur tunnel up hona chahiye; warna command nahi milti ya kuch print nahi karti. Har peer ki public key, endpoint, allowed ips, 'latest handshake: N seconds ago' (active rehte hue lagbhag 2 minutes se kam) aur bytes sent aur received dikhte hain. Output alag ho sakta hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Check the tunnel path", "hinglish": "Tunnel ka path check karo" },
+      "why": { "en": "Ping a host on the far side of your own tunnel to see traffic going through it.", "hinglish": "Apne tunnel ke doosri taraf ke host ko ping karo taaki traffic tunnel se jaata dikhe." },
+      "windows": "ping 10.20.0.5",
+      "unix": "ping -c 4 10.20.0.5",
+      "expect": { "en": "The address 10.20.0.5 is the lesson's example NAS; use a host on your own network. With the tunnel up you get replies; with it down you get timeouts. The first packet can be slower because it triggers the handshake.", "hinglish": "Address 10.20.0.5 lesson ka example NAS hai; apne network ka host use karo. Tunnel up ho to replies milte hain; down ho to timeouts. Pehla packet slow ho sakta hai kyunki woh handshake trigger karta hai." },
+      "step": 3
+    },
+    {
+      "title": { "en": "See WireGuard packets in the capture", "hinglish": "Capture mein WireGuard packets dekho" },
+      "why": { "en": "Open the downloaded .pcap and look at the four message types.", "hinglish": "Download kiya .pcap kholo aur chaaron message types dekho." },
+      "wireshark": "wg",
+      "expect": { "en": "You see Handshake Initiation (type 1), Handshake Response (type 2) and Transport Data (type 4) packets on UDP 51820. Only the headers are readable; the payload is encrypted.", "hinglish": "UDP 51820 par Handshake Initiation (type 1), Handshake Response (type 2) aur Transport Data (type 4) packets dikhte hain. Sirf headers padhne laayak hain; payload encrypted hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find cookie replies", "hinglish": "Cookie replies dhoondo" },
+      "why": { "en": "Filters the type 3 messages from the under-load scenario.", "hinglish": "Under-load scenario ke type 3 messages filter karta hai." },
+      "wireshark": "wg.type == 3",
+      "expect": { "en": "In the cookie scenario capture you see 64-byte Cookie Reply packets; in the normal capture there are none.", "hinglish": "Cookie scenario ke capture mein 64-byte Cookie Reply packets dikhte hain; normal capture mein koi nahi hota." }
+    }
+  ]
+}

@@ -1,0 +1,285 @@
+{
+  "tagline": "Interview ka classic sawaal, packet by packet.",
+  "description": "Address bar mein Enter dabate hi protocols ki ek chain chal padti hai: DHCP aur ARP laptop ko network par laate hain, DNS naam ko address mein badalta hai, TCP connection kholta hai, TLS usse private banata hai, aur HTTP page laata hai. Yeh lesson poori chain ek baar dikhata hai (packets mein example.com use hua hai), phir dikhata hai ki dusri visit mein caches ki wajah se kya skip ho jata hai.",
+  "facts": [
+    ["Protocols", "DHCP, ARP, DNS, TCP, TLS, HTTP, NAT"],
+    ["Layers", "2 (Ethernet) se 7 (HTTP) tak"],
+    ["Pehla page", "Achhe link par lagbhag 0.1 s"],
+    ["Round trips", "DNS 1, TCP 1, TLS 1, HTTP 1"],
+    ["Dusri visit", "Caches DNS, ARP aur certificate skip kar dete hain"],
+    ["Packets mein site", "example.com"]
+  ],
+  "legend": [
+    "Setup hona: DHCP, ARP, DNS",
+    "Handshakes aur ACKs",
+    "TLS (encryption)",
+    "Browser ki requests",
+    "Server ke answers"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Pehli visit, shuru se end tak",
+      "summary": "Khaali laptop se rendered page tak: DHCP, ARP, DNS, TCP, TLS, HTTP aur NAT, har ek ka ek step.",
+      "steps": [
+        {
+          "title": "Address lo",
+          "desc": "DHCP: is network par main kaun hoon?",
+          "detail": "Laptop abhi Wi-Fi se juda hai. Kuch bhejne se pehle use ek IP address, router ka address aur ek DNS server chahiye. Yeh network usne pehle bhi use kiya tha, isliye woh seedha broadcast REQUEST se apna purana address maangta hai, aur router ACK se confirm karta hai. Chaar messages wala poora version DHCP lesson mein hai.",
+          "facts": [
+            ["Mila", "192.168.1.10/24"],
+            ["Gateway", "192.168.1.1"],
+            ["DNS server", "192.0.2.53"]
+          ],
+          "quiz": {
+            "q": "Pehla packet broadcast kyun hai?",
+            "options": [
+              "Broadcast tez hota hai",
+              "Laptop ke paas abhi address nahi hai aur use server ka pata nahi",
+              "Seedha Google tak pahunchne ke liye",
+              "Wi-Fi sirf broadcast allow karta hai"
+            ],
+            "why": "Address ke bina laptop sirf local network par sabko awaaz de sakta hai. DHCP server jawab deta hai."
+          }
+        },
+        {
+          "title": "Router ka MAC dhoondo",
+          "desc": "ARP: 192.168.1.1 kiske paas hai?",
+          "detail": "Internet ka har packet pehle router ke paas jata hai, lekin Wi-Fi aur Ethernet frames ko IP nahi, MAC address chahiye. Laptop 192.168.1.1 ke liye ARP request broadcast karta hai aur router apne MAC ke saath reply deta hai. Laptop ise baad ke liye cache kar leta hai. ARP lesson dekho.",
+          "facts": [
+            ["Poocha", "Who has 192.168.1.1?"],
+            ["Jawab", "b0:be:76:12:4c:01"],
+            ["Cached", "Kuch minutes ke liye"]
+          ]
+        },
+        {
+          "title": "Naam se address",
+          "desc": "DNS: example.com ka IP kya hai?",
+          "detail": "Browser ko naam pata hai, lekin packets ko IP address chahiye. Woh DHCP se mile DNS resolver se port 53 par ek chhoti UDP query ke through poochta hai. Resolver ko root, .com aur example.com ke apne servers se poochna pad sakta hai, phir woh jawab deta hai: 203.0.113.10. DNS lesson poori walk dikhata hai.",
+          "facts": [
+            ["Query", "example.com A?"],
+            ["Jawab", "203.0.113.10"],
+            ["Cache for", "3600 s (TTL)"]
+          ],
+          "quiz": {
+            "q": "Yeh DNS sawaal kaunsa transport use karta hai?",
+            "options": [
+              "TCP port 443",
+              "UDP port 53",
+              "UDP port 67",
+              "ICMP"
+            ],
+            "why": "Normal DNS lookup mein har taraf ek chhota UDP datagram jata hai, port 53 par. TCP sirf bade answers ya zone transfers ke liye hota hai."
+          }
+        },
+        {
+          "title": "Connection kholo",
+          "desc": "Port 443 par TCP three-way handshake",
+          "detail": "HTTPS TCP port 443 par chalta hai. Laptop SYN bhejta hai, server SYN-ACK se jawab deta hai, laptop ACK se confirm karta hai. Ab dono sides starting sequence numbers par agree hain aur data reliably bhej sakte hain. Isme ek round trip lagta hai (yahan 17 ms). Poori detail TCP lesson mein.",
+          "facts": [
+            ["To", "203.0.113.10 : 443"],
+            ["From port", "51544 (temporary)"],
+            ["Cost", "1 round trip"]
+          ]
+        },
+        {
+          "title": "Ise private banao",
+          "desc": "TLS 1.3 handshake",
+          "detail": "Browser Client Hello bhejta hai jisme site ka naam (SNI, jo abhi padha ja sakta hai), uske supported ciphers aur key exchange ka uska hissa hota hai. Server apna hissa bhejta hai, aur uske baad sab kuch encrypted ho jata hai, uska certificate bhi, jo prove karta hai ki woh sach mein example.com hai. Ek round trip ke baad dono sides ke paas shared keys hoti hain. TLS lesson dekho.",
+          "facts": [
+            ["SNI", "example.com (visible)"],
+            ["Cipher", "TLS_AES_128_GCM_SHA256"],
+            ["Cost", "1 round trip"]
+          ],
+          "quiz": {
+            "q": "Handshake ke baad café Wi-Fi par koi aur abhi bhi kya dekh sakta hai?",
+            "options": [
+              "Poora URL aur page",
+              "Server IP, site ka naam (SNI) aur data sizes",
+              "Kuch bhi nahi",
+              "Tumhare passwords"
+            ],
+            "why": "TLS path, headers aur content chhupa deta hai, lekin IP address, Client Hello ka SNI aur records ke sizes aur timing dikhte rehte hain."
+          }
+        },
+        {
+          "title": "Page maango",
+          "desc": "HTTP GET, TLS ke andar",
+          "detail": "Ab browser asli request bhejta hai: example.com ke liye GET /, HTTP/2 mein, jo ALPN se agree hua tha. Wire par yeh bas ek encrypted Application Data record hai; method, path, cookies aur headers sab andar hain. HTTP lesson dikhata hai ki yeh headers kaise dikhte hain.",
+          "facts": [
+            ["Request", "GET / (HTTP/2)"],
+            ["Wire par", "97 bytes of TLS"],
+            ["Visible", "Sirf size aur timing"]
+          ]
+        },
+        {
+          "title": "Page aa gaya",
+          "desc": "HTML ke saath 200 OK",
+          "detail": "Server status 200 aur page ke HTML ke saath jawab deta hai, phir se encrypted records ke andar. Chhota page ek segment mein aa jata hai; bade pages kai segments mein aate hain jinhe TCP wapas sahi order mein laga deta hai.",
+          "facts": [
+            ["Status", "200 OK"],
+            ["Body", "HTML"],
+            ["Ab tak ka time", "Lagbhag 90 ms"]
+          ]
+        },
+        {
+          "title": "Router par NAT",
+          "desc": "Private address andar, public address bahar",
+          "detail": "Laptop ne jo bhi packet bheja usme uska private address 192.168.1.10 tha, jiska internet par koi matlab nahi. Router source ko apne public address 198.51.100.7 aur apne ek port se badal deta hai, mapping yaad rakhta hai, aur replies ke liye ulta kar deta hai. Yahan router ke dono taraf laptop ka ACK hai. NAT lesson dekho.",
+          "facts": [
+            ["Inside", "192.168.1.10:51544"],
+            ["Outside", "198.51.100.7:40001"],
+            ["Badla", "Source IP, port, checksums"]
+          ],
+          "quiz": {
+            "q": "Web server ko client ka address kya lagta hai?",
+            "options": [
+              "192.168.1.10",
+              "198.51.100.7",
+              "0.0.0.0",
+              "Laptop ka MAC address"
+            ],
+            "why": "Server ko sirf router ka public address dikhta hai. Router ki NAT table replies ko wapas laptop tak map karti hai."
+          }
+        },
+        {
+          "title": "Page render karo",
+          "desc": "HTML parse karo, jo chahiye woh fetch karo",
+          "detail": "Browser HTML padhta hai aur dekhta hai ki use ek stylesheet chahiye. Woh usi connection par /style.css maangta hai, naye DNS, TCP ya TLS ke bina. Asli pages is tarah darjano files, images aur scripts khinchte hain, aksar dusre servers se jinke liye alag DNS lookup aur handshakes lagte hain. Phir woh page ka layout banata hai aur paint karta hai.",
+          "facts": [
+            ["Extra request", "GET /style.css"],
+            ["Reuse", "Wahi TCP + TLS connection"],
+            ["Phir", "Layout aur paint"]
+          ]
+        },
+        {
+          "title": "Connection band karo",
+          "desc": "TLS close_notify, phir TCP FIN",
+          "detail": "Browsers connections kuch der khule rakhte hain, ki shayad tum koi link click karo. Tab idle hone par browser ek encrypted close_notify alert bhejta hai taaki server ko pata chale ki data saaf tarah khatam hua, phir TCP har direction ko FIN aur ACK se band karta hai.",
+          "facts": [
+            ["TLS", "close_notify alert"],
+            ["TCP", "FIN → FIN → ACK"],
+            ["Baad mein", "Lagbhag 10 s idle"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Enter se page tak lagbhag 0.1 s mein",
+        "text": "DHCP aur ARP ne laptop ko network par pahunchaya, DNS ne server dhoondha, TCP aur TLS ne do round trips mein private connection banaya, HTTP ne page laaya, aur router ke NAT ne private address ko internet se baat karne diya. Har step ka apna lesson hai agar poori kahani chahiye.",
+        "facts": [
+          ["Data se pehle round trips", "DNS 1 + TCP 1 + TLS 1"],
+          ["Encrypted", "Server Hello ke baad sab kuch"],
+          ["Doosron ko visible", "IPs, SNI, sizes"],
+          ["Agla", "Dusri visit try karo"]
+        ]
+      }
+    },
+    "second-visit": {
+      "name": "Dusri visit: caches",
+      "summary": "Ek minute baad tum site phir kholte ho: DNS aur ARP caches lookups skip kar dete hain, aur TLS resumption certificate skip kar deta hai.",
+      "steps": [
+        {
+          "title": "Kuch lookup karne ko nahi",
+          "desc": "DHCP lease, ARP cache aur DNS cache sab abhi fresh hain",
+          "detail": "Laptop ke paas abhi bhi DHCP lease hai, uska ARP cache router ka MAC jaanta hai, aur example.com ke DNS answer ka TTL 3600 s hai, isliye browser ko 203.0.113.10 pehle se pata hai. Teen poore exchanges skip ho gaye aur TCP SYN se pehle ek bhi packet nahi bheja gaya.",
+          "facts": [
+            ["DHCP", "Lease valid (24 h)"],
+            ["ARP", "Cached"],
+            ["DNS", "TTL khatam hone tak cached"]
+          ],
+          "quiz": {
+            "q": "Laptop example.com ke baare mein DNS se dobara kab poochega?",
+            "options": [
+              "Har page load par",
+              "Jab cached answer ka TTL (3600 s) khatam ho jaye",
+              "Kabhi nahi",
+              "Sirf reboot ke baad"
+            ],
+            "why": "Caches answer ko sirf uske TTL tak rakhte hain. Uske baad naam phir se lookup hota hai, kya pata address badal gaya ho."
+          }
+        },
+        {
+          "title": "TCP handshake",
+          "desc": "Phir bhi chahiye: naya connection",
+          "detail": "Purana connection band ho chuka hai, isliye naya TCP handshake chahiye. Isme abhi bhi ek round trip lagta hai.",
+          "facts": [
+            ["To", "203.0.113.10 : 443"],
+            ["Cost", "1 round trip"],
+            ["Skip ho sakta hai", "TCP Fast Open ya QUIC se"]
+          ]
+        },
+        {
+          "title": "TLS session resume karo",
+          "desc": "Certificate ki jagah pichhli visit ka ticket dikhao",
+          "detail": "Pichhli baar server ne browser ko ek session ticket bheja tha. Ab Client Hello mein woh ticket pre_shared_key extension mein jata hai. Server ise accept kar leta hai, isliye na certificate bhejna hai na check karna, aur server ke reply ka encrypted hissa lagbhag 1250 bytes se ghat kar lagbhag 100 reh jata hai. Fresh key exchange phir bhi hota hai taaki purana traffic safe rahe.",
+          "facts": [
+            ["Extension", "pre_shared_key (ticket)"],
+            ["Server bhejta hai", "Certificate nahi"],
+            ["Encrypted reply", "≈ 96 bytes vs 1250"]
+          ],
+          "quiz": {
+            "q": "Ticket ki wajah se server kya skip karta hai?",
+            "options": [
+              "Key exchange",
+              "Apna certificate bhejna aur prove karna",
+              "TCP handshake",
+              "Encryption"
+            ],
+            "why": "Ticket prove karta hai ki dono sides pichhli baar authenticate ho chuke hain, isliye certificate aur uska signature dobara nahi chahiye."
+          }
+        },
+        {
+          "title": "304 Not Modified",
+          "desc": "Browser cache download bacha leta hai",
+          "detail": "Browser ke apne cache mein page abhi bhi hai, isliye woh poochta hai “sirf tab bhejo agar version abc123 ke baad badla ho” (If-None-Match). Kuch nahi badla, isliye server bina body ke 304 Not Modified se jawab deta hai, aur browser apni saved copy dikha deta hai.",
+          "facts": [
+            ["Request", "GET / + If-None-Match"],
+            ["Jawab", "304, no body"],
+            ["Bacha", "Poora HTML download"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Dusri baar tez",
+        "text": "Caches ne zyada kaam kar diya: DHCP, ARP ya DNS traffic nahi, certificate ke bina chhota TLS handshake, aur poore page ki jagah 304. Page lagbhag 55 ms mein aa gaya, 90 ki jagah.",
+        "facts": [
+          ["Skip hua", "DHCP, ARP, DNS"],
+          ["TLS", "Ticket se resumed"],
+          ["HTTP", "304 Not Modified"],
+          ["Time", "≈ 55 ms"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Chain",
+      "items": [
+        ["1 DHCP", "IP, gateway, DNS lo"],
+        ["2 ARP", "Gateway IP → MAC"],
+        ["3 DNS", "Naam → IP (UDP 53)"],
+        ["4 TCP", "443 tak handshake"],
+        ["5 TLS", "Keys + certificate"],
+        ["6 HTTP", "Page GET karo"],
+        ["NAT", "Router par private ↔ public"]
+      ]
+    },
+    {
+      "title": "Caches jo time bachate hain",
+      "items": [
+        ["DNS cache", "Record ke TTL tak"],
+        ["ARP cache", "Minutes"],
+        ["TLS session ticket", "Certificate skip karta hai"],
+        ["HTTP cache", "304 Not Modified ya koi request hi nahi"]
+      ]
+    },
+    {
+      "title": "Ports",
+      "items": [
+        ["UDP 67/68", "DHCP"],
+        ["UDP 53", "DNS"],
+        ["TCP 443", "HTTPS"],
+        ["UDP 443", "HTTP/3 (QUIC)"]
+      ]
+    }
+  ]
+}

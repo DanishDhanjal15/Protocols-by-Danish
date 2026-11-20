@@ -1,0 +1,35 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find your private address", "hinglish": "Apna private address dhoondo" },
+      "why": { "en": "This is the inside address the router rewrites on the way out.", "hinglish": "Yeh woh inside address hai jise router bahar jate waqt rewrite karta hai." },
+      "windows": "ipconfig | findstr /i \"IPv4\"",
+      "unix": "hostname -I",
+      "expect": { "en": "A private address such as 192.168.1.10 or 10.0.0.5. On macOS use ipconfig getifaddr en0 (the interface name may differ).", "hinglish": "192.168.1.10 ya 10.0.0.5 jaisa private address. macOS par ipconfig getifaddr en0 use karo (interface ka naam alag ho sakta hai)." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find your public address", "hinglish": "Apna public address dhoondo" },
+      "why": { "en": "This is the one address the whole internet sees for every device in your home.", "hinglish": "Yeh woh ek address hai jo poora internet tumhare ghar ke har device ke liye dekhta hai." },
+      "windows": "curl.exe -s https://api.ipify.org",
+      "unix": "curl -s https://api.ipify.org",
+      "expect": { "en": "A single public IP address, different from the private one above. Every device on your network prints the same value. If it starts with 100.64 to 100.127 your ISP uses CGNAT.", "hinglish": "Ek public IP address, upar wale private address se alag. Tumhare network ka har device wahi value print karega. Agar yeh 100.64 se 100.127 se shuru ho to tumhara ISP CGNAT use karta hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "See your own NAT-style connections", "hinglish": "Apne connections ke ports dekho" },
+      "why": { "en": "Each connection from your machine uses a temporary source port; the router swaps it for another one.", "hinglish": "Tumhari machine ka har connection ek temporary source port use karta hai; router use doosre se badal deta hai." },
+      "windows": "netstat -an -p TCP",
+      "unix": "ss -tn",
+      "expect": { "en": "Rows like 192.168.1.10:51234 to 203.0.113.10:443 in state ESTABLISHED. The ports on your machine differ from what the server sees. On macOS use netstat -an -p tcp.", "hinglish": "ESTABLISHED state mein 192.168.1.10:51234 se 203.0.113.10:443 jaisi rows. Tumhari machine ke ports us se alag hain jo server dekhta hai. macOS par netstat -an -p tcp use karo." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Compare packets inside and outside", "hinglish": "Inside aur outside ke packets compare karo" },
+      "why": { "en": "Open the .pcap in Wireshark and filter on the inside and outside addresses.", "hinglish": ".pcap Wireshark mein kholo aur inside aur outside addresses par filter lagao." },
+      "wireshark": "ip.addr == 192.168.1.10 || ip.addr == 198.51.100.7",
+      "expect": { "en": "The same connection appears twice: once with the private source address and port, once with the router's public address and a new port.", "hinglish": "Wahi connection do baar dikhta hai: ek baar private source address aur port ke saath, ek baar router ke public address aur naye port ke saath." },
+      "step": 2
+    }
+  ]
+}

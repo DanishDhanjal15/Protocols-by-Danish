@@ -1,0 +1,278 @@
+{
+  "tagline": "Chaar timestamps internet ki har clock ko sync mein rakhte hain.",
+  "description": "NTP aapke computer ki clock network ke ek time server se set karta hai. Ek chhote UDP exchange mein chaar timestamps jaate hain, aur unse client nikalta hai ki uski clock kitni galat hai aur trip mein kitna time laga. Kai servers se baat karne par wo us server ko ignore kar sakta hai jo galat time batata hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "UDP port 123"],
+    ["Packet", "48 bytes (extensions ke bina)"],
+    ["Timestamps", "64 bits: 1900 se seconds + fraction"],
+    ["Accuracy", "Internet pe lagbhag 1–10 ms"],
+    ["Defined in", "RFC 5905 (NTPv4)"]
+  ],
+  "legend": [
+    "Laptop se time requests",
+    "Servers se time replies",
+    "Clock theek hui",
+    "Galat time"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Dheemi chalti clock set karna",
+      "summary": "Laptop ki clock 137 ms peeche hai. Ek NTP exchange use naapta hai, aur clock theek ho jaati hai.",
+      "steps": [
+        {
+          "title": "Time maango",
+          "desc": "48-byte client request, mode 3",
+          "detail": "Laptop UDP port 123 pe 48-byte NTP packet bhejta hai. Wo sirf ek timestamp likhta hai: T1, yaani apni clock ke hisaab se request bhejne ka moment (09:59:59.862548). Leap indicator 3 kehta hai ki uski clock abhi synchronised nahi hai.",
+          "facts": [
+            ["T1 (laptop clock)", "09:59:59.862548"],
+            ["Mode", "3 (client)"],
+            ["Size", "8 bytes UDP mein 48 bytes NTP"]
+          ],
+          "quiz": {
+            "q": "Apni request mein laptop chaar timestamp fields mein se kaunsa bharta hai?",
+            "options": [
+              "Chaaron",
+              "Sirf transmit timestamp (T1)",
+              "Sirf reference timestamp",
+              "Koi nahi: server sab bharta hai"
+            ],
+            "why": "Client ko sirf ye pata hai ki usne packet kab bheja. Baaki zero rehte hain jab tak server jawab na de."
+          }
+        },
+        {
+          "title": "Server reply pe stamp lagata hai",
+          "desc": "Receive time T2, transmit time T3",
+          "detail": "Stratum 1 server apni GPS-disciplined clock do baar padhta hai: T2 jab request aati hai aur T3 reply nikalne se theek pehle, 41 µs baad. Wo laptop ka T1 origin field mein copy karta hai. Reply pahunchne par laptop apni clock pe T4 note karta hai.",
+          "facts": [
+            ["T2 / T3 (server)", "10:00:00.017130 / 10:00:00.017171"],
+            ["T4 (laptop clock)", "09:59:59.896589"],
+            ["Stratum", "1, reference GPS"]
+          ],
+          "quiz": {
+            "q": "Laptop ko aisa reply mila jiska origin timestamp wo T1 nahi hai jo usne bheja tha. Use kya karna chahiye?",
+            "options": [
+              "Phir bhi use karo",
+              "Drop karo: ye meri request ka jawab nahi hai",
+              "Offset mein jodo",
+              "Server se T1 dobara bhejne ko kaho"
+            ],
+            "why": "Origin field ko client ka transmit time echo karna chahiye. Mismatch ka matlab purana, duplicate ya forged reply hai."
+          }
+        },
+        {
+          "title": "Offset aur delay nikalo",
+          "desc": "Do formulas, chaar timestamps",
+          "detail": "Delay total trip time minus server ke rokne ka time hai: (T4−T1) − (T3−T2) = 34.000 ms. Offset maanta hai ki dono taraf ka trip barabar time laga: ((T2−T1) + (T3−T4)) / 2 = +137.582 ms. To laptop lagbhag 137.6 ms peeche hai. Asli error 137.452 ms tha; chhota sa fark isliye ki path ek taraf 0.260 ms slow tha.",
+          "facts": [
+            ["Offset θ", "((T2−T1) + (T3−T4)) / 2 = +137.582 ms"],
+            ["Delay δ", "(T4−T1) − (T3−T2) = 34.000 ms"],
+            ["Error bound", "zyada se zyada δ/2 = 17.000 ms"]
+          ],
+          "quiz": {
+            "q": "T2−T1 +154.6 ms hai aur T3−T4 +120.6 ms. Offset kya hai?",
+            "options": ["+17.0 ms", "+137.6 ms", "+275.2 ms", "−34.0 ms"],
+            "why": "Offset dono ka average hai: (154.6 + 120.6) / 2 = 137.6 ms. Positive ka matlab server aage hai, isliye laptop ko aage badhna hoga."
+          }
+        },
+        {
+          "title": "Step, phir fine-tune",
+          "desc": "Bade errors pe jump, chhote pe slew",
+          "detail": "Offset 128 ms se zyada hai, isliye NTP daemon clock ko ek jump mein aage step karta hai. Chhote errors ke liye slew hota hai: clock thodi tez ya dheemi chalti hai (zyada se zyada 0.5 ms per second) taaki time kabhi peeche na jaaye. 64 seconds baad agle poll mein offset sirf −0.110 ms dikhta hai.",
+          "facts": [
+            ["Step threshold", "128 ms (ntpd)"],
+            ["Next poll", "64 s baad (poll 6)"],
+            ["New offset", "−0.110 ms"]
+          ],
+          "quiz": {
+            "q": "NTP clients chhote errors ko jump ki jagah slew kyun karte hain?",
+            "options": [
+              "UDP jumping allow nahi karta",
+              "Taaki machine ke programs ke liye time kabhi peeche na chale",
+              "Slewing mein kam bandwidth lagti hai",
+              "Server mana karta hai"
+            ],
+            "why": "Clock achanak peeche jaaye to logs, databases aur timers toot sakte hain. Slewing clock ko thoda tez ya dheema karti hai jab tak wo pakad na le."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Clock sync mein",
+        "text": "Ek request aur ek reply ne laptop ko chaar timestamps diye. Unse usne 34 ms round trip aur 137.6 ms error naapa, clock step ki, aur ab har 64 seconds mein poll karta hai taaki millisecond ke ek hisse ke andar rahe.",
+        "facts": [
+          ["Packets", "4"],
+          ["Error found", "+137.582 ms"],
+          ["Round trip", "34.000 ms"],
+          ["Sync ke baad bacha", "−0.110 ms"]
+        ]
+      }
+    },
+    "asymmetric": {
+      "name": "Door ka server, lopsided path",
+      "summary": "Wahan jaane mein 120 ms lagte hain lekin wapas sirf 40 ms, aur NTP ise bata nahi sakta.",
+      "steps": [
+        {
+          "title": "Wahan slow, wapas fast",
+          "desc": "Uneven routes aam hain",
+          "detail": "Is baar laptop ki clock bilkul sahi hai. Wo doosre continent ke server se poochta hai. Request congested 120 ms route se jaati hai, lekin reply tez 40 ms route se aati hai. Internet routes aksar har direction mein alag hote hain.",
+          "facts": [
+            ["Path out", "120 ms"],
+            ["Path back", "40 ms"],
+            ["Laptop clock error", "0 (sahi hai)"]
+          ]
+        },
+        {
+          "title": "Maths dhokha kha jaata hai",
+          "desc": "Offset barabar halves maanta hai",
+          "detail": "Delay sahi aata hai, 160 ms. Lekin offset formula maanta hai ki har half mein 80 ms laga, isliye wo +40 ms report karta hai jabki clock bilkul theek hai. Error hamesha dono directions ke fark ka aadha hota hai.",
+          "facts": [
+            ["Offset θ", "((T2−T1) + (T3−T4)) / 2 = +40.000 ms"],
+            ["Delay δ", "(T4−T1) − (T3−T2) = 160.000 ms"],
+            ["Error bound", "zyada se zyada δ/2 = 80.000 ms"]
+          ],
+          "quiz": {
+            "q": "Path 120 ms out aur 40 ms back hai, aur dono clocks sahi hain. NTP kaunsa offset nikalta hai?",
+            "options": ["0 ms", "+40 ms", "+80 ms", "−40 ms"],
+            "why": "Asymmetry ka aadha: (120 − 40) / 2 = 40 ms. NTP dekh nahi sakta ki kaunsi direction slow thi, isliye wo clock ko doshi maanta hai."
+          }
+        },
+        {
+          "title": "Nuksaan limit karo",
+          "desc": "Paas ke, fast servers prefer karo",
+          "detail": "NTP asymmetry hata nahi sakta, lekin worst case jaanta hai: error zyada se zyada round trip ka aadha hai, yahan 80 ms. Isliye clients chhote delay wale servers prefer karte hain, kai servers use karte hain, aur apne paas ka server chunte hain, jaise pool.ntp.org ke country zones se.",
+          "facts": [
+            ["Worst-case error", "δ / 2 = 80 ms"],
+            ["Fix", "Paas ke servers, chhota delay"],
+            ["Aur behtar", "LAN pe hardware stamps wala PTP"]
+          ],
+          "quiz": {
+            "q": "Do servers dono +5 ms kehte hain. Ek ka delay 10 ms hai, doosre ka 200 ms. Client ko kispe zyada bharosa karna chahiye?",
+            "options": [
+              "200 ms wale pe: wo door hai",
+              "10 ms wale pe: uska error zyada se zyada 5 ms ho sakta hai",
+              "Dono barabar",
+              "Kisi pe nahi"
+            ],
+            "why": "Mumkin error delay ke aadhe tak hota hai. Chhota round trip asymmetry ke liye bahut kam jagah chhodta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Asymmetry NTP ka blind spot hai",
+        "text": "NTP total round trip bilkul sahi naapta hai lekin ye andaza lagana padta hai ki wo kaise baanta hai. Lopsided path pe ye andaza fark ke aadhe ke barabar clock error ban jaata hai. Chhote delays aur kai paas ke servers ise chhota rakhte hain.",
+        "facts": [
+          ["Reported offset", "+40 ms"],
+          ["Real error", "0 ms"],
+          ["Bound", "± delay / 2"]
+        ]
+      }
+    },
+    "falseticker": {
+      "name": "Chaar servers, ek jhootha",
+      "summary": "Ek server ka GPS fail ho gaya hai aur wo 37 seconds aage hai. Baaki teen use outvote kar dete hain.",
+      "steps": [
+        {
+          "title": "Chaar servers se pucho",
+          "desc": "Har ek ko ek request",
+          "detail": "Achhi tarah configured client kabhi ek clock pe bharosa nahi karta. Laptop apni configuration ke chaar servers ko poll karta hai, har ek ko alag request aur alag T1 ke saath.",
+          "facts": [
+            ["Servers", "4"],
+            ["Laptop clock", "+2.1 ms aage (use pata nahi)"],
+            ["Rule", "Safety ke liye kam se kam 4 use karo"]
+          ]
+        },
+        {
+          "title": "Chaar answers",
+          "desc": "Teen agree, ek bahut door",
+          "detail": "Har reply ek offset aur delay deta hai. A kehta hai −2.0 ms, B −1.2 ms, C −2.4 ms. Server D kehta hai +37.198 s, lagbhag 37 seconds. Uska packet bilkul normal dikhta hai; sirf andar ka time galat hai.",
+          "facts": [
+            ["A, B, C", "ek doosre ke lagbhag 1 ms ke andar"],
+            ["D", "+37.198 s"],
+            ["D ka packet", "Valid format, galat time"]
+          ]
+        },
+        {
+          "title": "Falseticker pehchano",
+          "desc": "Wo jagah dhoondo jahan zyadatar clocks overlap karti hain",
+          "detail": "Har server ek range deta hai: uska offset plus-minus delay ka aadha. Selection algorithm (Marzullo's algorithm pe based) wo time range dhoondta hai jispe zyadatar servers agree karte hain. A, B aur C overlap karte hain; D ki range unke paas kahin nahi, isliye wo falseticker mark hota hai aur ignore hota hai. Baaki truechimers hain.",
+          "facts": [
+            ["A", "−2.0 ms ± 11.9 ms"],
+            ["B / C", "−1.2 ms / −2.4 ms"],
+            ["D", "+37 s: rejected"]
+          ],
+          "quiz": {
+            "q": "Agar laptop sirf do servers, A aur D, use karta, to wo kya decide kar sakta tha?",
+            "options": [
+              "A pe trust",
+              "D pe trust",
+              "Safely kuch nahi: wo bata nahi sakta ki kaunsa galat hai",
+              "Dono ka average +18.6 s"
+            ],
+            "why": "Do clocks jo disagree karein unme majority nahi banti. Isliye aam salah hai chaar ya zyada servers."
+          }
+        },
+        {
+          "title": "Achhe wale combine karo",
+          "desc": "Quality ke hisaab se weight",
+          "detail": "Bache hue offsets combine hote hain, chhote delay aur jitter wale servers ko zyada weight dekar. Result −1.85 ms aata hai, isliye laptop apni clock ko lagbhag 1.8 ms peeche slew karta hai. Server D ko poll kiya jaata rehta hai lekin ignore rehta hai jab tak wo doosron se dobara agree na kare.",
+          "facts": [
+            ["Combined offset", "−1.85 ms"],
+            ["Action", "Slew (128 ms se bahut kam)"],
+            ["D ka asar", "Koi nahi"]
+          ],
+          "quiz": {
+            "q": "Combined offset lagbhag −1.9 ms hai. Laptop kya karta hai?",
+            "options": [
+              "Clock ko ek baar mein 1.9 ms peeche step karta hai",
+              "Slew: clock ko thodi dheemi chalata hai jab tak sahi na ho",
+              "Kuch nahi, ye 1 s se kam hai",
+              "D se phir poochta hai"
+            ],
+            "why": "128 ms ke step threshold se neeche NTP slew karta hai taaki time kabhi peeche jump na kare."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Majority jeetti hai",
+        "text": "Kharab server bilkul sahi format ke packets galat time ke saath bhej sakta hai. Kai servers poll karke aur sirf unhe rakhke jinki ranges overlap karti hain, NTP falseticker ko nikaal deta hai aur clock sahi rakhta hai.",
+        "facts": [
+          ["Servers asked", "4"],
+          ["Rejected", "1 (D, +37 s)"],
+          ["Result", "−1.85 ms"],
+          ["Salah", "4+ independent servers"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Modes",
+      "items": [
+        ["1 / 2", "Symmetric active / passive (peers)"],
+        ["3", "Client"],
+        ["4", "Server"],
+        ["5", "Broadcast"],
+        ["6", "Control (ntpq)"]
+      ]
+    },
+    {
+      "title": "Formulas",
+      "items": [
+        ["T1, T4", "Send aur receive, client clock"],
+        ["T2, T3", "Receive aur send, server clock"],
+        ["Offset", "((T2−T1) + (T3−T4)) / 2"],
+        ["Delay", "(T4−T1) − (T3−T2)"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["Port", "UDP 123"],
+        ["Packet", "48 bytes"],
+        ["Epoch", "1 Jan 1900; era 0 Feb 2036 mein khatam"],
+        ["Stratum", "1 = reference clock, 16 = unsynchronised"],
+        ["Step threshold", "128 ms; max slew 500 ppm"]
+      ]
+    }
+  ]
+}

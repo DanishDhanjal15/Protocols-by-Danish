@@ -1,0 +1,300 @@
+{
+  "tagline": "Internet ki phone book, ek-ek level karke dhoondi jaati hai.",
+  "description": "DNS example.com jaise names ko IP addresses mein badalta hai. Aapka laptop ek recursive resolver se poochta hai, jo root servers se .com servers tak aur phir domain ke apne server tak tree chalta hai, aur jawab cache kar leta hai taaki agla lookup turant ho.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "UDP 53 (bade answers ke liye TCP 53)"],
+    ["Header", "12 bytes"],
+    ["Root servers", "13 names, 1,900+ anycast sites"],
+    ["Caching", "Har record ka ek TTL hota hai"],
+    ["Defined in", "RFC 1034, RFC 1035"]
+  ],
+  "legend": [
+    "Queries",
+    "Answers",
+    "Referrals (kisi aur se pucho)",
+    "Errors aur forged replies"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "example.com ka pehla lookup, phir cache se",
+      "summary": "Resolver root → .com → example.com chalta hai, laptop ko jawab deta hai, aur agla lookup apne cache se serve karta hai.",
+      "steps": [
+        {
+          "title": "Resolver se pucho",
+          "desc": "Laptop ek chhota sa sawal bhejta hai",
+          "detail": "Browser ko example.com ka address chahiye. Laptop apne configured resolver, yaani ISP ke server 192.0.2.53 ko 40-something byte ka UDP packet bhejta hai. RD (recursion desired) flag ka matlab: please poora lookup mere liye karo aur final answer lekar aao.",
+          "facts": [
+            ["To", "192.0.2.53, UDP port 53"],
+            ["Question", "example.com, type A (IPv4)"],
+            ["Flag", "RD = 1"]
+          ],
+          "quiz": {
+            "q": "Resolver ka cache khali hai. Wo sabse pehle kisse poochega?",
+            "options": [
+              ".com servers se",
+              "Ek root server se",
+              "ns1.example.com se",
+              "Home router se"
+            ],
+            "why": "Kuch cached na ho to resolver ko sirf root servers ke addresses pata hote hain (apni built-in hints file se). Sab kuch root se shuru hota hai."
+          }
+        },
+        {
+          "title": "Root server se pucho",
+          "desc": "Root ko nahi pata, lekin pata hai .com kaun chalata hai",
+          "detail": "Resolver root server se wahi sawal puchta hai, RD ke bina, kyunki use pointer chahiye, ehsaan nahi. Root referral se jawab deta hai: answer nahi, lekin authority section mein .com ke NS records, aur additional section mein unke IP addresses. In addresses ko glue kehte hain, aur ye resolver ko ek aur lookup se bachate hain.",
+          "facts": [
+            ["Root server", "a.root-servers.net, 198.41.0.4"],
+            ["Reply", "Referral: com. NS a.gtld-servers.net"],
+            ["Glue", "a.gtld-servers.net A 192.5.6.30"]
+          ],
+          "quiz": {
+            "q": "Root apne reply mein a.gtld-servers.net ka IP address kyun daalta hai?",
+            "options": [
+              "Taaki resolver ko us name ka alag lookup na karna pade",
+              "Kyunki root gtld-servers.net ke liye authoritative hai",
+              "Reply encrypt karne ke liye",
+              "UDP isse require karta hai"
+            ],
+            "why": "Glue ke bina resolver ko .com ke baare mein kuch poochne se pehle a.gtld-servers.net ka lookup karna padta. Glue use address seedha de deta hai."
+          }
+        },
+        {
+          "title": ".com server se pucho",
+          "desc": "Ek aur referral, ek level neeche",
+          "detail": "Ab resolver a.gtld-servers.net se poochta hai. .com registry ke paas bhi example.com ke addresses nahi hain, lekin use pata hai ki domain owner ne kaunse name servers register kiye: ns1 aur ns2.example.com. Ye names example.com ke andar hi hain, isliye yahan glue zaroori hai, warna resolver gol-gol ghoomta rehta.",
+          "facts": [
+            ["Server", "a.gtld-servers.net, 192.5.6.30"],
+            ["Reply", "example.com NS ns1/ns2.example.com"],
+            ["Glue", "ns1.example.com A 198.51.100.53"]
+          ]
+        },
+        {
+          "title": "example.com ke server se pucho",
+          "desc": "Authoritative answer",
+          "detail": "Aakhir mein resolver ns1.example.com se poochta hai, jo domain owner ka apna server hai. Ise sach mein pata hai: wo A record ke saath reply karta hai aur AA (authoritative answer) flag set karta hai. 3600 seconds ka TTL kehta hai ki jawab ek ghante tak dobara use ho sakta hai.",
+          "facts": [
+            ["Server", "ns1.example.com, 198.51.100.53"],
+            ["Answer", "example.com A 203.0.113.10"],
+            ["Flags", "AA = 1, TTL 3600 s"]
+          ],
+          "quiz": {
+            "q": "Kaunsa flag dikhata hai ki ye jawab seedha domain ke apne server se aaya?",
+            "options": ["RD", "RA", "AA", "TC"],
+            "why": "AA (authoritative answer) sirf wahi server set karta hai jo zone ke liye responsible hai. Cache se aaye jawab mein ye kabhi nahi hota."
+          }
+        },
+        {
+          "title": "Laptop ko jawab do",
+          "desc": "Wahi question id, final answer, cached",
+          "detail": "Resolver jawab aur har referral ko cache mein rakhta hai, phir laptop ko reply karta hai. Reply laptop ka transaction id 0x3f1a aur question repeat karta hai, taaki laptop use match kar sake. RA (recursion available) dikhata hai ki resolver ne chalke kaam kiya. Poora walk 90 ms mein hua.",
+          "facts": [
+            ["Transaction id", "0x3f1a (query se match karta hai)"],
+            ["Flags", "RD, RA (AA nahi: resolver se aaya)"],
+            ["Total time", "90 ms"]
+          ],
+          "quiz": {
+            "q": "60 seconds baad doosra customer example.com maangta hai. Use kaunsa TTL dikhega?",
+            "options": ["3600", "3540", "60", "0, dobara fetch karna padega"],
+            "why": "Cache TTL ko ghatata rehta hai. 60 seconds baad 3600 − 60 = 3540 seconds ki life bachti hai."
+          }
+        },
+        {
+          "title": "Doosra lookup, cache se",
+          "desc": "Ek minute baad: koi walk nahi",
+          "detail": "Ek minute baad laptop phir poochta hai (browser ka apna cache clear tha). Is baar resolver ke paas jawab pehle se hai, isliye wo lagbhag 4 ms mein bina kisi aur server se baat kiye reply karta hai. TTL ghatke 3540 ho chuka hai. Isi caching ki wajah se DNS roz arabon lookups serve kar paata hai.",
+          "facts": [
+            ["Servers contacted", "Koi nahi"],
+            ["TTL left", "3540 s"],
+            ["Time", "90 ms ki jagah 4 ms"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Name resolve ho gaya",
+        "text": "Laptop ke ek sawal ke teen sawal ban gaye resolver ki taraf se: root, .com, phir example.com ka apna server. Har level ek step aur kareeb point karta gaya, aur final answer cache hua taaki agle lookup ko bahar ka traffic hi na chahiye.",
+        "facts": [
+          ["Packets", "10"],
+          ["First lookup", "90 ms"],
+          ["Cached lookup", "4 ms"],
+          ["Answer", "example.com → 203.0.113.10"]
+        ]
+      }
+    },
+    "nxdomain": {
+      "name": "Typo: NXDOMAIN",
+      "summary": "Koi wwww.example.com type karta hai; domain ka server kehta hai ki ye name exist nahi karta.",
+      "steps": [
+        {
+          "title": "Typo ke liye pucho",
+          "desc": "wwww.example.com, chaar w ke saath",
+          "detail": "User address galat type karta hai. Laptop sawal hamesha ki tarah resolver ko bhejta hai. DNS ko pata hi nahi ki ye typo hai; wo bas name lookup karta hai.",
+          "facts": [
+            ["Question", "wwww.example.com A"],
+            ["To", "192.0.2.53"],
+            ["Transaction id", "0x6b5e"]
+          ]
+        },
+        {
+          "title": "Seedha ns1 pe jao",
+          "desc": "Cached referrals do trips bacha lete hain",
+          "detail": "Resolver ke cache mein example.com ke NS records abhi bhi hain (wo do din jeete hain), isliye wo root aur .com skip karke seedha ns1.example.com se poochta hai. Server ke paas aisa koi name nahi, aur wo NXDOMAIN (rcode 3) reply karta hai. Wo apna SOA record bhi jodta hai taaki resolver ko pata chale ki is \"no\" ko kitni der yaad rakh sakta hai.",
+          "facts": [
+            ["Rcode", "3 = NXDOMAIN"],
+            ["Authority", "example.com ka SOA"],
+            ["Negative TTL", "300 s (SOA minimum)"]
+          ],
+          "quiz": {
+            "q": "Is baar resolver ne root se kyun nahi pucha?",
+            "options": [
+              "Root typos ka jawab nahi dete",
+              "Uske cache mein example.com ke NS records abhi bhi the",
+              "Laptop ne bataya ki kahan jaana hai",
+              "NXDOMAIN lookups root skip karte hain"
+            ],
+            "why": "Referrals bhi kisi bhi record ki tarah cache hote hain. example.com ke NS set ka TTL 2 din tha, isliye resolver seedha domain ke apne server pe ja sakta tha."
+          }
+        },
+        {
+          "title": "Laptop ko batao",
+          "desc": "\"No\" bhi cache hota hai",
+          "detail": "Resolver NXDOMAIN laptop ko wapas deta hai aur negative answer ko 300 seconds ke liye cache karta hai, taaki ek hi typo ki bheed ns1 ko dobara hit na kare. Browser \"site can't be reached\" page dikhata hai, DNS_PROBE_FINISHED_NXDOMAIN ke saath.",
+          "facts": [
+            ["Rcode", "NXDOMAIN"],
+            ["Browser shows", "DNS_PROBE_FINISHED_NXDOMAIN"],
+            ["Cached for", "300 s (RFC 2308)"]
+          ],
+          "quiz": {
+            "q": "Kya NXDOMAIN ek network failure hai?",
+            "options": [
+              "Haan, server timeout hua",
+              "Nahi, ye ek pakka jawab hai: name exist nahi karta",
+              "Haan, packet corrupt ho gaya",
+              "Nahi, iska matlab hai TCP try karo"
+            ],
+            "why": "NXDOMAIN ek successful lookup hai jiska result negative hai. Timeout ya SERVFAIL network ya server ka fail hona hoga."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Ek saaf \"no\"",
+        "text": "NXDOMAIN ek authoritative statement hai ki name exist nahi karta. Ye zone ke SOA record ke saath aata hai, jiska minimum field resolvers ko batata hai ki negative answer kitni der cache karna hai.",
+        "facts": [
+          ["Rcode", "3 (NXDOMAIN)"],
+          ["Proof", "Authority section mein SOA"],
+          ["Negative caching", "RFC 2308"]
+        ]
+      }
+    },
+    "poisoning": {
+      "name": "Cache poisoning ki koshish",
+      "summary": "Attacker asli server se race karke forged replies bhejta hai; random ids, random ports aur DNSSEC use rokte hain.",
+      "steps": [
+        {
+          "title": "Lookup trigger karo",
+          "desc": "Attacker resolver ko bahar bhejta hai",
+          "detail": "Cache poison karne ke liye attacker ko tab fake answer ghusana hota hai jab resolver asli answer ka intezaar kar raha ho. Isliye pehle wo resolver se www.example.com maangta hai, ek aisa name jo abhi cached nahi. Resolver apni query ns1.example.com ko random port se aur random transaction id ke saath bhejta hai.",
+          "facts": [
+            ["Query id", "0x8c41 (random 16 bits)"],
+            ["Source port", "53817 (random)"],
+            ["Window", "Asli reply tak lagbhag 38 ms"]
+          ]
+        },
+        {
+          "title": "Forgeries ki bauchhaar",
+          "desc": "Fake answers jo ns1 hone ka dikhava karte hain",
+          "detail": "Attacker kai replies bhejta hai jinka source address ns1.example.com forge kiya hota hai, har ek www.example.com ko apne server pe point karta hai. Wo resolver ki query dekh nahi sakta, isliye use transaction id aur destination port dono guess karne padte hain. Resolver har wo reply drop kar deta hai jisme dono mein se koi bhi us query se match nahi karta jiska wo intezaar kar raha hai.",
+          "facts": [
+            ["Forged source", "198.51.100.53 (ns1)"],
+            ["Fake answer", "A 198.18.66.6"],
+            ["Guesses needed", "65,536 ids × ~28,000 ports"]
+          ],
+          "quiz": {
+            "q": "Ek forged reply mein port sahi hai lekin id 0x8c41 ki jagah 0x8c40 hai. Resolver kya karta hai?",
+            "options": [
+              "Accept kar leta hai, port match hua",
+              "Drop kar deta hai",
+              "ns1 se confirm karwata hai",
+              "Kam der ke liye cache karta hai"
+            ],
+            "why": "Id aur port (aur question) teeno match hone chahiye. Ek bit bhi galat to wo wo reply nahi hai jiska resolver intezaar kar raha hai."
+          }
+        },
+        {
+          "title": "Asli answer jeetta hai",
+          "desc": "Id aur port match: accepted",
+          "detail": "ns1 ka genuine reply id 0x8c41 ke saath port 53817 pe aata hai aur accept ho jaata hai. Query ka jawab mil jaane ke baad baad ki forgeries ke paas match karne ko kuch nahi bachta. 2008 se pehle resolvers fixed source port use karte the, isliye sirf 16-bit id guess karni padti thi; Dan Kaminsky ne dikhaya ki wo seconds mein todi ja sakti thi. Random ports kaam ko hazaaron guna badha dete hain.",
+          "facts": [
+            ["Accepted", "www.example.com A 203.0.113.10"],
+            ["Attacker's odds", "Per packet lagbhag 1.8 arab mein 1"],
+            ["Rule", "RFC 5452"]
+          ]
+        },
+        {
+          "title": "DNSSEC: aakhri deewar",
+          "desc": "Lucky guess bhi signature pe fail ho jaata hai",
+          "detail": "Randomness forgery ko sirf mushkil banati hai. DNSSEC use bekaar bana deta hai: zone apne records sign karta hai, aur validating resolver har answer ka RRSIG un keys se check karta hai jo root tak chain hoti hain. Forged A record ka valid signature nahi hota, isliye use cache karne ki jagah SERVFAIL ke saath phenk diya jaayega.",
+          "facts": [
+            ["Random id", "16 bits"],
+            ["Random port", "Lagbhag 15 bits"],
+            ["DNSSEC", "Signature check, guess nahi ho sakta"]
+          ],
+          "quiz": {
+            "q": "Agar attacker resolver ki queries dekh sakta hai (jaise same network path pe), to kaunsa defence phir bhi kaam karta hai?",
+            "options": [
+              "Random transaction ids",
+              "Random source ports",
+              "DNSSEC signatures",
+              "Lamba TTL"
+            ],
+            "why": "On-path attacker id aur port padh ke copy kar sakta hai. Sirf cryptographic signature, jo wo bana nahi sakta, forgery ko ujagar karta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Poisoning fail ho gayi",
+        "text": "Cache poisoning ke liye forged reply ko ek pending query se match karna padta hai. Random transaction ids aur random source ports ise lagbhag 31 bits ka guess bana dete hain, aur DNSSEC signatures sahi guess ko bhi bekaar kar dete hain.",
+        "facts": [
+          ["Attack", "Off-path cache poisoning"],
+          ["Defences", "Random id + port, 0x20 case mixing, DNSSEC"],
+          ["Standard", "RFC 5452, RFC 4033"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Record types",
+      "items": [
+        ["A / AAAA", "IPv4 / IPv6 address"],
+        ["NS", "Zone ke name servers"],
+        ["CNAME", "Doosre name ka alias"],
+        ["MX", "Mail server, preference ke saath"],
+        ["SOA", "Zone details, negative TTL"],
+        ["TXT", "Free text (SPF, verification)"]
+      ]
+    },
+    {
+      "title": "Header flags aur codes",
+      "items": [
+        ["QR", "0 query, 1 response"],
+        ["AA", "Authoritative answer"],
+        ["RD / RA", "Recursion desired / available"],
+        ["TC", "Truncated: TCP pe retry karo"],
+        ["NOERROR (0)", "Success"],
+        ["SERVFAIL (2) / NXDOMAIN (3)", "Server fail hua / name exist nahi karta"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["Port", "53 (UDP aur TCP)"],
+        ["Header", "12 bytes"],
+        ["EDNS UDP size", "1232 bytes (safe default)"],
+        ["Name limits", "Har label 63 bytes, har name 255"],
+        ["Root servers", "a. se m.root-servers.net"]
+      ]
+    }
+  ]
+}

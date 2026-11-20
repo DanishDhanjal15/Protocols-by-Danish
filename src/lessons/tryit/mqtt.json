@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Subscribe to a topic on your own broker", "hinglish": "Apne local broker ke topic par subscribe karo" },
+      "why": { "en": "Uses the mosquitto client tools against your own local broker (for example a Mosquitto install on this PC). Read-only: you only listen to a topic.", "hinglish": "Apne local broker par mosquitto client tools use karta hai. Read-only: aap sirf ek topic sunte ho." },
+      "windows": "mosquitto_sub -h localhost -t '$SYS/broker/version' -C 1 -v",
+      "unix": "mosquitto_sub -h localhost -t '$SYS/broker/version' -C 1 -v",
+      "expect": { "en": "Needs the mosquitto client tools installed. It connects to port 1883 (CONNECT, SUBSCRIBE), prints the broker's retained version message and exits after one message. A retained message arrives instantly, as in step 3. Output varies.", "hinglish": "mosquitto client tools install hone chahiye. Yeh port 1883 par connect karta hai (CONNECT, SUBSCRIBE), broker ka retained version message print karta hai aur ek message ke baad exit ho jaata hai. Retained message turant aata hai, jaise step 3 mein. Output alag ho sakta hai." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Check the broker port", "hinglish": "Broker ka port check karo" },
+      "why": { "en": "Confirms TCP 1883 is reachable on your own local broker, the first step of CONNECT.", "hinglish": "Confirm karta hai ki aapke apne local broker par TCP 1883 reachable hai, jo CONNECT ka pehla step hai." },
+      "windows": "Test-NetConnection localhost -Port 1883",
+      "unix": "nc -vz localhost 1883",
+      "expect": { "en": "TcpTestSucceeded True (or 'succeeded') shows the broker accepts TCP connections on 1883. Port 8883 is the TLS version. Results depend on the broker being up.", "hinglish": "TcpTestSucceeded True (ya 'succeeded') dikhata hai ki broker 1883 par TCP connections accept karta hai. Port 8883 TLS wala version hai. Results broker ke up hone par depend karte hain." },
+      "step": 1
+    },
+    {
+      "title": { "en": "See MQTT packets in the capture", "hinglish": "Capture mein MQTT packets dekho" },
+      "why": { "en": "Open the downloaded .pcap and look at each packet type.", "hinglish": "Download kiya .pcap kholo aur har packet type dekho." },
+      "wireshark": "mqtt",
+      "expect": { "en": "You see Connect Command, Connect Ack, Subscribe Request, Publish Message, Publish Ack and Ping Request/Response in order, with the topic names readable.", "hinglish": "Connect Command, Connect Ack, Subscribe Request, Publish Message, Publish Ack aur Ping Request/Response order mein dikhte hain, topic names padhne laayak." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find the retained and will messages", "hinglish": "Retained aur will messages dhoondo" },
+      "why": { "en": "The RETAIN flag marks stored values; the will is in the CONNECT packet.", "hinglish": "RETAIN flag stored values ko mark karta hai; will CONNECT packet mein hota hai." },
+      "wireshark": "mqtt.retain == 1 || mqtt.willtopic",
+      "expect": { "en": "The retained PUBLISH for home/kitchen/temp and the CONNECT carrying the will topic home/livingroom/status match.", "hinglish": "home/kitchen/temp ka retained PUBLISH aur will topic home/livingroom/status wala CONNECT match karte hain." },
+      "step": 3
+    }
+  ]
+}

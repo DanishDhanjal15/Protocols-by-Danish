@@ -1,0 +1,314 @@
+{
+  "tagline": "Remote machine par login karo bina kisi ke sune.",
+  "description": "SSH aapko door ke computer par encrypted command line deta hai. Dono sides Diffie-Hellman se fresh keys tay karti hain, server apni host key se prove karta hai ki wo kaun hai, aur aap password ki jagah key pair se prove karte ho ki aap kaun ho. Iske baad sab kuch, aapka password bhi agar use karte ho, encrypted jaata hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP port 22"],
+    ["Key exchange", "curve25519-sha256 (ECDH)"],
+    ["Server proof", "Host key + known_hosts"],
+    ["Packet", "length, padding length, payload, padding, MAC"],
+    ["Defined in", "RFC 4251–4254"]
+  ],
+  "legend": [
+    "TCP setup aur success",
+    "Algorithm negotiation",
+    "Key exchange",
+    "Client messages",
+    "Server messages",
+    "Attacks aur warnings"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "ssh danish@server uptime",
+      "summary": "Laptop connect hota hai, keys tay karta hai, Ed25519 key se login karta hai aur ek command chalata hai.",
+      "steps": [
+        {
+          "title": "Connect karo aur hello bolo",
+          "desc": "Port 22 par TCP, phir version banners",
+          "detail": "TCP handshake ke baad har side ek plain text line bhejti hai jisme protocol version aur uska software naam hota hai. \"SSH-2.0\" ka matlab modern protocol; SSH-1 kab ka khatam aur insecure hai. SSH ka yahi ek hissa hai jo padhne layak text hai.",
+          "facts": [
+            ["Server", "203.0.113.40, TCP 22"],
+            ["Client says", "SSH-2.0-OpenSSH_9.6"],
+            ["Server says", "SSH-2.0-OpenSSH_9.6p1 Ubuntu"]
+          ],
+          "quiz": {
+            "q": "Banner keys banne se pehle jaata hai. Observer ismein se kya seekh sakta hai?",
+            "options": [
+              "Kuch nahi, ye encrypted hai",
+              "Har side ka software aur version",
+              "User name",
+              "Password"
+            ],
+            "why": "Banners clear text hain, isliye path par koi bhi SSH software aur version dekh leta hai. Isiliye scanners inhe collect karte hain."
+          }
+        },
+        {
+          "title": "Algorithm lists badlo",
+          "desc": "KEXINIT: main ye support karta hoon",
+          "detail": "Dono sides ek saath KEXINIT packet bhejti hain. Ismein preference ke order mein key exchange methods, host key types, ciphers, MACs aur compression list hote hain jo wo support karti hain. Har list mein client ki list ki pehli entry jo server ke paas bhi ho, wahi jeet jaati hai.",
+          "facts": [
+            ["Message code", "20 (KEXINIT)"],
+            ["Chosen kex", "curve25519-sha256"],
+            ["Chosen cipher", "chacha20-poly1305@openssh.com"]
+          ],
+          "quiz": {
+            "q": "Client pehle ssh-ed25519 pasand karta hai; server rsa-sha2-512 pehle list karta hai par ssh-ed25519 bhi uske paas hai. Kaun sa host key type use hoga?",
+            "options": [
+              "rsa-sha2-512",
+              "ssh-ed25519",
+              "Dono",
+              "Wo agree nahi kar paate"
+            ],
+            "why": "SSH client ki list order mein chalta hai aur pehli wali leta hai jo server support karta hai. Server ka order matter nahi karta."
+          }
+        },
+        {
+          "title": "Elliptic curve key exchange",
+          "desc": "curve25519 ke saath ECDH, host key se signed",
+          "detail": "Client fresh X25519 public key bhejta hai. Server apni fresh key, apni long-term host key, aur ab tak ki poori baatcheet ke hash par signature ke saath jawab deta hai. Dono sides ab same shared secret compute karti hain, jise dekhne wala koi nahi nikaal sakta. Client host key fingerprint ko ~/.ssh/known_hosts se check karta hai.",
+          "facts": [
+            ["Message codes", "30 INIT, 31 REPLY"],
+            ["Ephemeral keys", "Har ek 32 bytes (X25519)"],
+            ["Host key", "Ed25519, SHA256:k3Vq9pXo2mT…"]
+          ],
+          "quiz": {
+            "q": "Server exchange hash par apni host key se signature kyun karta hai?",
+            "options": [
+              "Data compress karne ke liye",
+              "Ye prove karne ke liye ki wo asli server hai, beech wala koi nahi",
+              "Cipher chunne ke liye",
+              "Password encrypt karne ke liye"
+            ],
+            "why": "Sirf host private key ka malik wo signature bana sakta hai. Man in the middle apna key exchange kar sakta hai par asli server ki tarah sign nahi kar sakta."
+          }
+        },
+        {
+          "title": "Encryption on karo",
+          "desc": "NEWKEYS: ab se sab kuch encrypted",
+          "detail": "Har side NEWKEYS bhejti hai, bina payload wala packet. Iske baad har packet shared secret se derive hui keys se encrypted hai, aur har direction mein keys ka fresh set use hota hai. Agle packets dekho: length field bhi ab scrambled hai.",
+          "facts": [
+            ["Message code", "21 (NEWKEYS)"],
+            ["Keys", "Har direction ke liye alag"],
+            ["Strict kex", "kex-strict (Terrapin fix)"]
+          ]
+        },
+        {
+          "title": "Key se login karo",
+          "desc": "Public key authentication, poori tarah encrypted",
+          "detail": "Client ssh-userauth service maangta hai, phir poochta hai ki uski public key user danish ke liye allowed hai ya nahi. Server use authorized_keys mein dhoondta hai aur PK_OK kehta hai. Client phir session ID par apni private key se signature karta hai. Private key kabhi laptop se bahar nahi jaati, aur chori karne ko password nahi hai.",
+          "facts": [
+            ["User", "danish"],
+            ["Method", "publickey (Ed25519)"],
+            ["Server checks", "~/.ssh/authorized_keys"]
+          ],
+          "quiz": {
+            "q": "Client ye prove karne ke liye ki key uski hai, kya bhejta hai?",
+            "options": [
+              "Private key khud",
+              "Private key se bana signature",
+              "Password",
+              "Host key"
+            ],
+            "why": "Signature private key reveal kiye bina ownership prove karta hai. Server use us public key se check karta hai jo uske paas pehle se hai."
+          }
+        },
+        {
+          "title": "Channel kholo, command chalao",
+          "desc": "CHANNEL_OPEN session, phir exec",
+          "detail": "Ek SSH connection kai channels le ja sakta hai: shells, commands, file transfers aur port forwards. Client ek session channel kholta hai aur use \"uptime\" chalane ko kehta hai. Har channel ki apni flow control window hoti hai taaki ek busy channel baaki ko block na kare.",
+          "facts": [
+            ["Channel type", "session"],
+            ["Request", "exec \"uptime\""],
+            ["Window", "2 MB, max packet 32 KB"]
+          ]
+        },
+        {
+          "title": "Output aur goodbye",
+          "desc": "CHANNEL_DATA, exit status, close",
+          "detail": "Server command ka output CHANNEL_DATA message mein bhejta hai, phir exit status 0, EOF aur CLOSE. Client apni side close karta hai, DISCONNECT bhejta hai aur TCP connection khatam karta hai. Kai SSH packets aksar ek hi TCP segment share karte hain, jaise capture mein dikhta hai.",
+          "facts": [
+            ["Output", "uptime ki ek line"],
+            ["Exit status", "0 (success)"],
+            ["Total time", "lagbhag 0.26 s"]
+          ],
+          "quiz": {
+            "q": "Observer encrypted packets gintaa hai. Wo phir bhi kya seekh sakta hai?",
+            "options": [
+              "Type kiya hua command",
+              "Traffic ke lagbhag sizes aur timing",
+              "Output",
+              "Private key"
+            ],
+            "why": "Contents aur lengths bhi encrypted hain, par TCP segments ki ginti, size aur timing ab bhi dikhte hain. Random padding sizes ko thoda blur karti hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Login hua, command chali, sab encrypted",
+        "text": "SSH ne algorithms par agree kiya, X25519 se shared secret banaya, signed host key se server ki identity prove ki, aur user ko key pair se login karaya. Sirf version banners aur key exchange visible the; baaki sab ciphertext tha.",
+        "facts": [
+          ["Round trips", "lagbhag 7"],
+          ["Clear text", "banners, KEXINIT, ECDH"],
+          ["Auth", "Ed25519 key, password nahi"],
+          ["Cipher", "chacha20-poly1305"]
+        ]
+      }
+    },
+    "host-key-changed": {
+      "name": "Host key badal gayi: beech mein koi hai?",
+      "summary": "Café Wi-Fi par attacker connection intercept karta hai, aur OpenSSH mana kar deta hai kyunki host key known_hosts se match nahi karti.",
+      "steps": [
+        {
+          "title": "Café Wi-Fi par intercept",
+          "desc": "Attacker server ke naam se jawab deta hai",
+          "detail": "Same Wi-Fi par attacker ne laptop ka ARP cache poison kar diya hai, isliye router ka traffic pehle attacker ke paas jaata hai. Jab laptop port 22 se connect hota hai, attacker ka apna SSH server jawab deta hai, asli hone ka naatak karte hue. Laptop ki taraf se packets bilkul normal lagte hain.",
+          "facts": [
+            ["Trick", "Shared Wi-Fi par ARP spoofing"],
+            ["Laptop sochta hai wo baat kar raha hai", "203.0.113.40"],
+            ["Asal mein baat karta hai", "Attacker se"]
+          ]
+        },
+        {
+          "title": "Alag host key",
+          "desc": "Attacker asli key se sign nahi kar sakta",
+          "detail": "Key exchange usual tarah chalta hai, par attacker ke paas asli server ki private host key nahi hai. Valid signature banane ke liye use apni host key bhejni padti hai. Fingerprint ab us fingerprint se alag hai jo laptop ke pehli baar connect hone par known_hosts mein save hua tha.",
+          "facts": [
+            ["Saved fingerprint", "SHA256:k3Vq9pXo2mT…"],
+            ["Received", "SHA256:Zx81Lq0WmPa…"],
+            ["Signature", "Valid, par galat key ke liye"]
+          ],
+          "quiz": {
+            "q": "Attacker asli server ki host key hi kyun nahi bhej deta?",
+            "options": [
+              "Wo bahut lambi hai",
+              "Asli private key ke bina wo matching signature nahi bana sakta",
+              "Client use kabhi check nahi karta",
+              "Host keys encrypted hoti hain"
+            ],
+            "why": "Public host key copy karna aasaan hai, par exchange hash par signature ke liye private key chahiye, jo asli server par hi rehti hai."
+          }
+        },
+        {
+          "title": "OpenSSH mana kar deta hai",
+          "desc": "REMOTE HOST IDENTIFICATION HAS CHANGED!",
+          "detail": "OpenSSH fingerprint compare karta hai, mismatch dekhta hai, badi warning print karta hai (\"IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\") aur \"Host key verification failed\" ke saath ruk jaata hai. Wo kabhi NEWKEYS ya koi login data nahi bhejta. Agar server sach mein reinstall hua tha, to ssh-keygen -R se purani line hatane se pehle admin ko naya fingerprint kisi aur channel se confirm karna chahiye.",
+          "facts": [
+            ["Result", "Host key verification failed"],
+            ["Login data sent", "Koi nahi"],
+            ["Safe fix", "Naya fingerprint out of band check karo"]
+          ],
+          "quiz": {
+            "q": "Warning aa gayi. Sahi kaam kya hai?",
+            "options": [
+              "known_hosts delete karo aur phir bhi connect karo",
+              "Ruko, aur server ke admin se naya fingerprint confirm karo",
+              "Key ki jagah password use karo",
+              "StrictHostKeyChecking band kar do"
+            ],
+            "why": "Naya key aankh band karke accept karna aapka session beech ke kisi bhi insaan ko de deta hai. Naya key tabhi accept karo jab aapka bharosemand koi naya fingerprint confirm kare."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Host key ne attack roka",
+        "text": "SSH server par bharosa pehli baar uski host key yaad rakhkar karta hai (trust on first use). Man in the middle banner copy kar sakta hai aur apna key exchange kar sakta hai, par asli host key se sign nahi kar sakta, isliye fingerprint badal jaata hai aur OpenSSH aage badhne se mana kar deta hai.",
+        "facts": [
+          ["Defence", "known_hosts fingerprint check"],
+          ["Stronger", "SSHFP DNS records ya SSH certificates"],
+          ["Never", "Warning ko aankh band karke ignore mat karo"]
+        ]
+      }
+    },
+    "brute-force": {
+      "name": "Password guess karne wala bot vs key-only login",
+      "summary": "Ek bot root passwords try karta hai; server sirf keys accept karta hai, aur fail2ban bot ka address block kar deta hai.",
+      "steps": [
+        {
+          "title": "Ek bot dastak deta hai",
+          "desc": "Internet scanners din bhar port 22 try karte hain",
+          "detail": "Jis bhi server ka port 22 khula hai use din mein bots ke hazaron login attempts dikhte hain. Ye wala connect karta hai aur libssh banner bhejta hai. Capture ab server par liya gaya hai, isliye source bot ka address hai.",
+          "facts": [
+            ["Bot", "198.18.77.14"],
+            ["Banner", "SSH-2.0-libssh_0.9.6"],
+            ["Typical rate", "Din mein hazaron tries"]
+          ]
+        },
+        {
+          "title": "Password try karo",
+          "desc": "root / admin123, encrypted bheja gaya",
+          "detail": "Key exchange ke baad (yahan nahi dikhaya) bot user root ke liye method \"password\" ke saath USERAUTH_REQUEST bhejta hai. Wo encrypted hai, par server use decrypt karta hai. Is server mein PasswordAuthentication no aur PermitRootLogin no hai, isliye wo USERAUTH_FAILURE se jawab deta hai aur wo ek hi method list karta hai jo wo accept karta hai: publickey.",
+          "facts": [
+            ["Tried", "root / admin123"],
+            ["Server config", "PasswordAuthentication no"],
+            ["Reply", "USERAUTH_FAILURE: publickey"]
+          ],
+          "quiz": {
+            "q": "Passwords band hone par bot ko andar aane ke liye kitne guesses chahiye?",
+            "options": [
+              "Lagbhag ek million",
+              "Ye password par depend karta hai",
+              "Guessing kaam nahi kar sakti; use private key chahiye",
+              "Paanch"
+            ],
+            "why": "Key-only login mein guess karne ko password hai hi nahi. Bot ko kisi ke computer se private key churani padegi."
+          }
+        },
+        {
+          "title": "fail2ban aata hai",
+          "desc": "Bahut zyaada failures, address ban",
+          "detail": "fail2ban sshd ka log padhta hai. 10 minutes ke andar same address se 5 failures ke baad wo ek firewall rule jodta hai jo us address ko ek ghante ke liye drop kar deta hai. Bot ka agla SYN kabhi jawab nahi paata. Isse logs shaant rehte hain aur CPU bachta hai, jabki key-only login hi asal mein darwaza band rakhta hai.",
+          "facts": [
+            ["Rule", "maxretry 5, findtime 10m, bantime 1h"],
+            ["Action", "198.18.77.14 ke liye firewall drop"],
+            ["Bot sees", "Timeouts"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Bot kahin nahi pahuncha",
+        "text": "Password guessing tabhi chalti hai jab passwords allowed hon. Key-only login target ko hi hata deta hai, aur fail2ban ya rate limits shor rokte hain. SSH ko VPN ke peeche rakhna ya sirf known addresses allow karna exposure aur kam kar deta hai.",
+        "facts": [
+          ["Main defence", "PasswordAuthentication no"],
+          ["Also", "PermitRootLogin no"],
+          ["Noise control", "fail2ban, rate limits"],
+          ["Best", "Sirf VPN par reachable"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Message codes",
+      "items": [
+        ["1", "DISCONNECT"],
+        ["5 / 6", "SERVICE_REQUEST / ACCEPT"],
+        ["20", "KEXINIT"],
+        ["21", "NEWKEYS"],
+        ["30 / 31", "KEX_ECDH_INIT / REPLY"],
+        ["50 / 51 / 52", "USERAUTH_REQUEST / FAILURE / SUCCESS"],
+        ["90 / 91", "CHANNEL_OPEN / CONFIRMATION"],
+        ["94", "CHANNEL_DATA"],
+        ["98", "CHANNEL_REQUEST"]
+      ]
+    },
+    {
+      "title": "Binary packet",
+      "items": [
+        ["packet_length", "4 bytes"],
+        ["padding_length", "1 byte"],
+        ["payload", "message code + fields"],
+        ["random padding", "4–255 bytes, total 8 ka multiple (ya block size)"],
+        ["MAC / tag", "NEWKEYS ke baad, jaise 16-byte Poly1305"]
+      ]
+    },
+    {
+      "title": "Files aur settings",
+      "items": [
+        ["~/.ssh/known_hosts", "Yaad rakhi hui server host keys"],
+        ["~/.ssh/authorized_keys", "Login ke liye allowed public keys"],
+        ["PasswordAuthentication no", "Sirf keys"],
+        ["ssh-keygen -R host", "Purani host key bhool jao"]
+      ]
+    }
+  ]
+}

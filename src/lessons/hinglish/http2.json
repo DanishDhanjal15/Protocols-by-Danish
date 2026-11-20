@@ -1,0 +1,254 @@
+{
+  "tagline": "Ek connection par ek saath kai requests, binary frames mein.",
+  "description": "HTTP/2 HTTP ka matlab (methods, headers, status codes) wahi rakhta hai, lekin uske travel karne ka tarika badal deta hai. Messages ko binary frames mein kaata jaata hai, har frame par ek stream number laga hota hai, isliye kai requests aur responses ek hi TCP connection ek saath share karte hain. Headers HPACK se compress hote hain.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TLS over TCP, port 443"],
+    ["Negotiated by", "ALPN \"h2\""],
+    ["Frame header", "9 bytes"],
+    ["Header compression", "HPACK (RFC 7541)"],
+    ["Defined in", "RFC 9113"]
+  ],
+  "legend": [
+    "TCP handshake aur ACKs",
+    "TLS handshake",
+    "Connection setup (SETTINGS)",
+    "Requests (HEADERS)",
+    "Responses (HEADERS + DATA)"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "CSS aur JavaScript wala page",
+      "summary": "TLS h2 chunta hai, dono sides SETTINGS exchange karti hain, aur teen files ek connection par wapas aati hain. Frames decrypted dikhaye gaye hain.",
+      "steps": [
+        {
+          "title": "TCP, phir Client Hello",
+          "desc": "ALPN pehle h2 offer karta hai",
+          "detail": "Browser port 443 se connect karke TLS shuru karta hai. Client Hello ke ALPN extension mein woh un protocols ki list deta hai jo woh TLS ke andar bol sakta hai: pehle h2, phir http/1.1. Isi se dono sides bina extra round trip ke HTTP/2 par agree ho jaati hain.",
+          "facts": [
+            ["ALPN offer", "h2, http/1.1"],
+            ["Port", "443"],
+            ["Extra round trips", "None"]
+          ]
+        },
+        {
+          "title": "Server h2 chunta hai",
+          "desc": "Jawab encrypted hisse ke andar hai",
+          "detail": "Server ka h2 chunna EncryptedExtensions mein hai, jo TLS 1.3 encrypt karta hai. Yahan se yeh lesson decrypted view dikhata hai, jaise Wireshark dikhata hai jab browser apni TLS keys SSLKEYLOGFILE mein likhta hai. Asli wire par yeh records padhne layak nahi hote.",
+          "facts": [
+            ["Chosen", "h2"],
+            ["Where", "EncryptedExtensions"],
+            ["Decrypted with", "SSLKEYLOGFILE"]
+          ],
+          "quiz": {
+            "q": "Agar server sirf HTTP/1.1 support karta ho to kya hota hai?",
+            "options": [
+              "Connection fail ho jaata hai",
+              "ALPN http/1.1 chunta hai aur browser HTTP/1.1 bolta hai",
+              "Browser port 80 par retry karta hai",
+              "Server baad mein upgrade karta hai"
+            ],
+            "why": "ALPN ek negotiation hai: server browser ki list mein se ek protocol chunta hai. http/1.1 fallback hai."
+          }
+        },
+        {
+          "title": "Preface aur SETTINGS",
+          "desc": "PRI * HTTP/2.0, phir browser ki limits",
+          "detail": "Browser ek fixed 24-byte preface se shuru karta hai, PRI * HTTP/2.0 phir SM. HTTP/1.1 server ise reject kar dega, isliye mismatch turant pakda jaata hai. Phir ek SETTINGS frame aata hai jisme browser ki limits hain aur ek WINDOW_UPDATE jo server ko bada flow-control window deta hai.",
+          "facts": [
+            ["Preface", "24 bytes, fixed"],
+            ["Frame header", "Length 3, Type 1, Flags 1, Stream 4"],
+            ["Stream", "0 = poora connection"]
+          ],
+          "quiz": {
+            "q": "SETTINGS frame mein 4 settings hain, har ek 6 bytes ki. Uska 3-byte Length field kya kehta hai?",
+            "options": [
+              "4",
+              "24",
+              "33",
+              "9"
+            ],
+            "why": "Length sirf 9-byte header ke baad ka payload ginta hai: 4 × 6 = 24."
+          }
+        },
+        {
+          "title": "Server SETTINGS aur ACKs",
+          "desc": "Dono sides doosre ki settings confirm karti hain",
+          "detail": "Server apni SETTINGS bhejta hai, jaise ek saath maximum 128 streams, aur browser ki SETTINGS ko ACK flag wale khaali SETTINGS frame se acknowledge karta hai. Browser bhi wahi wapas karta hai.",
+          "facts": [
+            ["Max streams", "128 at once"],
+            ["ACK", "Empty SETTINGS, flag 0x01"],
+            ["Applies to", "Poora connection"]
+          ]
+        },
+        {
+          "title": "Stream 1 par GET /",
+          "desc": "HEADERS frame, HPACK se compressed",
+          "detail": "Request stream 1 par ek HEADERS frame hai. :method GET jaise common headers HPACK ki built-in static table ki taraf point karne wala ek hi byte hote hain. user-agent jaisi nayi values ek baar poori likhi jaati hain aur dynamic table mein save hoti hain, taaki baad ki requests unhe ek byte se refer kar sakein.",
+          "facts": [
+            ["Stream", "1 (odd = browser-started)"],
+            [":method GET", "1 byte (0x82)"],
+            ["Flags", "END_STREAM, END_HEADERS"]
+          ],
+          "quiz": {
+            "q": "Agli request mein bhi wahi value wala user-agent hai. Us header mein kitne bytes lagenge?",
+            "options": [
+              "Lagbhag 85, dobara poora likha hua",
+              "1 byte, dynamic table ki taraf point karta hua",
+              "0, headers dobara nahi bheje jaate",
+              "2 bytes"
+            ],
+            "why": "HPACK ne use dynamic table mein daal diya, isliye agli baar ek indexed byte kaafi hai."
+          }
+        },
+        {
+          "title": "Stream 1 par response",
+          "desc": "HEADERS phir DATA",
+          "detail": "Server usi stream number par jawab deta hai: :status 200 wala HEADERS frame, phir HTML aur END_STREAM flag wala DATA frame. Browser HTML padhta hai aur use do aur files fetch karne ko milti hain.",
+          "facts": [
+            [":status 200", "1 byte (0x88)"],
+            ["Body", "185 bytes in DATA"],
+            ["Found", "/style.css, /app.js"]
+          ]
+        },
+        {
+          "title": "Do requests ek saath",
+          "desc": "Streams 3 aur 5 ek packet mein",
+          "detail": "Wait karne ki jagah, ya HTTP/1.1 ki tarah aur connections kholne ki jagah, browser dono requests ek saath streams 3 aur 5 par bhejta hai. Dynamic table ki wajah se har HEADERS frame chhota hai. Server kisi bhi order mein jawab de sakta hai, aur alag streams ke frames ko interleave bhi kar sakta hai.",
+          "facts": [
+            ["Streams", "3 (/style.css), 5 (/app.js)"],
+            ["Connections", "Still 1"],
+            ["Header block", "Har ek 25 bytes se kam"]
+          ],
+          "quiz": {
+            "q": "app.js style.css se pehle ready hai. Kya server use pehle bhej sakta hai?",
+            "options": [
+              "Nahi, responses request order mein hone chahiye",
+              "Haan, frames mein stream number hota hai, isliye order matter nahi karta",
+              "Sirf agar browser maange",
+              "Sirf HTTP/3 ke saath"
+            ],
+            "why": "Har frame apni stream ka naam batata hai, isliye responses kisi bhi order mein aa sakte hain aur interleave bhi ho sakte hain. HTTP/1.1 yeh nahi kar sakta tha."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Multiplexed",
+        "text": "ALPN ne TLS handshake ke andar h2 chuna, preface aur SETTINGS ne connection set up kiya, aur teen requests ne ek TCP connection streams 1, 3 aur 5 ke frames ki tarah share kiya. HPACK ne repeated headers ko single bytes mein badal diya. Ek kamzori bachi hai: saari streams ek hi TCP byte stream share karti hain.",
+        "facts": [
+          ["Streams used", "1, 3, 5"],
+          ["TCP connections", "1"],
+          ["Frame header", "9 bytes"],
+          ["Page ready", "~175 ms"]
+        ]
+      }
+    },
+    "hol": {
+      "name": "Ek lost segment har stream rok deta hai",
+      "summary": "Stream 7 wala ek dropped TCP segment streams 9 aur 11 ko bhi rok leta hai: TCP head-of-line blocking.",
+      "steps": [
+        {
+          "title": "Teen requests",
+          "desc": "Streams 7, 9 aur 11",
+          "detail": "Baad mein usi connection par browser ek image, ek font aur ek logo teen nayi streams par maangta hai. Ve ek TLS record mein saath travel karti hain.",
+          "facts": [
+            ["Streams", "7, 9, 11"],
+            ["Connection", "Pehle wala hi"],
+            ["Sent", "In one segment"]
+          ]
+        },
+        {
+          "title": "Stream 7 wala segment kho gaya",
+          "desc": "Streams 9 aur 11 theek aa gayi",
+          "detail": "Server teen TCP segments bhejta hai, har stream ke liye ek. Ek busy router pehla segment drop kar deta hai, jisme stream 7 ka data hai. Stream 9 aur stream 11 wale segments safely pahunch jaate hain.",
+          "facts": [
+            ["Lost", "Segment with DATA[7]"],
+            ["Arrived", "DATA[9], DATA[11]"],
+            ["Each segment", "~1290 bytes"]
+          ],
+          "quiz": {
+            "q": "Font (stream 9) laptop tak poora aa chuka hai. Kya browser ab use use kar sakta hai?",
+            "options": [
+              "Haan, woh alag stream hai",
+              "Nahi, TCP gap bharne tak aage ke saare bytes rok leta hai",
+              "Haan, lekin ek second baad",
+              "Nahi, fonts ko stream 7 chahiye"
+            ],
+            "why": "HTTP/2 streams independent hain, lekin TCP bytes sirf order mein deta hai. Gap ke baad sab kuch wait karta hai."
+          }
+        },
+        {
+          "title": "Sab wait karte hain",
+          "desc": "TCP head-of-line blocking",
+          "detail": "TCP ko stream 9 aur stream 11 ke bytes se pehle gap dikhta hai. Use bytes order mein deliver karne hain, isliye woh unhe apne buffer mein rakhta hai aur server ko duplicate ACKs aur SACK block se batata hai. Gap bharne tak browser ko kuch bhi nahi milta, un streams ka bhi nahi jo poori ho chuki hain.",
+          "facts": [
+            ["Held back", "Streams 9 and 11"],
+            ["Signal", "Duplicate ACK + SACK"],
+            ["Browser sees", "Abhi kuch nahi"]
+          ]
+        },
+        {
+          "title": "Resend aur release",
+          "desc": "Teeno streams ek saath aati hain",
+          "detail": "Server missing segment dobara bhejta hai. Ab TCP ke paas har byte order mein hai aur woh streams 7, 9 aur 11 browser ko ek saath de deta hai. Ek lost packet ne teen unrelated files ko poore ek round trip se late kar diya. HTTP/3 isse QUIC par chalkar theek karta hai, jahan har stream ki apni ordering hoti hai.",
+          "facts": [
+            ["Delay added", "~1 round trip"],
+            ["Streams hurt", "3 (only 1 was lost)"],
+            ["Real fix", "HTTP/3 over QUIC"]
+          ],
+          "quiz": {
+            "q": "HTTP/3 mein yeh problem kyun nahi hoti?",
+            "options": [
+              "Woh kabhi packets lose nahi karta",
+              "QUIC har stream ko alag order karta hai, isliye loss sirf apni stream ko late karta hai",
+              "Woh bade packets use karta hai",
+              "Woh sab kuch do baar bhejta hai"
+            ],
+            "why": "QUIC streams ke baare mein jaanta hai. Lost packet sirf un streams ko rokta hai jinka data usme tha."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Head-of-line blocking ek layer neeche chali gayi",
+        "text": "HTTP/2 ne requests ke beech head-of-line blocking hata di, lekin saari streams ab bhi ek TCP byte stream par chalti hain. Jab ek segment lost hota hai, har stream uska wait karti hai. Lossy mobile networks par yeh HTTP/2 ko kai HTTP/1.1 connections se bhi slow bana sakta hai, isi liye HTTP/3 QUIC par shift hua.",
+        "facts": [
+          ["Cause", "TCP bytes ko strictly order mein deta hai"],
+          ["Hurts most", "Lossy Wi-Fi aur mobile"],
+          ["Fix", "HTTP/3 (QUIC)"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Frame types",
+      "items": [
+        ["0 DATA", "Body bytes"],
+        ["1 HEADERS", "Request ya response headers"],
+        ["3 RST_STREAM", "Ek stream cancel karo"],
+        ["4 SETTINGS", "Connection parameters"],
+        ["6 PING", "Liveness aur RTT"],
+        ["7 GOAWAY", "Shut down ho raha hai"],
+        ["8 WINDOW_UPDATE", "Flow control credit"]
+      ]
+    },
+    {
+      "title": "Frame header (9 bytes)",
+      "items": [
+        ["Length", "3 bytes"],
+        ["Type", "1 byte"],
+        ["Flags", "1 byte (END_STREAM 0x1, END_HEADERS 0x4, ACK 0x1)"],
+        ["Stream ID", "4 bytes (1 reserved bit)"]
+      ]
+    },
+    {
+      "title": "HPACK",
+      "items": [
+        ["Static table", "61 common headers"],
+        ["Dynamic table", "Entries 62+, per connection"],
+        ["0x82", ":method GET"],
+        ["0x88", ":status 200"]
+      ]
+    }
+  ]
+}

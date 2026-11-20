@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Look at your ARP cache", "hinglish": "Apna ARP cache dekho" },
+      "why": { "en": "This is the table where your laptop stores the answers to its ARP requests.", "hinglish": "Yeh woh table hai jahan tumhara laptop apni ARP requests ke jawab store karta hai." },
+      "windows": "arp -a",
+      "unix": "ip neigh",
+      "expect": { "en": "Pairs like 192.168.1.1 with b0-be-76-12-4c-01 (Windows uses dashes) and a state or type. Entries differ per network; on macOS use arp -a.", "hinglish": "192.168.1.1 aur b0-be-76-12-4c-01 jaise pairs (Windows dashes use karta hai) aur ek state ya type. Entries har network par alag hoti hain; macOS par arp -a use karo." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Trigger a fresh ARP request", "hinglish": "Nayi ARP request trigger karo" },
+      "why": { "en": "Pinging your router makes your laptop ask who has its IP if the entry is missing or stale.", "hinglish": "Router ko ping karne par, agar entry missing ya stale ho, to laptop poochta hai ki yeh IP kiske paas hai." },
+      "windows": "ping -n 2 192.168.1.1",
+      "unix": "ping -c 2 192.168.1.1",
+      "expect": { "en": "Normal ping replies; afterwards the router appears in the ARP cache. Use your own router's address, which may not be 192.168.1.1. Run Wireshark with the filter 'arp' while you ping to watch the request and reply.", "hinglish": "Normal ping replies; uske baad router ARP cache mein dikhta hai. Apne router ka address use karo, jo 192.168.1.1 na ho sakta hai. Ping karte waqt Wireshark mein 'arp' filter chalao taaki request aur reply dikhein." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find ARP requests and replies in the capture", "hinglish": "Capture mein ARP requests aur replies dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and filter on ARP opcodes.", "hinglish": "Lesson ki .pcap Wireshark mein kholo aur ARP opcodes par filter lagao." },
+      "wireshark": "arp.opcode == 1 || arp.opcode == 2",
+      "expect": { "en": "Requests sent to ff:ff:ff:ff:ff:ff asking 'Who has 192.168.1.1?' and unicast replies 'is at b0:be:76:12:4c:01'.", "hinglish": "ff:ff:ff:ff:ff:ff ko bheji requests jo poochti hain 'Who has 192.168.1.1?' aur unicast replies 'is at b0:be:76:12:4c:01'." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Spot suspicious ARP in the capture", "hinglish": "Capture mein shak wala ARP pakdo" },
+      "why": { "en": "Gratuitous ARP and replies nobody asked for are what ARP spoofing relies on.", "hinglish": "Gratuitous ARP aur bina maange replies hi woh cheez hain jin par ARP spoofing tikta hai." },
+      "wireshark": "arp.isgratuitous || arp.duplicate-address-detected",
+      "expect": { "en": "Wireshark flags the gratuitous announcement from the printer and, in the spoofing scenario, warns about duplicate IP use because two MACs claim one IP.", "hinglish": "Wireshark printer ke gratuitous announcement ko flag karta hai aur, spoofing scenario mein, duplicate IP use ki warning deta hai kyunki do MACs ek IP ka daava karte hain." }
+    }
+  ]
+}

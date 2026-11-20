@@ -1,0 +1,31 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find OSPF packets in the capture", "hinglish": "Capture mein OSPF packets dhoondo" },
+      "why": { "en": "OSPF runs directly over IP (protocol 89), so there is no TCP or UDP port to filter on.", "hinglish": "OSPF seedha IP (protocol 89) par chalta hai, isliye filter karne ke liye koi TCP ya UDP port nahi hota." },
+      "wireshark": "ospf",
+      "expect": { "en": "You see Hello, DB Description, LS Request, LS Update and LS Acknowledge packets. Addresses and timing differ in your copy.", "hinglish": "Tumhe Hello, DB Description, LS Request, LS Update aur LS Acknowledge packets dikhenge. Tumhari copy mein addresses aur timing alag ho sakti hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Show only Hellos", "hinglish": "Sirf Hellos dikhao" },
+      "why": { "en": "Hello packets are type 1; they carry the timers, DR and neighbour list.", "hinglish": "Hello packets type 1 hote hain; inme timers, DR aur neighbour list hoti hai." },
+      "wireshark": "ospf.msg.hello",
+      "expect": { "en": "Each Hello shows Hello Interval 10 s and Dead Interval 40 s, plus the Designated Router and the neighbours it has heard.", "hinglish": "Har Hello mein Hello Interval 10 s aur Dead Interval 40 s dikhta hai, saath mein Designated Router aur jin neighbours ko usne suna unki list." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Watch the LSA flooding", "hinglish": "LSA flooding dekho" },
+      "why": { "en": "Link State Updates (type 4) carry the full LSAs.", "hinglish": "Link State Updates (type 4) mein poore LSAs hote hain." },
+      "wireshark": "ospf.msg.lsupdate",
+      "expect": { "en": "Each update lists LSAs with their sequence numbers; in the link-down scenario you see the sequence numbers go up by one.", "hinglish": "Har update mein LSAs unke sequence numbers ke saath hote hain; link-down scenario mein sequence numbers ek se badhte dikhte hain." }
+    },
+    {
+      "title": { "en": "Look at your own routing table", "hinglish": "Apni routing table dekho" },
+      "why": { "en": "Routes learnt from OSPF are marked O (Unix routers) in routing tables. A home PC usually has none, but this shows the table OSPF would fill.", "hinglish": "OSPF se seekhe gaye routes routing table mein O se mark hote hain. Ghar ke PC mein aksar nahi hote, lekin yeh wahi table dikhata hai jise OSPF bharta." },
+      "windows": "route print",
+      "unix": "netstat -rn",
+      "expect": { "en": "A list of destinations, gateways and metrics. It varies by machine; on a home PC you only see a default route and local networks.", "hinglish": "Destinations, gateways aur metrics ki list. Yeh machine ke hisaab se alag hoti hai; ghar ke PC par sirf default route aur local networks dikhte hain." }
+    }
+  ]
+}

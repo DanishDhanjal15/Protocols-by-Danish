@@ -1,0 +1,30 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find the BPDUs in the capture", "hinglish": "Capture mein BPDUs dhoondo" },
+      "why": { "en": "Open the .pcap in Wireshark and show only spanning tree messages.", "hinglish": ".pcap Wireshark mein kholo aur sirf spanning tree messages dikhao." },
+      "wireshark": "stp",
+      "expect": { "en": "Configuration BPDUs to 01:80:c2:00:00:00 showing the Root Bridge ID, Root Path Cost and the sender's Bridge ID and Port ID, roughly every 2 seconds.", "hinglish": "01:80:c2:00:00:00 ko Configuration BPDUs, jinme Root Bridge ID, Root Path Cost aur sender ki Bridge ID aur Port ID dikhti hai, lagbhag har 2 seconds mein." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Spot topology change messages", "hinglish": "Topology change messages pehchano" },
+      "why": { "en": "In the link-fail scenario, TCN BPDUs and the TC flag announce the change.", "hinglish": "Link-fail scenario mein TCN BPDUs aur TC flag change announce karte hain." },
+      "wireshark": "stp.type == 0x80 || stp.flags.tc == 1",
+      "expect": { "en": "A 4-byte TCN BPDU going up the tree, then hellos with the Topology Change flag set for about 35 seconds.", "hinglish": "Tree mein upar jati ek 4-byte TCN BPDU, phir lagbhag 35 seconds tak Topology Change flag set wale hellos." }
+    },
+    {
+      "title": { "en": "Watch a broadcast storm repeat", "hinglish": "Broadcast storm ko repeat hote dekho" },
+      "why": { "en": "In the storm scenario, the same ARP broadcast keeps reappearing because Ethernet has no TTL.", "hinglish": "Storm scenario mein wahi ARP broadcast baar-baar dikhta hai kyunki Ethernet mein TTL nahi hota." },
+      "wireshark": "arp && eth.dst == ff:ff:ff:ff:ff:ff",
+      "expect": { "en": "Many identical ARP requests in a short time, the signature of a loop.", "hinglish": "Thode se time mein bahut saari identical ARP requests, jo loop ki pehchan hai." }
+    },
+    {
+      "title": { "en": "Look up the MAC table of your own PC's neighbours", "hinglish": "Apne PC ke padosiyon ki MAC table dekho" },
+      "why": { "en": "Read-only view of the ARP cache; after a topology change a real switch also relearns these MACs on new ports.", "hinglish": "ARP cache ka read-only view; topology change ke baad asli switch bhi yeh MACs naye ports par dobara seekhta hai." },
+      "windows": "arp -a",
+      "unix": "arp -a",
+      "expect": { "en": "A list of IP addresses with their MAC addresses on your local network. Contents vary by machine.", "hinglish": "Tumhare local network ke IP addresses aur unke MAC addresses ki list. Contents machine ke hisaab se alag hote hain." }
+    }
+  ]
+}

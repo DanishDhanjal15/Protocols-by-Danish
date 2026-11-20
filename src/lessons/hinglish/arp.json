@@ -1,0 +1,231 @@
+{
+  "tagline": "Local network par IP address ko MAC address mein badalna.",
+  "description": "IP addresses batate hain ki packet kahan jaana chahiye, lekin Ethernet sirf MAC addresses tak deliver kar sakta hai. ARP yeh gap bharta hai: ek device LAN par sabko awaaz lagata hai “yeh IP kiske paas hai?”, maalik apne MAC se jawab deta hai, aur jawab cache ho jata hai. ARP har jawab par bharosa karta hai, aur attackers isi ka fayda uthate hain.",
+  "facts": [
+    ["Layer", "2 aur 3 ke beech (link layer)"],
+    ["EtherType", "0x0806"],
+    ["Message size", "28 bytes (Ethernet par 60 tak padded)"],
+    ["Request", "ff:ff:ff:ff:ff:ff ko broadcast"],
+    ["Reply", "Poochne wale ko unicast"],
+    ["Defined in", "RFC 826"]
+  ],
+  "legend": [
+    "ARP requests (broadcast)",
+    "ARP replies",
+    "Normal traffic",
+    "Forged ARP aur attacks"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Router ka MAC dhoondhna",
+      "summary": "Laptop poochta hai 192.168.1.1 kiske paas hai, router jawab deta hai, aur result cache ho jata hai.",
+      "steps": [
+        {
+          "title": "192.168.1.1 kiske paas hai?",
+          "desc": "Sabko ek ARP request",
+          "detail": "Laptop apne gateway, 192.168.1.1, ke through packet bhejna chahta hai, lekin uska MAC address nahi jaanta. Woh ff:ff:ff:ff:ff:ff ko ARP request broadcast karta hai. Switch ise har port par copy karta hai, isliye printer ko bhi milti hai. Target MAC field poora zeros hai kyunki wahi toh unknown hai.",
+          "facts": [
+            ["Opcode", "1 (request)"],
+            ["Ethernet to", "ff:ff:ff:ff:ff:ff"],
+            ["Target MAC", "00:00:00:00:00:00 (unknown)"]
+          ],
+          "quiz": {
+            "q": "Yeh request kise milti hai?",
+            "options": [
+              "Sirf router ko",
+              "LAN ke har device ko",
+              "Sirf switch ko",
+              "Internet ke har device ko"
+            ],
+            "why": "Broadcast same Layer 2 network ke har device ko jata hai. Routers ise forward nahi karte, isliye yeh LAN se bahar nahi jata."
+          }
+        },
+        {
+          "title": "Main hoon, yeh raha mera MAC",
+          "desc": "Router seedha jawab deta hai",
+          "detail": "Printer dekhta hai ki request uske IP ke liye nahi hai aur use ignore kar deta hai. Router apna address pehchanta hai aur laptop ke MAC ko seedha ARP reply bhejta hai: 192.168.1.1 is at b0:be:76:12:4c:01.",
+          "facts": [
+            ["Opcode", "2 (reply)"],
+            ["Ethernet to", "3c:22:fb:7a:91:0e (unicast)"],
+            ["Answer", "192.168.1.1 is at b0:be:76:12:4c:01"]
+          ]
+        },
+        {
+          "title": "Cache karo aur bhejo",
+          "desc": "Kuch der ke liye aur sawaal nahi",
+          "detail": "Laptop 192.168.1.1 → b0:be:76:12:4c:01 ko apne ARP cache mein store karta hai (“arp -a” ya “ip neigh” se dekho). Jo ping wait kar raha tha woh ab turant nikal jata hai. Router ne bhi laptop ka MAC request se hi seekh liya, isliye woh bina poochhe jawab de sakta hai.",
+          "facts": [
+            ["Cache entry", "192.168.1.1 → b0:be:76:12:4c:01"],
+            ["Router ne seekha", "192.168.1.10 → 3c:22:fb:7a:91:0e"],
+            ["Extra ARP chahiye", "Nahi"]
+          ],
+          "quiz": {
+            "q": "Kya router ko ping ka reply dene se pehle apni ARP request bhejni padti hai?",
+            "options": [
+              "Haan, hamesha",
+              "Nahi, usne laptop ka MAC request se seekh liya",
+              "Sirf agar ping bada ho",
+              "Woh switch se poochta hai"
+            ],
+            "why": "Har ARP request mein sender ka IP aur MAC hota hai. Target woh pair store kar leta hai, jisse sawaalon ka doosra round bach jata hai."
+          }
+        },
+        {
+          "title": "Purani entry ko dobara check karna",
+          "desc": "Ek unicast ARP request",
+          "detail": "Cache entries hamesha nahi chalti, kyunki devices badal sakte hain. Confirmation ke bina lagbhag 30 seconds baad Linux entry ko stale mark karta hai. Agli baar use hone par laptop use broadcast karne ki jagah cached MAC ko seedha ARP request bhejkar check karta hai.",
+          "facts": [
+            ["Sent to", "b0:be:76:12:4c:01 (not broadcast)"],
+            ["Kyun", "Confirm karo ki entry ab bhi kaam karti hai"],
+            ["Cache life", "Seconds se minutes, OS par depend"]
+          ]
+        },
+        {
+          "title": "Gratuitous ARP",
+          "desc": "Bina poochhe khud ko announce karna",
+          "detail": "Jab printer reboot hota hai, woh apne hi address ke liye ARP broadcast karta hai. Kisi ne poocha nahi; maksad hai sabke cache ko refresh karna aur check karna ki 192.168.1.50 koi aur use nahi kar raha. Jo devices printer ko pehle se jaante hain woh apni entry update kar dete hain. Yeh yaad rakhna: koi bhi bina poochhe ARP bhej sakta hai.",
+          "facts": [
+            ["Sender IP = Target IP", "192.168.1.50"],
+            ["Sent to", "Broadcast"],
+            ["Used for", "Updates, duplicate check, failover"]
+          ],
+          "quiz": {
+            "q": "Ek device ko aisa ARP reply milta hai jo usne maanga hi nahi. Aam OS kya karta hai?",
+            "options": [
+              "Drop kar deta hai, maanga nahi gaya tha",
+              "Agar woh IP pehle se cache mein hai to cache update kar deta hai",
+              "Attack report karta hai",
+              "Router ko forward karta hai"
+            ],
+            "why": "ARP mein na authentication hai na request tracking, isliye hosts un addresses ke bina maange jawab bhi maan lete hain jinhe woh jaante hain. Yahi kamzori ARP spoofing use karta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "IP se MAC, solve",
+        "text": "Ek broadcast sawaal aur ek seedhe jawab ne laptop ko router ka MAC de diya, aur dono sides ne result cache kar liya. ARP simple aur tez hai, lekin jo sunta hai us par yakeen kar leta hai.",
+        "facts": [
+          ["Request", "Broadcast, opcode 1"],
+          ["Reply", "Unicast, opcode 2"],
+          ["Cache dekho", "arp -a / ip neigh"],
+          ["Trust", "Kuch check nahi hota"]
+        ]
+      }
+    },
+    "spoofing": {
+      "name": "ARP spoofing aur Dynamic ARP Inspection",
+      "summary": "LAN par attacker router banne ka daava karta hai taaki beech mein baith sake; switch forged ARP drop karna seekh leta hai.",
+      "steps": [
+        {
+          "title": "Laptop se jhooth bolo",
+          "desc": "“192.168.1.1 is at 02:42:de:ad:be:ef”",
+          "detail": "Attacker, usi switch mein plugged, laptop ko aisa ARP reply bhejta hai jo kisi ne maanga nahi: router ka IP attacker ke MAC par hai. Laptop apni cache entry overwrite kar deta hai. arpspoof jaise tools yeh har do second dohrate hain taaki jhooth tika rahe.",
+          "facts": [
+            ["Claim", "192.168.1.1 is at 02:42:de:ad:be:ef"],
+            ["Maanga gaya?", "Nahi"],
+            ["Repeated", "Har 2 s"]
+          ]
+        },
+        {
+          "title": "Router se jhooth bolo",
+          "desc": "“192.168.1.10 is at 02:42:de:ad:be:ef”",
+          "detail": "Woh router ke saath bhi yahi karta hai, laptop ke IP ka daava karke. Ab har side maanti hai ki attacker ka MAC doosre ka hai. Dono directions ka traffic attacker ke frame mein jayega.",
+          "facts": [
+            ["Claim", "192.168.1.10 is at 02:42:de:ad:be:ef"],
+            ["Dono sides behke", "Haan"],
+            ["Naam", "ARP poisoning"]
+          ],
+          "quiz": {
+            "q": "Laptop ab internet ko packet bhejta hai. Ethernet destination mein kaunsa MAC hai?",
+            "options": [
+              "Router ka asli MAC",
+              "Attacker ka MAC",
+              "Broadcast",
+              "Web server ka MAC"
+            ],
+            "why": "Laptop zehreele cache mein apna gateway dhoondhta hai aur use attacker ka MAC milta hai. IP header ab bhi web server hi kehta hai."
+          }
+        },
+        {
+          "title": "Man in the middle",
+          "desc": "Har frame attacker se guzarta hai",
+          "detail": "Laptop plain HTTP par login form post karta hai. Frame attacker ke paas jata hai, jo use padhta hai aur asli router ko forward kar deta hai taaki kuch toota hua na dikhe. IP addresses kabhi nahi badalte; sirf MAC addresses jhooth bolte hain.",
+          "facts": [
+            ["Frame to", "02:42:de:ad:be:ef (attacker)"],
+            ["Forwarded to", "b0:be:76:12:4c:01 (router)"],
+            ["Exposed", "Jo bhi encrypted nahi hai"]
+          ]
+        },
+        {
+          "title": "Dynamic ARP Inspection",
+          "desc": "Switch har ARP check karta hai",
+          "detail": "Network admin switch par DHCP snooping aur Dynamic ARP Inspection on karta hai. Switch ko DHCP se pehle se pata hai ki kaunsa IP aur MAC kaunsi port par hona chahiye. Attacker ki port 192.168.1.66 se bound hai, isliye us port se 192.168.1.1 ka daava karne wala ARP drop aur log ho jata hai.",
+          "facts": [
+            ["Checks", "Sender IP + MAC vs DHCP bindings"],
+            ["Router port", "Trusted"],
+            ["Result", "Forged ARP dropped"]
+          ],
+          "quiz": {
+            "q": "Switch ko kaise pata chalta hai ki ARP forged hai?",
+            "options": [
+              "Woh router ko ping karta hai",
+              "Uski DHCP snooping table kehti hai ki us port par 192.168.1.66 hai, 192.168.1.1 nahi",
+              "Packet bahut chhota hai",
+              "Forged ARPs par special flag hota hai"
+            ],
+            "why": "DAI har ARP ke sender IP aur MAC ko un bindings se compare karta hai jo DHCP snooping ne har port ke liye record ki. Mismatch ka matlab jhooth."
+          }
+        },
+        {
+          "title": "Wapas normal",
+          "desc": "Asli ARP cache ko theek karta hai",
+          "detail": "Laptop ki entry jaldi hi time out ho jati hai ya asli router ke reply se refresh ho jati hai, aur traffic phir seedha router ko jata hai. Smart switches ke bina chhote networks gateway ke liye static ARP entry laga sakte hain. Aur HTTPS beech mein bhi password ko secret rakhta.",
+          "facts": [
+            ["Static entry", "arp -s 192.168.1.1 b0:be:76:12:4c:01"],
+            ["Aur madad", "HTTPS, port security, 802.1X"],
+            ["Attacker ko dikhta hai", "Kuch naya nahi"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Jhooth switch par roka gaya",
+        "text": "ARP spoofing isliye chalta hai kyunki ARP har jawab maan leta hai, bina maange hue bhi. Dynamic ARP Inspection har ARP ko DHCP ke diye hue se check karta hai, aur static entries ya encryption attacker ka fayda cheen lete hain.",
+        "facts": [
+          ["Attack", "ARP spoofing / poisoning"],
+          ["Defence", "DHCP snooping + DAI"],
+          ["Chhote networks", "Static gateway entry"],
+          ["Hamesha", "Encryption (HTTPS) use karo"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "ARP message",
+      "items": [
+        ["Opcode 1", "Request: yeh IP kiske paas hai?"],
+        ["Opcode 2", "Reply: yeh IP is MAC par hai"],
+        ["Sender MAC / IP", "Kaun bol raha hai"],
+        ["Target MAC / IP", "Kisse poocha ja raha hai (requests mein MAC zero)"]
+      ]
+    },
+    {
+      "title": "Commands",
+      "items": [
+        ["arp -a", "Cache dekho (Windows, macOS)"],
+        ["ip neigh", "Cache dekho (Linux)"],
+        ["arp -s IP MAC", "Static entry jodo"],
+        ["arping IP", "ARP requests haath se bhejo"]
+      ]
+    },
+    {
+      "title": "Defences",
+      "items": [
+        ["DHCP snooping", "Switch IP↔MAC↔port record karta hai"],
+        ["DAI", "Match na hone wala ARP drop karta hai"],
+        ["Port security", "Har port par MACs limit karta hai"],
+        ["Encryption", "Beech wale ko bekaar bana deta hai"]
+      ]
+    }
+  ]
+}

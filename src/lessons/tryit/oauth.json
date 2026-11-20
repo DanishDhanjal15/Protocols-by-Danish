@@ -1,0 +1,35 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Read a provider's discovery document", "hinglish": "Provider ka discovery document padho" },
+      "why": { "en": "OpenID Connect providers publish their endpoints (/authorize, /token, jwks) in one public JSON file. This reads Google's, a real provider, with no login.", "hinglish": "OpenID Connect providers apne endpoints (/authorize, /token, jwks) ek public JSON file mein publish karte hain. Ye Google ki padhta hai, ek asli provider, bina login ke." },
+      "windows": "curl.exe -s https://accounts.google.com/.well-known/openid-configuration",
+      "unix": "curl -s https://accounts.google.com/.well-known/openid-configuration",
+      "expect": { "en": "A JSON document with keys such as authorization_endpoint, token_endpoint, userinfo_endpoint, jwks_uri and code_challenge_methods_supported (which lists S256). Exact fields vary over time.", "hinglish": "authorization_endpoint, token_endpoint, userinfo_endpoint, jwks_uri aur code_challenge_methods_supported (jisme S256 list hota hai) jaisi keys wala JSON document. Exact fields samay ke saath badalte hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Make a PKCE challenge from a verifier", "hinglish": "Verifier se PKCE challenge banao" },
+      "why": { "en": "code_challenge is BASE64URL(SHA256(code_verifier)). This computes it locally for a sample verifier, nothing is sent anywhere.", "hinglish": "code_challenge BASE64URL(SHA256(code_verifier)) hota hai. Ye ek sample verifier ke liye ise locally compute karta hai, kahin kuch bheja nahi jaata." },
+      "windows": "$v='dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'; $h=[Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::ASCII.GetBytes($v)); [Convert]::ToBase64String($h).TrimEnd('=').Replace('+','-').Replace('/','_')",
+      "unix": "printf '%s' 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk' | openssl dgst -sha256 -binary | openssl base64 -A | tr '+/' '-_' | tr -d '='",
+      "expect": { "en": "The output is E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM, the example challenge from RFC 7636. Same input always gives the same output.", "hinglish": "Output E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM aata hai, jo RFC 7636 ka example challenge hai. Same input hamesha same output deta hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Decode a JWT payload", "hinglish": "JWT payload decode karo" },
+      "why": { "en": "An ID token is three base64url parts. The middle one is only encoded, not encrypted. This decodes the sample payload from the jwt.io example, no real token needed.", "hinglish": "ID token teen base64url parts hai. Beech wala sirf encoded hai, encrypted nahi. Ye jwt.io ke example ka sample payload decode karta hai, asli token ki zaroorat nahi." },
+      "windows": "[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ=='))",
+      "unix": "echo 'eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ==' | base64 -d",
+      "expect": { "en": "{\"sub\":\"1234567890\",\"name\":\"John Doe\",\"iat\":1516239022}. Anyone can read it, which is why the signature (not secrecy) protects an ID token.", "hinglish": "{\"sub\":\"1234567890\",\"name\":\"John Doe\",\"iat\":1516239022}. Ise koi bhi padh sakta hai, isliye ID token ko secrecy nahi balki signature protect karta hai." },
+      "step": 6
+    },
+    {
+      "title": { "en": "Follow the redirects and the token call in the capture", "hinglish": "Capture mein redirects aur token call follow karo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark. Traffic is HTTPS, so look at the TLS conversations to the provider, the app and the API as separate connections (front channel vs back channel).", "hinglish": "Lesson ka .pcap Wireshark mein kholo. Traffic HTTPS hai, isliye provider, app aur API ke TLS conversations ko alag connections ki tarah dekho (front channel vs back channel)." },
+      "wireshark": "tls.handshake.type == 1",
+      "expect": { "en": "Several Client Hello packets, one per connection, each with its own server_name (for example the identity provider and the API). The HTTP inside is encrypted; the lesson text describes it.", "hinglish": "Kai Client Hello packets, har connection ke liye ek, har ek apne server_name ke saath (jaise identity provider aur API). Andar ka HTTP encrypted hai; lesson text use describe karta hai." },
+      "step": 1
+    }
+  ]
+}

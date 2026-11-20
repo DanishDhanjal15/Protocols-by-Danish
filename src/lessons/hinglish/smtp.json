@@ -1,0 +1,287 @@
+{
+  "tagline": "Email aapke laptop se kaise nikalta hai aur servers ke beech hop karta hai.",
+  "description": "SMTP email ko move karta hai. Aapki mail app TLS par login karke message ko port 587 par aapke provider ko submit karti hai, aur phir provider use recipient ke mail server tak port 25 par relay karta hai, jo DNS MX lookup se milta hai. Ye commands aur teen-digit reply codes ki plain-text baatcheet hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP 587 (submission), 25 (relay), 465 (implicit TLS)"],
+    ["Defined in", "RFC 5321 (SMTP), RFC 5322 (message format)"],
+    ["Style", "Text commands, 3-digit replies"],
+    ["Encryption", "STARTTLS ya implicit TLS"],
+    ["Finding servers", "DNS MX records"]
+  ],
+  "legend": [
+    "Handshake aur success replies",
+    "Sender ke commands aur mail",
+    "Server replies",
+    "TLS: encrypted traffic",
+    "DNS lookup"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Priya ko email bhejo",
+      "summary": "587 par STARTTLS aur AUTH ke saath submit karo, phir provider MX lookup ke baad port 25 par relay karta hai.",
+      "steps": [
+        {
+          "title": "Port 587 se connect karo",
+          "desc": "Mail app apne submission server se TCP connection kholti hai",
+          "detail": "Danish Send dabata hai. Uski mail app message khud deliver nahi karti. Wo use apne provider ke submission server, smtp.mailhost.example, ko port 587 par deti hai. TCP handshake ke baad server pehle bolta hai, 220 greeting ke saath.",
+          "facts": [
+            ["Server", "203.0.113.25 port 587"],
+            ["Port 587", "Submission (users mail bhej rahe hain)"],
+            ["First words", "Server pehle bolta hai: 220"]
+          ],
+          "quiz": {
+            "q": "TCP connection khulne ke baad pehli SMTP line kaun bhejta hai?",
+            "options": [
+              "Client, EHLO ke saath",
+              "Server, 220 greeting ke saath",
+              "Client, MAIL FROM ke saath",
+              "TLS shuru hone tak koi nahi"
+            ],
+            "why": "SMTP servers pehle 220 line se greet karte hain. Client EHLO bolne se pehle uska wait karta hai."
+          }
+        },
+        {
+          "title": "EHLO aur capabilities",
+          "desc": "Client apna intro deta hai; server apni extensions list karta hai",
+          "detail": "EHLO (extended hello) server ko client ka naam batata hai aur poochta hai ki wo kya support karta hai. Reply multi-line 250 hota hai: code ke baad dash ka matlab aur lines aayengi, space ka matlab last line. List mein STARTTLS dekho, aur abhi AUTH nahi hai: ye server plain connection par password lene se mana karta hai.",
+          "facts": [
+            ["Command", "EHLO laptop.home"],
+            ["Multi-line", "250- … phir last par 250 (space)"],
+            ["Offered", "STARTTLS, PIPELINING, SIZE"]
+          ],
+          "quiz": {
+            "q": "Pehle EHLO reply mein AUTH list kyun nahi hai?",
+            "options": [
+              "Server ke paas accounts nahi hain",
+              "Server login sirf connection encrypt hone ke baad allow karta hai",
+              "AUTH sirf port 25 par use hota hai",
+              "AUTH hamesha hidden rehta hai"
+            ],
+            "why": "Zyaadatar providers AUTH sirf STARTTLS ke baad advertise karte hain taaki password kabhi clear mein network par na jaye."
+          }
+        },
+        {
+          "title": "STARTTLS: TLS par switch karo",
+          "desc": "Wahi TCP connection, ab encrypted",
+          "detail": "Client STARTTLS bhejta hai aur server 220 Ready se jawab deta hai. Phir usi TCP connection par normal TLS 1.3 handshake chalta hai. Ab se har byte encrypted hai, aur SMTP baatcheet naye EHLO se dobara shuru hoti hai.",
+          "facts": [
+            ["Command", "STARTTLS"],
+            ["Reply", "220 2.0.0 Ready to start TLS"],
+            ["TLS", "1.3, X25519, AES-128-GCM"]
+          ]
+        },
+        {
+          "title": "AUTH se login karo",
+          "desc": "Phir EHLO, phir TLS ke andar AUTH PLAIN",
+          "detail": "Tunnel ke andar client dobara EHLO bolta hai, aur ab list mein AUTH PLAIN LOGIN hai. Client \"AUTH PLAIN AGRhbmlzaEBtYWlsaG9zdC5leGFtcGxlAGNvcnJlY3QtaG9yc2UtNDI=\" bhejta hai. Ye sirf username aur password ka Base64 hai, encryption nahi. Koi bhi ise decode kar sakta hai, isliye ise TLS ke andar hi jana chahiye. Server 235 se reply karta hai: logged in.",
+          "facts": [
+            ["Decrypted", "AUTH PLAIN <base64>"],
+            ["Base64 of", "\\0danish@mailhost.example\\0correct-horse-42"],
+            ["Reply", "235 2.7.0 Authentication successful"]
+          ],
+          "quiz": {
+            "q": "Agar ye AUTH PLAIN line TLS ke bina bheji jaati, to listener kya seekh sakta tha?",
+            "options": [
+              "Kuch nahi, Base64 encryption hai",
+              "Sirf username",
+              "Username aur password dono",
+              "Sirf ye ki login hua"
+            ],
+            "why": "Base64 bas bytes ko text mein likhne ka tareeka hai. Decode karne par username aur password seedhe wapas mil jaate hain."
+          }
+        },
+        {
+          "title": "Envelope aur message",
+          "desc": "MAIL FROM, RCPT TO, DATA (pipelined), phir message",
+          "detail": "Kyunki server ne PIPELINING offer ki thi, client MAIL FROM, RCPT TO aur DATA ek saath bhejta hai aur server teeno ka jawab saath deta hai: 250, 250, 354. Envelope (MAIL FROM aur RCPT TO) wo hai jisse servers mail route karte hain. DATA ke andar ke headers wo hain jo Priya dekhegi. Sirf ek dot wali line message khatam karti hai, aur server queue id ke saath 250 deta hai.",
+          "facts": [
+            ["Envelope", "danish@mailhost.example → priya@example.org"],
+            ["354", "Go ahead, end with <CRLF>.<CRLF>"],
+            ["Queued as", "4XyZ81"]
+          ],
+          "quiz": {
+            "q": "Server ko kaise pata chalta hai ki message text kahan khatam hota hai?",
+            "options": [
+              "Content-Length header se",
+              "Client connection close kar deta hai",
+              "Sirf ek dot wali line se",
+              "Headers ke baad blank line se"
+            ],
+            "why": "SMTP DATA ko CRLF . CRLF se khatam karta hai. Jis body line ki shuruaat sach mein dot se hoti hai, usme ek extra dot jod diya jaata hai (dot-stuffing)."
+          }
+        },
+        {
+          "title": "Recipient ka MX dhoondo",
+          "desc": "example.org MX ke liye DNS lookup",
+          "detail": "Ab submission server client hai. Wo recipient mein @ ke baad wala hissa, example.org, dekhta hai aur DNS se uske MX (mail exchanger) records maangta hai. Jawab batata hai ki example.org ka mail mx1.example.org par jayega preference 10 ke saath, aur uska address deta hai.",
+          "facts": [
+            ["Query", "example.org MX"],
+            ["Answer", "10 mx1.example.org"],
+            ["Address", "198.51.100.25"]
+          ],
+          "quiz": {
+            "q": "Ek domain ke paas MX 10 mx1 aur MX 20 mx2 hai. Pehle kaun sa server try hoga?",
+            "options": [
+              "mx2, bada number",
+              "mx1, chhota number",
+              "Dono ek saath",
+              "Jo DNS pehle answer kare"
+            ],
+            "why": "Chhota preference number jeetta hai. mx2 sirf backup hai agar mx1 answer na de."
+          }
+        },
+        {
+          "title": "Port 25 par relay",
+          "desc": "Server se server, plain SMTP",
+          "detail": "Submission server mx1.example.org se port 25 par connect karta hai, wo port jo mail servers aapas mein baat karne ke liye use karte hain. Yahan password nahi chahiye: receiving server apne users ka mail kisi se bhi accept karta hai. Zyaadatar servers ab STARTTLS se upgrade bhi kar lete, par ye capture plain dialogue dikhata hai taaki aap har line padh sako.",
+          "facts": [
+            ["From", "203.0.113.25 (port 41822)"],
+            ["To", "198.51.100.25 port 25"],
+            ["Login", "Nahi: MX apne domain ka mail accept karta hai"]
+          ],
+          "quiz": {
+            "q": "Relay step AUTH kyun nahi bhejta?",
+            "options": [
+              "Port 25 hamesha encrypted hota hai",
+              "Receiving MX apne users ko addressed mail kisi bhi server se accept karta hai",
+              "Password pehle hi port 587 par bheja ja chuka hai",
+              "DNS ne prove kar diya ki sender kaun hai"
+            ],
+            "why": "MX ko apne users ke liye poore internet se mail accept karna padta hai. Wo sender ko doosre tareeke se check karta hai: SPF, DKIM, DMARC, reputation."
+          }
+        },
+        {
+          "title": "DATA aur goodbye",
+          "desc": "354, real headers wala message, 250, 221",
+          "detail": "DATA aur 354 go-ahead ke baad message plain text mein jaata hai: submission server ka jodha hua Received header (har hop ka trace), phir Danish ke headers, ek blank line, body aur final dot. MX 250 se jawab deta hai, mail ki zimmedaari le leta hai, aur connection QUIT aur 221 ke saath band hota hai.",
+          "facts": [
+            ["New header", "Received: … with ESMTPSA"],
+            ["250", "Ab MX message ka owner hai"],
+            ["Goodbye", "QUIT → 221"]
+          ],
+          "quiz": {
+            "q": "Final dot par MX ke 250 reply ke baad submission server ka kya kaam hai?",
+            "options": [
+              "Har ghante retry karta rahe",
+              "Kuch nahi: zimmedaari MX ko chali gayi",
+              "Priya ke mail padhne ka wait kare",
+              "DNS resolver ko copy bheje"
+            ],
+            "why": "DATA ke baad 250 ek promise hai. Ab receiving server ise deliver karega ya khud bounce bhejega."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Mail deliver ho gaya",
+        "text": "Message ne do SMTP safar kiye: laptop se provider tak port 587 par, encrypted aur logged in, phir provider se recipient ke MX tak port 25 par, jo DNS se mila. Har hop ek 250 par khatam hua jisne message ki zimmedaari hand over kar di.",
+        "facts": [
+          ["SMTP hops", "2 (submission, relay)"],
+          ["Port 587", "Login zaroori, STARTTLS"],
+          ["Port 25", "Server se server, MX se mila"],
+          ["Total time", "0.613 s"]
+        ]
+      }
+    },
+    "bounce": {
+      "name": "Galat address: 550 aur bounce",
+      "summary": "Address mein typo par permanent 550 milta hai, aur Danish ko bounce message aata hai.",
+      "steps": [
+        {
+          "title": "Address mein typo",
+          "desc": "Relay usual tarah shuru hota hai",
+          "detail": "Danish ne galti se priyaa@example.org type kar diya. Uske provider ne ise port 587 par accept kar liya (use har remote mailbox ka pata nahi hota), MX lookup kiya aur port 25 par connect hua. Greeting, EHLO aur MAIL FROM sab theek jaate hain.",
+          "facts": [
+            ["Recipient", "priyaa@example.org"],
+            ["MX", "mx1.example.org (198.51.100.25)"],
+            ["Sender", "danish@mailhost.example"]
+          ]
+        },
+        {
+          "title": "550: aisa koi mailbox nahi",
+          "desc": "MX recipient ko reject karta hai",
+          "detail": "MX apni user list check karta hai aur use priyaa nahi milta. Wo enhanced code 5.1.1 (bad destination mailbox) ke saath 550 se jawab deta hai. 5 se shuru hone wala reply permanent hota hai: dobara try karne se koi fayda nahi. 4xx reply ka matlab hota baad mein try karo. Submission server quit kar deta hai.",
+          "facts": [
+            ["Reply", "550 5.1.1 User unknown"],
+            ["5xx", "Permanent failure, retry mat karo"],
+            ["4xx", "Temporary, baad mein retry karo"]
+          ],
+          "quiz": {
+            "q": "Agar MX 550 ki jagah 450 se jawab deta to kya badalta?",
+            "options": [
+              "Kuch nahi",
+              "Submission server mail rakh leta aur baad mein retry karta",
+              "Mail postmaster ko deliver ho jata",
+              "Danish ko dobara login karna padta"
+            ],
+            "why": "4xx codes temporary hote hain (mailbox busy, greylisting). Sender message queue mein rakhta hai aur retry karta hai, aksar kai dino tak."
+          }
+        },
+        {
+          "title": "Bounce ghar wapas aata hai",
+          "desc": "Danish ke liye delivery status notification",
+          "detail": "Submission server ab ek bounce (delivery status notification) likhta hai aur use seedha usi server par Danish ke mailbox mein daal deta hai. Bounces empty envelope sender, MAIL FROM:<>, ke saath bheje jaate hain, taaki bounce loop mein dobara bounce na ho sake. Danish ki mail app IMAP connection khula rakhti hai, isliye use naye message ka turant pata chal jaata hai.",
+          "facts": [
+            ["Bounce sender", "MAIL FROM:<> (empty)"],
+            ["Subject", "Undelivered Mail Returned to Sender"],
+            ["Contains", "550 ki wajah + original headers"]
+          ],
+          "quiz": {
+            "q": "Bounces empty MAIL FROM:<> ke saath kyun bheje jaate hain?",
+            "options": [
+              "Server ka naam chhupane ke liye",
+              "Taaki fail hua bounce kabhi dobara bounce na ho",
+              "Kyunki sender pata nahi hai",
+              "Spam filters skip karne ke liye"
+            ],
+            "why": "Agar bounce khud fail ho jaye, to batane ke liye koi nahi bachta. Empty reverse path servers ke beech mail loops rokta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Bounce ho gaya",
+        "text": "MX ne recipient ko 550 5.1.1 se reject kar diya. Kyunki error permanent tha, sending server turant ruk gaya aur Danish ke liye bounce likha, jo empty envelope sender ke saath gaya taaki wo kabhi loop na kare.",
+        "facts": [
+          ["Code", "550 5.1.1 User unknown"],
+          ["Retry?", "Nahi, 5xx permanent hai"],
+          ["Bounce from", "MAILER-DAEMON, MAIL FROM:<>"],
+          ["Bounce headers", "Subject: Undelivered Mail Returned to Sender"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Commands",
+      "items": [
+        ["EHLO", "Hello + apni extensions list karo"],
+        ["STARTTLS", "Is connection ko TLS par upgrade karo"],
+        ["AUTH", "Login (PLAIN, LOGIN, XOAUTH2)"],
+        ["MAIL FROM", "Envelope sender (bounce address)"],
+        ["RCPT TO", "Envelope recipient, har person ke liye ek baar"],
+        ["DATA", "Message aa raha hai, <CRLF>.<CRLF> par khatam"],
+        ["QUIT", "Goodbye"]
+      ]
+    },
+    {
+      "title": "Reply codes",
+      "items": [
+        ["220", "Service ready / TLS ke liye ready"],
+        ["235", "Logged in"],
+        ["250", "OK"],
+        ["354", "Ab message bhejo"],
+        ["221", "Closing"],
+        ["4xx", "Temporary failure, baad mein retry karo"],
+        ["550", "Mailbox unavailable (permanent)"]
+      ]
+    },
+    {
+      "title": "Ports",
+      "items": [
+        ["25", "Server-to-server relay"],
+        ["587", "STARTTLS + login ke saath submission"],
+        ["465", "Implicit TLS par submission"]
+      ]
+    }
+  ]
+}

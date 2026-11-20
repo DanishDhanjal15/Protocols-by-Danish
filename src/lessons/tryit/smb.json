@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "List your current SMB connections", "hinglish": "Apne current SMB connections list karo" },
+      "why": { "en": "Shows the shares your PC is connected to and the dialect negotiated for each, matching the NEGOTIATE step.", "hinglish": "Dikhata hai ki aapka PC kaun se shares se connected hai aur har ek ke liye kaun sa dialect negotiate hua, jo NEGOTIATE step se match karta hai." },
+      "windows": "Get-SmbConnection | Select ServerName, ShareName, Dialect, Encrypted, Signed",
+      "unix": "smbutil statshares -a",
+      "expect": { "en": "A table with one row per open share, for example Dialect 3.1.1. It is empty if you have no open shares. smbutil is available on macOS; on Linux try 'smbstatus' on a Samba server you own.", "hinglish": "Har open share ke liye ek row wali table, jaise Dialect 3.1.1. Agar koi open share nahi hai to khali aayegi. smbutil macOS par milta hai; Linux par apne Samba server par 'smbstatus' try karo." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Check if SMBv1 is installed on your PC", "hinglish": "Check karo aapke PC par SMBv1 installed hai ya nahi" },
+      "why": { "en": "Read-only check of the optional SMBv1 Windows feature, the one the worm scenario targets. It should be Disabled.", "hinglish": "Windows ke optional SMBv1 feature ka read-only check, jise worm scenario target karta hai. Ye Disabled hona chahiye." },
+      "windows": "Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol | Select FeatureName, State",
+      "expect": { "en": "State : Disabled on a modern, healthy PC. This command may need an administrator PowerShell; if it says access denied, just skip it.", "hinglish": "Modern, healthy PC par State : Disabled. Is command ko administrator PowerShell chahiye ho sakta hai; agar access denied aaye to ise skip kar do." },
+      "step": 1
+    },
+    {
+      "title": { "en": "See that port 445 is listening on your own machine", "hinglish": "Apni hi machine par dekho port 445 listen kar raha hai" },
+      "why": { "en": "Test only your own computer. Windows listens on 445 for file sharing.", "hinglish": "Sirf apna computer test karo. Windows file sharing ke liye 445 par listen karta hai." },
+      "windows": "Test-NetConnection localhost -Port 445",
+      "unix": "nc -vz localhost 445",
+      "expect": { "en": "TcpTestSucceeded : True on Windows. On a Mac or Linux PC without file sharing turned on, expect a refused connection; that is normal.", "hinglish": "Windows par TcpTestSucceeded : True. File sharing on kiye bina Mac ya Linux PC par connection refused aayega; ye normal hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Inspect the SMB2 commands in the capture", "hinglish": "Capture mein SMB2 commands dekho" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark to follow NEGOTIATE, SESSION_SETUP, TREE_CONNECT, CREATE, READ and CLOSE.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur NEGOTIATE, SESSION_SETUP, TREE_CONNECT, CREATE, READ aur CLOSE follow karo." },
+      "wireshark": "smb2",
+      "expect": { "en": "One line per SMB2 command. In the encrypted scenario you will see only 'Encrypted SMB3' lines instead, with no command names.", "hinglish": "Har SMB2 command ki ek line. Encrypted scenario mein uski jagah sirf 'Encrypted SMB3' lines dikhengi, command names nahi." },
+      "step": 2
+    }
+  ]
+}

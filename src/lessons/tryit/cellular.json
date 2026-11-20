@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find the registration messages in the capture", "hinglish": "Capture mein registration messages dhoondo" },
+      "why": { "en": "Open the .pcap in Wireshark and show the 5G NAS signalling (registration, authentication, security mode).", "hinglish": ".pcap Wireshark mein kholo aur 5G NAS signalling (registration, authentication, security mode) dikhao." },
+      "wireshark": "nas-5gs",
+      "expect": { "en": "Registration Request with a SUCI, Authentication Request/Response, Security Mode Command/Complete and Registration Accept with the 5G-GUTI.", "hinglish": "SUCI wala Registration Request, Authentication Request/Response, Security Mode Command/Complete aur 5G-GUTI wala Registration Accept." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Look at the radio control messages", "hinglish": "Radio control messages dekho" },
+      "why": { "en": "RRC messages travel between the phone and the tower only.", "hinglish": "RRC messages sirf phone aur tower ke beech jate hain." },
+      "wireshark": "nr-rrc",
+      "expect": { "en": "RRC Setup Request, RRC Setup and RRC Setup Complete, the last one carrying the first NAS message.", "hinglish": "RRC Setup Request, RRC Setup aur RRC Setup Complete, jinme aakhri wala pehla NAS message carry karta hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "See the GTP-U tunnel", "hinglish": "GTP-U tunnel dekho" },
+      "why": { "en": "User data between the tower and the core is wrapped in GTP-U on UDP port 2152.", "hinglish": "Tower aur core ke beech user data UDP port 2152 par GTP-U mein lapeta hota hai." },
+      "wireshark": "gtp && udp.port == 2152",
+      "expect": { "en": "Outer IP and UDP headers, an 8-byte GTP header with the TEID, and the phone's own IP packet (10.45.0.7) inside.", "hinglish": "Outer IP aur UDP headers, TEID wala 8-byte GTP header, aur andar phone ka apna IP packet (10.45.0.7)." },
+      "step": 6
+    },
+    {
+      "title": { "en": "Check the mobile network your own phone or PC sees", "hinglish": "Dekho tumhare phone ya PC ko kaunsa mobile network dikhta hai" },
+      "why": { "en": "A read-only view of any cellular (mobile broadband) interface on your machine; most laptops have none.", "hinglish": "Tumhari machine par kisi bhi cellular (mobile broadband) interface ka read-only view; zyadatar laptops mein nahi hota." },
+      "windows": "netsh mbn show interfaces",
+      "unix": "mmcli -L",
+      "expect": { "en": "If you have no mobile broadband modem it says there are no such interfaces. With a modem you would see the network name and signal. Output varies by machine.", "hinglish": "Agar tumhare paas mobile broadband modem nahi hai to yeh bolega ki aisi interfaces nahi hain. Modem hone par network name aur signal dikhega. Output machine ke hisaab se alag hota hai." }
+    }
+  ]
+}

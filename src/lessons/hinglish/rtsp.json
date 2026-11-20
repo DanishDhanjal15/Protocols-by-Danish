@@ -1,0 +1,233 @@
+{
+  "tagline": "IP cameras aur live video ka remote control.",
+  "description": "RTSP wo tareeka hai jisse video player camera se uski stream maangta hai. Ye HTTP jaisa dikhta hai: TCP port 554 pe DESCRIBE, SETUP aur PLAY jaisi text requests. Video khud alag RTP packets mein jaata hai, saath mein RTCP reports.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Control", "TCP 554, HTTP jaisa text"],
+    ["Media", "UDP pe RTP (ya TCP mein interleaved)"],
+    ["Description", "SDP"],
+    ["Common codec", "H.264 / H.265, 90 kHz clock"],
+    ["Defined in", "RFC 2326 (1.0), RFC 7826 (2.0)"]
+  ],
+  "legend": [
+    "RTSP requests",
+    "Handshake aur 200 OK",
+    "Camera se video",
+    "RTCP reports",
+    "Errors"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "VLC mein camera dekhna",
+      "summary": "VLC rtsp://192.168.1.64/stream1 kholta hai, RTP stream set up karta hai, play karta hai, phir rok deta hai.",
+      "steps": [
+        {
+          "title": "Connect karo aur OPTIONS pucho",
+          "desc": "Port 554 pe TCP, phir: tum kya kar sakte ho?",
+          "detail": "VLC camera pe port 554 se TCP connection kholta hai. Uski pehli RTSP request OPTIONS hai, jo puchti hai ki camera kaunse methods support karta hai. Har request ek CSeq number carry karti hai, aur reply use repeat karta hai taaki jawab sawalon se match ho sakein.",
+          "facts": [
+            ["Camera", "192.168.1.64, TCP 554"],
+            ["Laptop port", "51500"],
+            ["CSeq", "1"]
+          ]
+        },
+        {
+          "title": "Stream ko DESCRIBE karo",
+          "desc": "Camera SDP se jawab deta hai",
+          "detail": "VLC stream ka description maangta hai. Is camera ko login chahiye, isliye pehle usne 401 se jawab diya aur VLC ne Digest answer ke saath request repeat ki (what-if wala scenario wo hissa dikhata hai). 200 OK mein SDP body hai: ek video track, payload type 96, 90 kHz clock wala H.264, aur codec settings jo VLC ko pehle frame se pehle chahiye.",
+          "facts": [
+            ["Body", "SDP, 298 bytes"],
+            ["Codec", "H.264, PT 96, 90 000 Hz"],
+            ["Track STREAM_URL", "trackID=1"]
+          ],
+          "quiz": {
+            "q": "SDP ki kaunsi line VLC ko batati hai ki video clock 90 000 ticks per second chalti hai?",
+            "options": [
+              "m=video 0 RTP/AVP 96",
+              "a=rtpmap:96 H264/90000",
+              "a=framerate:25",
+              "c=IN IP4 0.0.0.0"
+            ],
+            "why": "a=rtpmap payload type 96 ko codec name aur uske clock rate se map karta hai. RTP timestamps usi clock mein gine jaate hain."
+          }
+        },
+        {
+          "title": "Transport SETUP karo",
+          "desc": "RTP aur RTCP ke liye UDP ports agree karo",
+          "detail": "VLC batata hai ki video kahan chahiye: RTP UDP port 50000 pe aur RTCP reports 50001 pe. Camera apne port pair aur ek Session ID ke saath reply karta hai, jo har agli request mein hona zaroori hai. UDP ki jagah client RTP/AVP/TCP;interleaved=0-1 maang sakta hai taaki video isi TCP connection ke andar aaye, jo firewalls ke through madad karta hai.",
+          "facts": [
+            ["Client ports", "50000 (RTP), 50001 (RTCP)"],
+            ["Server ports", "6970, 6971"],
+            ["Session", "1F3A92C4"]
+          ],
+          "quiz": {
+            "q": "RTP port 50000 pe ja raha hai. Camera RTCP reports kahan bhejega?",
+            "options": ["49999", "50001", "554", "Wahi port"],
+            "why": "Convention se RTP even port use karta hai aur RTCP agla odd port. Isliye Transport header mein 50000-50001 jaisi range hoti hai."
+          }
+        },
+        {
+          "title": "PLAY",
+          "desc": "Bhejna shuru karo, please",
+          "detail": "VLC Session ID ke saath PLAY bhejta hai. Reply ka RTP-Info header pehle packet ka sequence number aur RTP timestamp deta hai, taaki VLC shuru se hi stream ko wall clock ke saath align kar sake.",
+          "facts": [
+            ["Range", "npt=0.000- (live, ab se)"],
+            ["First seq", "27110"],
+            ["First rtptime", "1402213760"]
+          ]
+        },
+        {
+          "title": "Tukdon mein video (FU-A)",
+          "desc": "Ek key frame kai RTP packets mein split",
+          "detail": "Ek key frame (IDR) lagbhag 60 KB ka hota hai, ek packet se bahut bada. RTP pe H.264 use FU-A fragments mein kaatta hai. Har ek FU indicator (type 28) se shuru hota hai aur FU header jiska S bit pehle tukde ko aur E bit aakhri ko mark karta hai. Saare tukdon ka timestamp same hota hai, aur aakhri RTP marker bit bhi set karta hai.",
+          "facts": [
+            ["FU indicator", "0x7c (NRI 3, type 28)"],
+            ["FU header", "start 0x85, middle 0x05, end 0x45"],
+            ["Pieces", "Is frame ke liye 43"]
+          ],
+          "quiz": {
+            "q": "Original NAL header 0x65 hai (ek IDR slice). AAKHRI fragment kaunsa FU header byte carry karta hai?",
+            "options": ["0x85", "0x05", "0x45", "0x7C"],
+            "why": "E bit (0x40) set, S bit clear, plus asli NAL type 5: 0x40 | 0x05 = 0x45. Pehle fragment ka 0x85 hai, beech wale 0x05."
+          }
+        },
+        {
+          "title": "RTCP reports",
+          "desc": "Sender report bahar, receiver report wapas",
+          "detail": "Har kuch seconds mein camera ek RTCP Sender Report bhejta hai jo wall-clock time ko RTP timestamp se jodta hai aur ginta hai ki usne kitna bheja. VLC Receiver Report se jawab deta hai: lost packets, jitter, aur timing jisse camera round trip naap sake. Ye RTP ke bagal ke odd ports pe jaate hain.",
+          "facts": [
+            ["SR", "Type 200, 28 bytes"],
+            ["RR", "Type 201, 32 bytes"],
+            ["Ports", "6971 → 50001 aur wapas"]
+          ],
+          "quiz": {
+            "q": "Sender Report NTP time ko RTP timestamp se kyun jodta hai?",
+            "options": [
+              "Stream encrypt karne ke liye",
+              "Taaki players tracks (jaise audio aur video) ko ek real clock se sync kar saken",
+              "Naya codec chunne ke liye",
+              "Session renew karne ke liye"
+            ],
+            "why": "Har track ki RTP clock ek random number se shuru hoti hai. SR use real time se bandhta hai, isliye alag audio aur video tracks line up ho sakte hain."
+          }
+        },
+        {
+          "title": "TEARDOWN",
+          "desc": "Stream roko aur session free karo",
+          "detail": "VLC band karne par wo Session ID ke saath TEARDOWN bhejta hai. Camera RTP bhejna band karta hai aur session bhool jaata hai. Agar client bas gayab ho jaaye, to camera 60 seconds tak koi request na aane par session khud khatam kar deta hai.",
+          "facts": [
+            ["CSeq", "6"],
+            ["Session", "1F3A92C4 closed"],
+            ["Chup rehne par timeout", "60 s"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Stream dekhi aur band ki",
+        "text": "RTSP ne baat-cheet ki: OPTIONS, SDP ke liye DESCRIBE, ports ke liye SETUP, PLAY, aur TEARDOWN. Video uske bagal mein RTP ki tarah chala, bade H.264 frames FU-A tukdon mein kate hue, aur RTCP ne report kiya ki wo kitni achhi tarah pahunchi.",
+        "facts": [
+          ["Control", "TCP 554, CSeq se matched text"],
+          ["Video", "RTP/UDP 6970 → 50000"],
+          ["Reports", "Odd ports pe RTCP"],
+          ["Session", "Session ID + timeout"]
+        ]
+      }
+    },
+    "unauthorized": {
+      "name": "DESCRIBE pe 401 Unauthorized",
+      "summary": "Camera login maangta hai, pehla password galat hai, aur default passwords ka khatra.",
+      "steps": [
+        {
+          "title": "Login ke bina DESCRIBE",
+          "desc": "Camera challenge ke saath 401 deta hai",
+          "detail": "VLC credentials ke bina stream maangta hai. Camera 401 Unauthorized aur ek realm aur random nonce wale WWW-Authenticate header se jawab deta hai. Digest login ka matlab password khud kabhi nahi bheja jaata, sirf is nonce ke saath mila hua hash.",
+          "facts": [
+            ["Status", "401 Unauthorized"],
+            ["Scheme", "Digest (MD5)"],
+            ["Nonce", "5f2b8c1e9a7d4036"]
+          ],
+          "quiz": {
+            "q": "Digest login mein VLC apne agle DESCRIBE mein kya bhejta hai?",
+            "options": [
+              "Password plain text mein",
+              "Username, password, nonce, method aur STREAM_URL ka hash",
+              "Kuch nahi, wo haar maan leta hai",
+              "TLS certificate"
+            ],
+            "why": "Digest response = (username:realm:password) ka MD5, nonce, method aur URI ke saath mila hua bhejta hai. Camera wahi compute karke compare karta hai."
+          }
+        },
+        {
+          "title": "Galat password",
+          "desc": "Hash match nahi karta: phir 401",
+          "detail": "VLC password maangta hai aur Digest answer ke saath retry karta hai. Type kiya password galat tha, isliye camera ka apna hash alag nikalta hai aur wo phir 401 deta hai. VLC login box dikhata hai. Kai cameras kuch galat koshishon ke baad lock ya slow ho jaate hain.",
+          "facts": [
+            ["CSeq", "3"],
+            ["Result", "401 Unauthorized"],
+            ["Wire pe password", "Kabhi nahi, sirf hash"]
+          ]
+        },
+        {
+          "title": "Sahi password, aur ek warning",
+          "desc": "SDP ke saath 200 OK",
+          "detail": "Sahi password se hashes match karte hain aur camera SDP bhejta hai. Warning: kai cameras admin/admin jaise default logins ya bina login ke aate hain, aur bots internet pe port 554 scan karte hain. Password badlo, camera ko public internet se door rakho (554 ki port forwarding mat karo), aur bahar se dekhne ke liye VPN use karo.",
+          "facts": [
+            ["CSeq", "4"],
+            ["Result", "200 OK + SDP"],
+            ["Security", "Default credentials badlo; 554 kabhi expose mat karo"]
+          ],
+          "quiz": {
+            "q": "Aapka camera admin/admin se chalta hai aur router port 554 uspe forward karta hai. Risk kya hai?",
+            "options": [
+              "Koi nahi, RTSP encrypted hai",
+              "Internet scan karne wala koi bhi login karke camera dekh sakta hai",
+              "Sirf video slow hogi",
+              "Camera VLC ko mana kar dega"
+            ],
+            "why": "Plain RTSP unencrypted hai aur bots har khule 554 pe default passwords try karte hain. Strong passwords aur public exposure na hona hi solution hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Login ho gaya, aur ek seekh",
+        "text": "Camera ne apni stream Digest login se protect ki: 401 challenge, password ki jagah hash, aur galat password pe phir 401. Login utna hi strong hai jitna password, aur plain RTSP encrypted nahi hai, isliye cameras ko local network pe rakho.",
+        "facts": [
+          ["Challenge", "401 + WWW-Authenticate: Digest"],
+          ["Answer", "Authorization: Digest … response=hash"],
+          ["Sabse bada real risk", "Default passwords + internet ke liye khula port 554"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Methods",
+      "items": [
+        ["OPTIONS", "Tum kaunse methods support karte ho?"],
+        ["DESCRIBE", "Is stream ka SDP bhejo"],
+        ["SETUP", "Transport aur ports agree karo, Session lo"],
+        ["PLAY / PAUSE", "Bhejna shuru ya pause karo"],
+        ["TEARDOWN", "Roko aur session free karo"],
+        ["GET_PARAMETER", "Aksar keep-alive ki tarah use hota hai"]
+      ]
+    },
+    {
+      "title": "Transports",
+      "items": [
+        ["RTP/AVP;unicast;client_port=a-b", "UDP pe RTP ports a (RTP) aur b (RTCP) ko"],
+        ["RTP/AVP/TCP;interleaved=0-1", "RTSP TCP connection ke andar RTP, $, channel, length ke prefix ke saath"],
+        ["multicast", "LAN pe kai viewers ke liye ek stream"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["RTSP port", "TCP 554 (RTSPS ke liye 322)"],
+        ["RTP header", "12 bytes, V=2"],
+        ["H.264 clock", "90 000 Hz; 25 fps pe har frame 3600 ticks"],
+        ["FU-A", "Indicator type 28; header S=0x80, E=0x40"],
+        ["RTCP types", "200 SR, 201 RR, 202 SDES, 203 BYE"]
+      ]
+    }
+  ]
+}

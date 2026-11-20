@@ -1,0 +1,231 @@
+{
+  "tagline": "DNS questions, normal HTTPS traffic ke andar chhupe hue.",
+  "description": "Normal DNS plain text mein jaata hai, isliye raste mein koi bhi aapka har lookup padh sakta hai. DNS over HTTPS wahi DNS message ek encrypted HTTPS request ke andar rakhta hai, isliye network ko sirf port 443 pe resolver se TLS connection dikhta hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "HTTPS: TCP 443 (ya QUIC)"],
+    ["Media type", "application/dns-message"],
+    ["Path", "/dns-query (convention se)"],
+    ["Message", "Ordinary DNS wire format"],
+    ["Defined in", "RFC 8484"]
+  ],
+  "legend": [
+    "TCP handshake aur ACKs",
+    "TLS handshake aur encrypted DNS",
+    "Plain DNS (koi bhi padh sakta hai)",
+    "Blocked ya refused"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "HTTPS pe example.com ka lookup",
+      "summary": "Browser apne DoH resolver se example.com maangta hai, TLS ke upar HTTP/2 request ke andar.",
+      "steps": [
+        {
+          "title": "Port 443 se connect karo",
+          "desc": "Ek normal TCP handshake",
+          "detail": "Browser https://dns.example/dns-query use karne ke liye set hai, jo 192.0.2.1 pe hai. Wo port 443 pe TCP connection kholta hai, bilkul kisi bhi secure website ki tarah. Network ko ye normal web browsing ki shuruaat jaisa dikhta hai.",
+          "facts": [
+            ["Resolver", "192.0.2.1:443"],
+            ["Laptop port", "52814"],
+            ["Time lagta hai", "1 round trip (12 ms)"]
+          ],
+          "quiz": {
+            "q": "DoH kaunsa destination port use karta hai?",
+            "options": [
+              "53, normal DNS ki tarah",
+              "853, DNS over TLS ki tarah",
+              "443, kisi bhi HTTPS site ki tarah",
+              "Ek random port"
+            ],
+            "why": "DoH bas HTTPS hai, isliye 443 use karta hai. Isse use web browsing se alag pehchanna mushkil hota hai."
+          }
+        },
+        {
+          "title": "TLS handshake",
+          "desc": "Keys agree karo aur certificate check karo",
+          "detail": "Client Hello TLS 1.3, ek key share aur HTTP/2 ke liye ALPN \"h2\" offer karta hai. Resolver apne key share se reply karta hai, phir baaki sab, uska dns.example ka certificate bhi, encrypted hota hai. Browser wo certificate check karta hai, isliye raste ka koi fake resolver asli hone ka natak nahi kar sakta.",
+          "facts": [
+            ["Version", "TLS 1.3"],
+            ["Clear mein visible", "SNI dns.example, ALPN h2"],
+            ["Certificate", "dns.example, browser check karta hai"]
+          ],
+          "quiz": {
+            "q": "Is connection ka kaunsa hissa ISP abhi bhi padh sakta hai?",
+            "options": [
+              "Jo names aap lookup karte ho",
+              "SNI mein resolver ka name aur uska IP address",
+              "DNS answers",
+              "Kuch bhi nahi"
+            ],
+            "why": "Client Hello aur IP header clear text mein hain. ISP ko pata chalta hai ki aap DoH service use karte ho, lekin ye nahi ki aap kya poochte ho."
+          }
+        },
+        {
+          "title": "POST /dns-query",
+          "desc": "DNS message HTTP body ki tarah",
+          "detail": "Encrypted record ke andar ek HTTP/2 request hai: :method POST, :path /dns-query, content-type aur accept dono application/dns-message. Body example.com type A ki normal DNS query hai, plain DNS jaise hi binary format mein. Uska ID 0 hai, jo caching mein madad karta hai, aur use 128 bytes tak pad kiya gaya hai taaki length se name ka andaza na lage.",
+          "facts": [
+            ["HTTP", "POST /dns-query (HTTP/2)"],
+            ["Body", "128-byte DNS query, ID 0"],
+            ["On the wire", "ek 287-byte encrypted record"]
+          ],
+          "quiz": {
+            "q": "Encrypt karne se pehle DNS query ko 128 bytes tak pad kyun kiya jaata hai?",
+            "options": [
+              "DNS isse require karta hai",
+              "Taaki encrypted record ki length se ye andaza na lage ki kaunsa name poocha gaya",
+              "HTTP/2 ko tez banane ke liye",
+              "Ek UDP packet mein fit karne ke liye"
+            ],
+            "why": "Encryption content chhupata hai, size nahi. Har query ko same block size tak pad karna (RFC 8467) length se guess karne ko rokta hai."
+          }
+        },
+        {
+          "title": "Answer aata hai",
+          "desc": "HTTP 200, andar DNS message",
+          "detail": "Resolver example.com ko normal tareeke se lookup karta hai (apne cache se, ya authoritative servers se plain DNS se) aur :status 200, content-type application/dns-message aur cache-control max-age=300 ke saath reply karta hai, jo record ke TTL se match karta hai. Body DNS response hai: example.com A 203.0.113.10, TTL 300.",
+          "facts": [
+            ["HTTP status", "200"],
+            ["DNS answer", "example.com A 203.0.113.10"],
+            ["Cache-Control", "max-age=300 (= TTL)"]
+          ],
+          "quiz": {
+            "q": "DNS answer mein TTL 300 hai. HTTP response mein kaunsa max-age hona chahiye?",
+            "options": [
+              "0, DoH kabhi cache nahi hota",
+              "300 ya usse kam",
+              "86400",
+              "Koi fark nahi padta"
+            ],
+            "why": "RFC 8484 kehta hai ki HTTP freshness answer ke sabse chhote TTL se zyada nahi honi chahiye, taaki caches kabhi stale records serve na karein."
+          }
+        },
+        {
+          "title": "Compare: plain DNS",
+          "desc": "DoH ke bina ISP kya dekhta hai",
+          "detail": "Contrast ke liye, usi laptop ki ek purani app ISP ke resolver ko UDP port 53 pe use karti hai. Uska sawal aur jawab plain text hain, isliye ISP (ya Wi-Fi pe koi bhi) unhe padh, log ya badal bhi sakta hai. DoH mein ISP ne sirf dns.example se TLS connection dekha.",
+          "facts": [
+            ["Plain DNS", "UDP 53, readable"],
+            ["ISP dekhta hai", "example.com → 203.0.113.10"],
+            ["DoH ke saath", "Sirf \"dns.example se baat ki\""]
+          ],
+          "quiz": {
+            "q": "DoH pe switch karne ke baad, kaun abhi bhi dekh sakta hai ki aap kaunsi sites lookup karte ho?",
+            "options": [
+              "Koi nahi",
+              "DoH resolver operator",
+              "Aapka ISP",
+              "Raste ka har router"
+            ],
+            "why": "DoH trust ko move karta hai, hatata nahi. Resolver aapki queries decrypt karta hai, isliye jo ise chalata hai us par trust karna padega."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Wahi DNS, naya envelope",
+        "text": "DoH ne DNS ko khud nahi badla: query aur answer ordinary DNS messages hain. Usne bas unhe TLS ke upar HTTP/2 mein lapet diya, isliye network ko aapke lookup kiye hue names ki jagah resolver se ek secure web connection dikhta hai.",
+        "facts": [
+          ["Packets", "DoH ke liye 10 (setup mila ke)"],
+          ["Baad ke lookups", "Khula connection reuse: 1 round trip"],
+          ["Hidden", "Names, answers, query sizes"],
+          ["Abhi bhi visible", "Resolver IP aur SNI"]
+        ]
+      }
+    },
+    "blocked": {
+      "name": "Network DoH block kar deta hai",
+      "summary": "Office firewall known DoH resolvers ke connections drop karta hai, isliye browser plain DNS pe fall back karta hai.",
+      "steps": [
+        {
+          "title": "Connection drop",
+          "desc": "Resolver ko gaye SYNs gayab",
+          "detail": "Office firewall ke paas public DoH resolvers ki list hai aur wo unka traffic chupchap drop karta hai, taaki DNS ko khud filter aur log kar sake. Browser ke 192.0.2.1:443 ko gaye SYN ka koi jawab nahi aata; 1 second baad wo phir try karta hai, wahi result.",
+          "facts": [
+            ["Target", "192.0.2.1:443"],
+            ["Firewall action", "Drop (no reply)"],
+            ["Retry", "1 s baad"]
+          ],
+          "quiz": {
+            "q": "Traffic encrypted hone ke bawajood firewall 192.0.2.1 pe DoH kaise block kar sakta hai?",
+            "options": [
+              "Wo TLS decrypt karta hai",
+              "Wo resolver ke IP address aur SNI se block karta hai, jo visible hain",
+              "DoH port 53 use karta hai",
+              "Nahi kar sakta"
+            ],
+            "why": "Encryption content chhupata hai, ye nahi ki packets kahan jaa rahe hain. Well-known resolver IPs aur names block karna aasaan hai."
+          }
+        },
+        {
+          "title": "Plain DNS pe fall back",
+          "desc": "Page phir bhi load hota hai, privacy nahi",
+          "detail": "Apne default mode mein browser DoH ko best effort maanta hai. Resolver tak na pahunch paaye to wo us DNS server pe fall back karta hai jo network ne diya, UDP 53 pe. Lookup chal jaata hai, lekin ab firewall har name padh sakta hai.",
+          "facts": [
+            ["Server", "Office DNS 192.0.2.53"],
+            ["Transport", "UDP 53, plain text"],
+            ["Privacy", "Is network pe gayi"]
+          ],
+          "quiz": {
+            "q": "User ne \"maximum protection\" (strict DoH, no fallback) chuna hai. Yahan kya hoga?",
+            "options": [
+              "Ab jaisa hi, plain DNS",
+              "Names resolve nahi honge, isliye pages load nahi honge",
+              "Browser port 53 DoH pe switch karega",
+              "Firewall bypass ho jaayega"
+            ],
+            "why": "Strict mode names leak karne se mana karta hai, isliye DoH blocked hone par lookup fail ho jaata hai. Privacy chalne se upar hai."
+          }
+        },
+        {
+          "title": "Canary domain",
+          "desc": "\"Yahan DoH nahi\" kehne ka shaleen tareeka",
+          "detail": "Firefox network ke resolver se ek special name use-application-dns.net bhi poochta hai. Jo network DNS answers filter karna chahta hai wo uske liye NXDOMAIN deta hai, aur browser us network pe DoH ko default se off rakhta hai, timeouts ka intezaar kiye bina.",
+          "facts": [
+            ["Canary", "use-application-dns.net"],
+            ["NXDOMAIN ka matlab", "DoH ko default se on mat karo"],
+            ["Checked", "Start pe aur network change pe"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Blocked, phir fall back",
+        "text": "DoH ye chhupata hai ki aap kya poochte ho, ye nahi ki kisse poochte ho. Network well-known resolvers block kar sakta hai ya canary domain se signal de sakta hai, aur browser phir plain DNS pe fall back karta hai jab tak user ne strict mode na chuna ho.",
+        "facts": [
+          ["Blocked by", "Resolver IP / SNI"],
+          ["Fallback", "Plain DNS, UDP 53"],
+          ["Canary", "use-application-dns.net"],
+          ["Strict mode", "Leak karne ki jagah fail hota hai"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "HTTP request",
+      "items": [
+        [":method", "POST (ya ?dns=base64url ke saath GET)"],
+        [":path", "/dns-query"],
+        ["content-type", "application/dns-message"],
+        ["accept", "application/dns-message"]
+      ]
+    },
+    {
+      "title": "Encrypted DNS family",
+      "items": [
+        ["DoH", "DNS over HTTPS, TCP/UDP 443 (RFC 8484)"],
+        ["DoT", "DNS over TLS, TCP 853 (RFC 7858)"],
+        ["DoQ", "DNS over QUIC, UDP 853 (RFC 9250)"],
+        ["Plain DNS", "UDP/TCP 53, no encryption"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["DoH mein DNS ID", "0 (HTTP caching mein madad)"],
+        ["Query padding", "128 bytes ka multiple"],
+        ["Response padding", "468 bytes ka multiple"],
+        ["Canary domain", "use-application-dns.net"]
+      ]
+    }
+  ]
+}

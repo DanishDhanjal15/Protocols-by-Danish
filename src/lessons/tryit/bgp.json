@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find the BGP messages in the capture", "hinglish": "Capture mein BGP messages dhoondo" },
+      "why": { "en": "Open the .pcap in Wireshark and show only BGP (TCP port 179): OPEN, KEEPALIVE, UPDATE and NOTIFICATION.", "hinglish": ".pcap Wireshark mein kholo aur sirf BGP (TCP port 179) dikhao: OPEN, KEEPALIVE, UPDATE aur NOTIFICATION." },
+      "wireshark": "bgp",
+      "expect": { "en": "OPEN from each side (AS64500 and AS64496), KEEPALIVEs, then the UPDATE carrying 203.0.113.0/24 with its path attributes.", "hinglish": "Har side se OPEN (AS64500 aur AS64496), KEEPALIVEs, phir path attributes ke saath 203.0.113.0/24 wala UPDATE." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Inspect the AS_PATH", "hinglish": "AS_PATH inspect karo" },
+      "why": { "en": "Filter UPDATE messages and expand the path attributes to see AS_PATH grow as the route is passed on.", "hinglish": "UPDATE messages filter karo aur path attributes expand karo ki route aage pass hone par AS_PATH kaise badhta hai." },
+      "wireshark": "bgp.type == 2",
+      "expect": { "en": "AS_PATH 64500 on the first UPDATE and 64496 64500 on the one sent to ISP B; the hijack scenario shows a /25 originated by 64511.", "hinglish": "Pehle UPDATE par AS_PATH 64500 aur ISP B ko bheje gaye par 64496 64500; hijack scenario mein 64511 se originate hua /25 dikhta hai." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Spot the error message", "hinglish": "Error message pehchano" },
+      "why": { "en": "In the hold-timer scenario the transit ends the session with a NOTIFICATION.", "hinglish": "Hold-timer scenario mein transit session ko NOTIFICATION se khatam karta hai." },
+      "wireshark": "bgp.type == 3",
+      "expect": { "en": "A 21-byte NOTIFICATION with error code 4 (Hold Timer Expired), followed by the TCP FIN.", "hinglish": "Error code 4 (Hold Timer Expired) wala 21-byte NOTIFICATION, uske baad TCP FIN." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Look up who owns an AS number", "hinglish": "Dekho AS number kiska hai" },
+      "why": { "en": "A safe, read-only lookup of a real network's AS number and the prefixes it announces, using public data.", "hinglish": "Public data se kisi asli network ke AS number aur uske announce kiye prefixes ka safe, read-only lookup." },
+      "windows": "nslookup -type=TXT 8.8.8.8.origin.asn.cymru.com",
+      "unix": "whois -h whois.cymru.com \" -v 8.8.8.8\"",
+      "expect": { "en": "The answer shows AS15169 (Google) for 8.8.8.8 with the announced prefix 8.8.8.0/24, the registry and the allocation date. Exact output differs by tool and over time.", "hinglish": "Jawab 8.8.8.8 ke liye AS15169 (Google) announced prefix 8.8.8.0/24, registry aur allocation date ke saath dikhata hai. Exact output tool aur samay ke hisaab se alag hota hai." }
+    }
+  ]
+}

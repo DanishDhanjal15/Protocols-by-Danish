@@ -1,0 +1,269 @@
+{
+  "tagline": "Industrial control ki simple, bharosa karne wali language.",
+  "description": "Modbus se control computer ek PLC se numbers padh sakta hai aur outputs on kar sakta hai: registers 16-bit values rakhte hain, coils on/off switches hote hain. Modbus/TCP har request ko 7-byte MBAP header mein wrap karke port 502 par bhejta hai. Ismein authentication nahi hai, isliye iske aas-paas ke network ko ise protect karna padta hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP 502 (TLS ke saath 802)"],
+    ["Defined in", "Modbus Application Protocol v1.1b3"],
+    ["Header", "MBAP, 7 bytes"],
+    ["Data model", "Coils, inputs, holding/input registers"],
+    ["Security", "Built-in kuch nahi; Modbus Security TLS jodta hai"]
+  ],
+  "legend": [
+    "Handshake aur confirmations",
+    "HMI se requests",
+    "PLC se values",
+    "Modbus Security (TLS)",
+    "Exceptions aur attacks"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Tank ka level padho aur pump start karo",
+      "summary": "HMI teen holding registers poll karta hai, phir pump start karne ke liye ek coil write karta hai.",
+      "steps": [
+        {
+          "title": "Port 502 se connect karo",
+          "desc": "HMI PLC se TCP connection kholta hai",
+          "detail": "Water plant ki SCADA screen (HMI) ek tank ka level dikhati hai aur operator ko pump chalane deti hai. Tank ko ek PLC control karta hai, ek rugged industrial computer jo sensor aur pump se juda hai. HMI PLC se port 502, yaani Modbus/TCP port, par TCP connection kholta hai.",
+          "facts": [
+            ["PLC", "192.168.50.20 port 502"],
+            ["Roles", "HMI = client, PLC = server"],
+            ["Network", "Plant LAN, < 1 ms"]
+          ]
+        },
+        {
+          "title": "Read Holding Registers",
+          "desc": "Function code 3, 40001 se teen registers",
+          "detail": "Modbus 16-bit registers mein sochta hai. HMI address 0 (jise manuals 40001 kehte hain) se shuru hoke 3 holding registers maangta hai. Request ke aage 7-byte MBAP header hai: transaction ID 1, protocol 0, length 6 (unit ID + 5 PDU bytes) aur unit ID 1.",
+          "facts": [
+            ["Function", "3 (Read Holding Registers)"],
+            ["Start, count", "address 0, 3 registers"],
+            ["MBAP length", "6 = 1 unit + 5 PDU bytes"]
+          ],
+          "quiz": {
+            "q": "PDU hai function code (1) + start address (2) + quantity (2). MBAP Length field mein kya jaata hai?",
+            "options": [
+              "5",
+              "6",
+              "7",
+              "12"
+            ],
+            "why": "Length uske baad ke har byte ko count karta hai: 1-byte unit ID plus 5-byte PDU = 6."
+          }
+        },
+        {
+          "title": "Registers wapas aate hain",
+          "desc": "Byte count, phir 16-bit values",
+          "detail": "PLC wahi transaction ID, function 3, byte count 6 aur teen big-endian values ke saath jawab deta hai: 0x02E6 = 742 cm, 0x026A = 618 (61.8%) aur alarm setpoint 1100. Modbus nahi batata ki number ka matlab kya hai. Sirf PLC ka register map, ek document, batata hai ki register 40002 percent ke tenths mein hai.",
+          "facts": [
+            ["40001", "0x02E6 = 742 cm"],
+            ["40002", "0x026A = 618 → 61.8%"],
+            ["40003", "0x044C = 1100 cm alarm"]
+          ],
+          "quiz": {
+            "q": "Ek register mein bytes 02 E6 hain. Woh kaunsa number hai?",
+            "options": [
+              "230",
+              "742",
+              "58882",
+              "2.230"
+            ],
+            "why": "Modbus big-endian hai: 0x02 × 256 + 0xE6 = 512 + 230 = 742."
+          }
+        },
+        {
+          "title": "Write Single Coil",
+          "desc": "Function 5, value 0xFF00: pump start karo",
+          "detail": "Operator Start Pump click karta hai. Coil ek single on/off output hai. HMI coil address 0 par value 0xFF00 ke saath function 5 bhejta hai, jiska matlab ON hai (0x0000 matlab OFF; koi aur value illegal hai). PLC apna output switch karta hai aur confirmation ke taur par request ko echo karta hai.",
+          "facts": [
+            ["Function", "5 (Write Single Coil)"],
+            ["Coil", "address 0 (00001: pump run)"],
+            ["Value", "0xFF00 = ON, 0x0000 = OFF"]
+          ],
+          "quiz": {
+            "q": "Successful Write Single Coil response kaisa dikhta hai?",
+            "options": [
+              "Ek khaali packet",
+              "Request ka exact echo",
+              "Har coil ki nayi value",
+              "Registers ki list"
+            ],
+            "why": "Function 5 ke liye PLC wahi address aur value repeat karta hai jo usne likhi. Wahi echo confirmation hai."
+          }
+        },
+        {
+          "title": "Polling jaari rakho",
+          "desc": "HMI har second dobara padhta hai",
+          "detail": "Modbus mein push nahi hota: PLC tab tak kabhi nahi bolta jab tak poocha na jaye. Isliye HMI poll karta hai, har second naye transaction ID ke saath wahi registers padhta hai. Level badhkar 745 cm ho gaya hai. Yeh steady request-response rhythm normal Modbus traffic jaisa dikhta hai, aur isse ajeeb writes pakadna aasan ho jaata hai.",
+          "facts": [
+            ["Transaction", "3"],
+            ["Level ab", "745 cm, 62.1%"],
+            ["Pattern", "Har 1 s poll, push nahi"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Pump chal raha hai",
+        "text": "HMI ne tank level ko raw 16-bit registers ki tarah padha, function 5 aur 0xFF00 se pump on kiya, aur polling jaari rakhi. Har message ek chhota MBAP header plus kuch bytes ka PDU tha.",
+        "facts": [
+          ["Read", "fc 3 → 3 registers"],
+          ["Write", "fc 5, coil 0 = 0xFF00"],
+          ["Sabse bada packet", "80 bytes se kam"],
+          ["Model", "Client poll karta hai, PLC jawab deta hai"]
+        ]
+      }
+    },
+    "exception": {
+      "name": "Exception: illegal data address",
+      "summary": "Aise registers ki request jo PLC ke paas nahi hain, function 0x83, code 2 lautati hai.",
+      "steps": [
+        {
+          "title": "Missing register maango",
+          "desc": "HMI mein galat register map",
+          "detail": "Ek engineer nayi screen jodta hai lekin address galat PLC manual se copy kar leta hai: register 40257 (address 256). Is PLC mein sirf 64 holding registers hain. Request khud bilkul well formed hai.",
+          "facts": [
+            ["Function", "3"],
+            ["Start address", "256 (register 40257)"],
+            ["PLC ke paas", "Sirf registers 40001–40064"]
+          ]
+        },
+        {
+          "title": "Exception response",
+          "desc": "Function code 0x83, exception code 2",
+          "detail": "PLC function code plus 0x80 se jawab deta hai: 3 ban jaata hai 0x83. Woh top bit ka matlab hai \"yeh error hai\". Uske baad ka ek byte exception code hai: 2, Illegal Data Address. HMI nayi screen par value ke bajaye laal question mark dikhata hai.",
+          "facts": [
+            ["Function", "0x83 = 0x03 | 0x80"],
+            ["Exception", "2: Illegal Data Address"],
+            ["MBAP length", "3"]
+          ],
+          "quiz": {
+            "q": "Write Single Coil (function 5) fail hota hai. Kaunsa function code wapas aata hai?",
+            "options": [
+              "0x05",
+              "0x85",
+              "0x50",
+              "0xFF"
+            ],
+            "why": "Exceptions top bit set karte hain: 0x05 | 0x80 = 0x85."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Exception handle ho gaya",
+        "text": "Modbus errors function code ke roop mein wapas aate hain jiska top bit set hota hai, plus ek-byte exception code. Code 2 ka matlab hai address range is device par nahi hai.",
+        "facts": [
+          ["Function", "0x83"],
+          ["Code", "2 Illegal Data Address"],
+          ["Doosre", "1 bad function, 3 bad value, 4 device failure"]
+        ]
+      }
+    },
+    "unauth-write": {
+      "name": "Office network se unauthenticated write",
+      "summary": "Malware pump start kar deta hai kyunki Modbus mein login nahi hai; segmentation aur Modbus Security ise rokte hain.",
+      "steps": [
+        {
+          "title": "Koi bhi connect kar sakta hai",
+          "desc": "Firewall kisi bhi office PC ko 502 tak pahunchne deta hai",
+          "detail": "Ek office PC malware se infected hai. Office (IT) network aur plant (OT) network ke beech firewall mein purana \"allow any\" rule hai, isliye malware port 502 par PLC tak pahunch jaata hai. Modbus mein login, password aur encryption kuch nahi hai. PLC connection ko kisi bhi aur ki tarah accept kar leta hai.",
+          "facts": [
+            ["Source", "192.168.60.66 (office network)"],
+            ["Firewall rule", "allow any → 502 (bahut wide)"],
+            ["Modbus auth", "Koi nahi"]
+          ]
+        },
+        {
+          "title": "Coil likhi gayi, koi sawal nahi",
+          "desc": "Tank pehle se high hai; phir bhi pump start ho jaata hai",
+          "detail": "Malware bilkul wahi Write Single Coil bhejta hai jo HMI use karta hai: coil 0, 0xFF00. PLC ko pata nahi chalta ki kisne bheja aur woh bas maan leta hai. Agar PLC logic mein independent high-level interlock nahi hai, to tank overflow ho sakta hai. Packet mein kuch unusual nahi; sirf uska source unusual hai.",
+          "facts": [
+            ["Packet", "fc 5, coil 0, 0xFF00"],
+            ["PLC check karta hai", "Sender ke baare mein kuch nahi"],
+            ["Risk", "Overflow, damage, safety"]
+          ],
+          "quiz": {
+            "q": "Standard Modbus/TCP PLC kaise tay karta hai ki write accept karna hai ya nahi?",
+            "options": [
+              "Woh MBAP header mein password check karta hai",
+              "Woh sender ka certificate check karta hai",
+              "Woh tay nahi karta: har well-formed request execute hoti hai",
+              "Woh pehle HMI se poochta hai"
+            ],
+            "why": "Classic Modbus mein authentication bilkul nahi hai. Protection aas-paas ke network se, ya Modbus Security se aani chahiye."
+          }
+        },
+        {
+          "title": "Defence: segment aur filter",
+          "desc": "Sirf HMI port 502 se baat kar sakta hai",
+          "detail": "Plant firewall theek karta hai: sirf HMI ka address 502 par PLC tak pahunch sakta hai, aur office network alag zone hai (IEC 62443 ka zones-and-conduits idea). Malware ka agla SYN firewall par drop ho jaata hai aur PLC tak kabhi nahi pahunchta. Kai sites Modbus-aware firewall bhi lagate hain jo HMI ke alawa kisi se bhi write function codes block karta hai.",
+          "facts": [
+            ["Rule", "sirf allow 192.168.50.10 → 192.168.50.20:502"],
+            ["Office PCs", "OT tak koi route nahi"],
+            ["Extra", "Deep packet inspection: fc 5/6/15/16 block karo"]
+          ]
+        },
+        {
+          "title": "802 par Modbus Security",
+          "desc": "Client certificates ke saath TLS",
+          "detail": "Naye PLCs Modbus/TCP Security support karte hain: wahi Modbus messages port 802 par mutual TLS ke andar. Dono sides X.509 certificates dikhati hain, aur HMI ke certificate mein \"Operator\" jaisa role hota hai jise PLC write allow karne se pehle check karta hai. TLS handshake (yahan nahi dikhaya) ke baad 12-byte write 29-byte encrypted record ki tarah travel karta hai.",
+          "facts": [
+            ["Port", "802"],
+            ["Security", "Client certificates ke saath TLS 1.2+"],
+            ["Authorisation", "Certificate mein role"]
+          ],
+          "quiz": {
+            "q": "Port 802 par Modbus Security aisa kya jodta hai jo port 502 ke plain Modbus mein nahi hai?",
+            "options": [
+              "Tez polling",
+              "Authentication, encryption aur role-based permissions",
+              "Zyada registers",
+              "UDP support"
+            ],
+            "why": "TLS encryption deta hai aur prove karta hai ki har side kaun hai; certificate ka role tay karta hai ki woh client kya kar sakta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Network ko protect karo, sirf PLC ko nahi",
+        "text": "Plain Modbus har packet par bharosa karta hai, isliye jo bhi device port 502 tak pahunch sake woh plant control kar sakta hai. IT aur OT networks alag karo, sirf HMI ko andar aane do, function codes inspect karo, aur jahan devices support karein wahan certificates ke saath Modbus Security par jao.",
+        "facts": [
+          ["Attack", "Unauthenticated Write Single Coil"],
+          ["Defence 1", "Segmentation + strict firewall rules"],
+          ["Defence 2", "Port 802 par Modbus/TCP Security"],
+          ["Standard", "IEC 62443"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Function codes",
+      "items": [
+        ["1 / 2", "Read coils / discrete inputs"],
+        ["3 / 4", "Read holding / input registers"],
+        ["5 / 6", "Write single coil / register"],
+        ["15 / 16", "Write multiple coils / registers"],
+        ["fc | 0x80", "Exception response"]
+      ]
+    },
+    {
+      "title": "MBAP header (7 bytes)",
+      "items": [
+        ["Transaction ID", "2 bytes, reply mein echo hota hai"],
+        ["Protocol ID", "2 bytes, hamesha 0"],
+        ["Length", "2 bytes: unit ID + PDU"],
+        ["Unit ID", "1 byte, gateway ke peeche ka device"]
+      ]
+    },
+    {
+      "title": "Exception codes",
+      "items": [
+        ["1", "Illegal function"],
+        ["2", "Illegal data address"],
+        ["3", "Illegal data value"],
+        ["4", "Server device failure"],
+        ["6", "Server busy"]
+      ]
+    }
+  ]
+}

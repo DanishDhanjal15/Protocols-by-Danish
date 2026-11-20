@@ -1,0 +1,205 @@
+{
+  "tagline": "Firewalls, routers aur servers apne logs ek jagah kaise bhejte hain.",
+  "description": "Syslog log messages ka common format aur transport hai. Device ek line likhta hai jisme priority, timestamp, uska naam aur message hota hai, aur use central log server ko bhejta hai. Classic transport UDP port 514 hai; zaroori logs TLS par port 6514 se jaate hain, framed taaki receiver ko pata chale ki har message kahan khatam hota hai.",
+  "facts": [
+    ["Layer", "Application"],
+    ["Transports", "UDP 514, TCP/TLS 6514"],
+    ["Format", "RFC 5424 (purana style RFC 3164)"],
+    ["Priority", "facility × 8 + severity"],
+    ["TLS framing", "Octet counting (RFC 5425)"],
+    ["Reliable option", "RELP (acknowledged)"]
+  ],
+  "legend": [
+    "Log messages",
+    "TCP handshake aur ACKs",
+    "TLS (encrypted)",
+    "Kho gaye logs ya blocked traffic"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Firewall ek blocked connection log karta hai",
+      "summary": "Firewall UDP 514 par ek log line bhejta hai, phir octet counting ke saath TLS 6514 par isi tarah ke logs.",
+      "steps": [
+        {
+          "title": "Log karne laayak kuch hua",
+          "desc": "Ek scanner port 23 par dastak deta hai",
+          "detail": "Internet par ek machine office par Telnet connection (port 23) kholne ki koshish karti hai. Firewall ka rule 12 use block kar deta hai. Firewall khud lambi history nahi rakhta, isliye woh event ko syslog line mein badal kar central log server ko bhejta hai.",
+          "facts": [
+            ["Blocked", "203.0.113.77 → port 23"],
+            ["Rule", "12 (deny inbound)"],
+            ["Aage", "Log line likho"]
+          ]
+        },
+        {
+          "title": "UDP 514 par syslog",
+          "desc": "Ek datagram, ek message",
+          "detail": "Poori log line ek hi UDP datagram mein port 514 par jaati hai. Woh <134> se shuru hoti hai: facility local0 (16) × 8 + severity informational (6). Phir version, precise UTC timestamp, host name, program (filterlog), uska process ID, ek message ID, square brackets mein structured data aur aakhir mein insaanon ke liye text aata hai.",
+          "facts": [
+            ["To", "192.168.50.20 : 514"],
+            ["PRI", "<134> = local0.info"],
+            ["Size", "186 bytes text"]
+          ],
+          "quiz": {
+            "q": "Ek message <132> se shuru hota hai. Uski facility local0 (16) hai. Severity kya hai?",
+            "options": [
+              "2 critical",
+              "4 warning",
+              "6 informational",
+              "32"
+            ],
+            "why": "PRI = facility × 8 + severity. 16 × 8 = 128, aur 132 − 128 = 4, jo warning hai."
+          }
+        },
+        {
+          "title": "TLS connection kholo",
+          "desc": "6514 par TCP, phir TLS 1.3 handshake",
+          "detail": "Security logs clear text mein nahi jaane chahiye aur na hi kho jaane chahiye, isliye firewall TLS (RFC 5425) se bhi bhejne ke liye set hai. Woh port 6514 par TCP kholta hai aur TLS 1.3 handshake chalata hai. Log server certificate se apni identity prove karta hai; kai setups firewall se client certificate bhi maangte hain taaki fake devices logs inject na kar saken.",
+          "facts": [
+            ["Port", "TCP 6514"],
+            ["TLS", "1.3, AES-128-GCM"],
+            ["Auth", "Server cert (aur aksar client cert)"]
+          ]
+        },
+        {
+          "title": "Octet-counted frames",
+          "desc": "Length, ek space, phir message",
+          "detail": "TCP ek stream hai jisme message boundaries nahi hoti, isliye RFC 5425 har message ke aage length rakhta hai: “186 <134>1 2026-11-19T10:1…”. Receiver space tak digits padhta hai, phir bilkul utne bytes. TLS ke andar poora frame encrypted hota hai; wire par sirf 207-byte Application Data record dikhta hai.",
+          "facts": [
+            ["Frame", "186 SP <134>1 …"],
+            ["Record", "207 bytes encrypted"],
+            ["Length kyun", "TCP mein message edges nahi hote"]
+          ],
+          "quiz": {
+            "q": "Har message ko text file ki tarah newline se khatam kyun nahi karte?",
+            "options": [
+              "TLS mein newlines allowed nahi hain",
+              "Message mein khud newline ho sakti hai, jo use galat tarah se tod degi",
+              "Yeh bytes waste karta hai",
+              "UDP ko iski zaroorat hai"
+            ],
+            "why": "Stack traces aur multi-line messages aam hain. Length prefix receiver ko bilkul batata hai ki har message kahan khatam hota hai, andar kuch bhi ho."
+          }
+        },
+        {
+          "title": "Aur logs, wahi connection",
+          "desc": "Kai frames ek segment share kar sakte hain",
+          "detail": "Connection khula rehta hai. Kuch seconds baad ek failed SSH login (<132>, warning) aur ek config change (<133>, notice) aate hain; yahan dono do TLS records ki tarah ek hi TCP segment mein jaate hain. TCP ke acknowledgements firewall ko batate hain ki bytes server tak pahunch gaye, aur TLS unhe raaste mein private aur untampered rakhta hai.",
+          "facts": [
+            ["Messages", "AUTH_FAIL, CFG_CHANGE"],
+            ["Records", "Ek segment mein 2"],
+            ["Delivery", "TCP se acknowledged"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Logs collect ho gaye",
+        "text": "Har event ek RFC 5424 line ban gaya: priority, timestamp, host, app, IDs, structured data aur text. UDP 514 par yeh tez aur simple tha; TLS 6514 par yeh encrypted tha, TCP se acknowledged, aur length ke saath framed taaki messages kabhi aapas mein na milein.",
+        "facts": [
+          ["UDP", "514, ek datagram mein ek message"],
+          ["TLS", "6514, length-prefixed frames"],
+          ["PRI", "facility × 8 + severity"],
+          ["Standard", "RFC 5424 / 5425 / 5426"]
+        ]
+      }
+    },
+    "burst": {
+      "name": "Burst mein logs kho gaye (UDP)",
+      "summary": "Port scan ke dauran firewall har second sau-do-sau UDP logs bhejta hai aur kuch gayab ho jaate hain; TCP par RELP isse theek karta hai.",
+      "steps": [
+        {
+          "title": "Scan shuru hota hai",
+          "desc": "Har second sau-do-sau blocked connections",
+          "detail": "Ek scanner ek saath kai ports par sweep karta hai. Har blocked attempt ek syslog message ban jaata hai, isliye firewall achanak log server ko har second sau-do-sau UDP datagrams bhejta hai.",
+          "facts": [
+            ["Rate", "Har second hundreds of logs"],
+            ["Transport", "UDP 514"],
+            ["Feedback", "Koi nahi"]
+          ]
+        },
+        {
+          "title": "Kuch datagrams gayab",
+          "desc": "Na sequence numbers, na resends",
+          "detail": "Log server ka receive buffer program ke padhne se tez bhar jaata hai, aur kernel naye datagrams drop kar deta hai. Kisi ko pata nahi chalta: UDP mein ACKs nahi hote aur syslog messages mein sequence numbers nahi hote, isliye firewall ko kabhi pata nahi chalta ki kuch lines missing hain. Wahi lines ho sakti hain jinki investigator ko zaroorat ho.",
+          "facts": [
+            ["Bheje", "8 dikhaye gaye"],
+            ["Kho gaye", "3 (buffer full)"],
+            ["Firewall ko bataya", "Kuch nahi"]
+          ],
+          "quiz": {
+            "q": "Firewall ko kaise pata chalta hai ki teen messages kho gaye?",
+            "options": [
+              "Server NACK bhejta hai",
+              "UDP unhe retransmit karta hai",
+              "Pata nahi chalta; UDP koi feedback nahi deta",
+              "Har ek ke liye ICMP error"
+            ],
+            "why": "UDP fire-and-forget hai. Receiver ka full socket buffer datagrams chupchaap drop kar deta hai, aur sender ko pata chalne ka koi tareeka nahi."
+          }
+        },
+        {
+          "title": "Fix: acknowledged transport",
+          "desc": "RELP: har message ka jawab milta hai",
+          "detail": "Plain TCP ya TLS network loss pehle hi rok deta hai, lekin agar server crash ho jaye to buffers mein baitha data phir bhi gayab ho sakta hai. RELP (Reliable Event Logging Protocol, rsyslog use karta hai) application-level reply jodta hai: har frame ek transaction number carry karta hai, aur server us number ke liye “rsp 200 OK” tabhi bolta hai jab use message mil jaaye. Unconfirmed messages reconnect ke baad dobara bheje jaate hain.",
+          "facts": [
+            ["Port", "TCP 2514 (common choice)"],
+            ["Frame", "TXNR SP CMD SP LEN SP DATA LF"],
+            ["Reply", "Har message par rsp 200 OK"]
+          ],
+          "quiz": {
+            "q": "Firewall ne frame 7 bheja lekin koi rsp aane se pehle TCP connection toot gaya. Message 7 ka kya hota hai?",
+            "options": [
+              "Hamesha ke liye kho jaata hai",
+              "Firewall reconnect ke baad use dobara bhejta hai",
+              "TCP khud naye connection par use dobara bhejta hai",
+              "Server naam leke use maangta hai"
+            ],
+            "why": "RELP har unconfirmed message rakhta hai aur agle session par replay karta hai. Akela TCP yeh nahi kar sakta kyunki uske buffers connection ke saath mar jaate hain."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Kaam ke hisaab se transport chuno",
+        "text": "UDP syslog baatuni, low-value logs ke liye theek hai, lekin load mein messages chupchaap drop kar deta hai. Security aur audit logs ke liye TCP ya TLS (6514) use karo, aur RELP tab jab har message ka receiver se confirm hona zaroori ho.",
+        "facts": [
+          ["UDP 514", "Fast, lossy, koi feedback nahi"],
+          ["TLS 6514", "Encrypted, TCP reliable"],
+          ["RELP", "Per-message acknowledgment"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Severity (PRI mod 8)",
+      "items": [
+        ["0 Emergency", "System unusable"],
+        ["1 Alert", "Abhi action lo"],
+        ["2 Critical", "Critical condition"],
+        ["3 Error", "Error"],
+        ["4 Warning", "Warning"],
+        ["5 Notice", "Normal lekin significant"],
+        ["6 Info", "Informational"],
+        ["7 Debug", "Debug detail"]
+      ]
+    },
+    {
+      "title": "Facilities (PRI ÷ 8)",
+      "items": [
+        ["0", "kernel"],
+        ["1", "user"],
+        ["4", "auth"],
+        ["10", "authpriv"],
+        ["16–23", "local0–local7 (devices ke liye free)"]
+      ]
+    },
+    {
+      "title": "Ports and framing",
+      "items": [
+        ["UDP 514", "Ek datagram mein ek message (RFC 5426)"],
+        ["TLS 6514", "LEN SP MSG (RFC 5425)"],
+        ["RELP", "TXNR CMD LEN DATA LF, rsp 200 OK"],
+        ["Format", "<PRI>1 TIME HOST APP PROCID MSGID [SD] MSG"]
+      ]
+    }
+  ]
+}

@@ -13,6 +13,11 @@ byte-by-byte packet inspector.
 - **Predict mode**: quizzes before a step plays. **Read aloud** narration. Keyboard shortcuts (`?`).
 - **Packet inspector**: layer tree, plain-English notes per field, hex view with highlighting,
   copy hex, and **.pcap export** that opens in Wireshark.
+- **English / Hinglish**: every lesson (overview, steps, quizzes, cheat sheet) in both; switch in the player.
+- **Layers view**: watch each packet get wrapped (encapsulation) and unwrapped, header by header.
+- **Live tables**: ARP cache, DNS cache and a netstat-style connection table, rebuilt from the packets as they arrive.
+- **Try it yourself**: real commands (Windows, Mac/Linux) and Wireshark filters for every lesson.
+- **Troubleshooting labs** (`/labs`): a real symptom plus the packet capture; diagnose the fault, with hints.
 - **Compare** (`/compare`): side-by-side facts plus a packet race on a shared clock.
 - **Paths** (`/paths`), **Tools** (`/tools`): subnet calculator, port lookup, packet playground,
   live DNS lookup.
@@ -37,6 +42,9 @@ Read [AUTHORING.md](AUTHORING.md). In short: add `src/lessons/<id>.ts` exporting
 npm run validate -- <id>     # device ids, timing, quiz answers, byte counts, IPv4/TCP/UDP checksums
 npx tsc --noEmit -p .
 ```
+
+Hinglish text and try-it commands live in `src/lessons/hinglish/<id>.json` and `src/lessons/tryit/<id>.json`;
+see [TEXT-AUTHORING.md](TEXT-AUTHORING.md) and check them with `npx tsx scripts/text.mts check <id>`.
 
 The registry (`src/lessons/index.ts`) is generated automatically before `dev` and `build`.
 

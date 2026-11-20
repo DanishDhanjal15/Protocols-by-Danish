@@ -1,0 +1,289 @@
+{
+  "tagline": "UDP par encrypted, multiplexed transport jo HTTP/3 ko power karta hai.",
+  "description": "QUIC UDP par bana ek transport protocol hai. Yeh TCP aur TLS handshakes ko ek round trip mein jod deta hai, lagbhag har header bit ko encrypt karta hai, ek connection mein kai independent streams le jata hai, aur connection ko IP addresses ki jagah ek ID se pehchanta hai taaki network badalne par bhi woh chalta rahe.",
+  "facts": [
+    ["Layer", "Transport (Layer 4), UDP par chalta hai"],
+    ["Port", "UDP 443"],
+    ["Handshake", "QUIC ke andar TLS 1.3, 1 RTT"],
+    ["Streams", "Kai, independent"],
+    ["Min client Initial", "1200 bytes"],
+    ["Defined in", "RFC 9000, 9001, 9114 (HTTP/3)"]
+  ],
+  "legend": [
+    "Handshake (Initial / Handshake packets)",
+    "Laptop se requests",
+    "Server se data",
+    "ACKs aur confirmations",
+    "Path checks"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "HTTP/3 par page load karo",
+      "summary": "Ek round trip encrypted QUIC connection set up karta hai, phir GET / stream 0 par jata hai.",
+      "steps": [
+        {
+          "title": "Client Initial",
+          "desc": "1200-byte UDP datagram mein ClientHello",
+          "detail": "Browser ek long-header Initial packet bhejta hai. Uske CRYPTO frame mein normal TLS 1.3 ClientHello hota hai. Initial packets destination connection ID se nikali keys se encrypt hote hain, isliye koi bhi unhe decrypt kar sakta hai, lekin routers phir bhi bina pakde tamper nahi kar sakte. Padding datagram ko 1200 bytes banata hai taaki server kisi unverified address ko jitna mila usse teen guna se zyada kabhi wapas na bheje.",
+          "facts": [
+            ["UDP payload", "1200 bytes (27 header + 1173 encrypted)"],
+            ["DCID", "8394c8f03e515708 (random)"],
+            ["Andar", "CRYPTO(ClientHello) + PADDING"]
+          ],
+          "quiz": {
+            "q": "Client Initial ko 1200 bytes tak pad kyun kiya jata hai?",
+            "options": [
+              "Ethernet ko chahiye",
+              "Amplification limit karne ke liye: address verify hone se pehle server jo receive kare uska sirf 3× bhej sakta hai",
+              "ClientHello ki length chhupane ke liye",
+              "Kyunki TLS ko chahiye"
+            ],
+            "why": "Bada pehla packet server ko bada anti-amplification budget deta hai, jisse uska certificate fit ho jata hai, jabki spoofed chhote packets bade replies trigger nahi kar sakte."
+          }
+        },
+        {
+          "title": "Server Initial + Handshake",
+          "desc": "ServerHello, phir certificate",
+          "detail": "Server apne Initial (ServerHello, plus ACK) se jawab deta hai aur usi UDP datagram mein, naye handshake keys se encrypted ek Handshake packet bhi. Kai QUIC packets ko ek datagram mein rakhna coalescing kehlata hai. Certificate fit nahi hota, isliye doosra datagram use CertificateVerify aur Finished ke saath poora karta hai. Dhyan do ki server ne apna connection ID khud chuna.",
+          "facts": [
+            ["Datagram 1", "Initial (145 B) + Handshake (1055 B)"],
+            ["Datagram 2", "Handshake (980 B)"],
+            ["New server CID", "f067a5502a4262b5"]
+          ]
+        },
+        {
+          "title": "Finish karo aur turant maango",
+          "desc": "Client Finished aur GET / ek saath",
+          "detail": "Client certificate check karta hai, Handshake packet mein apna Finished bhejta hai, aur usi pal 1-RTT packet mein HTTP/3 request bhi bhejta hai. Is packet ka header short hota hai: na version, na lengths, bas server ka connection ID aur ek protected packet number. Request stream 0 par ek HEADERS frame hai, jo client ki kholi hui pehli two-way stream hai.",
+          "facts": [
+            ["Handshake cost", "1 round trip (TCP + TLS mein 2 lagte hain)"],
+            ["Request on", "Stream 0"],
+            ["Header", "Short: 1 + 8 + 1 bytes"]
+          ],
+          "quiz": {
+            "q": "Laptop apna GET bhej sake, usse pehle kitne round trips lagte hain?",
+            "options": [
+              "0",
+              "1",
+              "2",
+              "3"
+            ],
+            "why": "QUIC transport aur TLS 1.3 handshakes saath mein karta hai, isliye request ek round trip ke baad nikalti hai. TCP + TLS 1.3 mein do lagte hain."
+          }
+        },
+        {
+          "title": "Response",
+          "desc": "HANDSHAKE_DONE, 200 OK aur page",
+          "detail": "Server HANDSHAKE_DONE frame se handshake confirm karta hai aur page stream 0 par wapas deta hai: ek HEADERS frame (status 200) phir ek DATA frame. STREAM frame par FIN bit stream 0 ko band karta hai. Pehle byte aur connection ID ke baad sab kuch encrypted hai, packet number bhi.",
+          "facts": [
+            ["Status", "200"],
+            ["Stream 0", "FIN ke saath closed"],
+            ["Routers ko visible", "Sirf Connection ID"]
+          ],
+          "quiz": {
+            "q": "Is 1-RTT packet mein path ka router kya padh sakta hai?",
+            "options": [
+              "URL",
+              "Packet number aur ACKs",
+              "Sirf pehla byte, connection ID aur UDP/IP headers",
+              "Sab kuch, QUIC plain text hai"
+            ],
+            "why": "Short header packets sirf flags byte aur destination CID dikhate hain. Frames, ACKs aur stream data samet, encrypted hain, aur packet number masked hota hai."
+          }
+        },
+        {
+          "title": "Acknowledge",
+          "desc": "ACKs frames hain, aur encrypted",
+          "detail": "Laptop packet 0 ko ek chhote 1-RTT packet mein ACK frame se acknowledge karta hai. TCP se alag, QUIC byte offsets nahi, packet numbers acknowledge karta hai, aur kabhi packet number reuse nahi karta, isliye use hamesha pata rehta hai ki ACK original packet ka hai ya dobara bheje hue ka.",
+          "facts": [
+            ["Acknowledges", "1-RTT packet 0"],
+            ["Size", "31-byte QUIC packet"],
+            ["Packet numbers", "Kabhi reuse nahi"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Ek round trip mein HTTP/3",
+        "text": "QUIC ne TLS 1.3 handshake CRYPTO frames mein carry kiya, ek round trip ke baad short-header packets par switch kiya, aur request stream 0 par bheji. Wire par connection IDs ke alawa lagbhag kuch visible nahi hota, jisse middleboxes protocol ko jama nahi paate.",
+        "facts": [
+          ["Datagrams", "7"],
+          ["Pehle byte tak round trips", "2 (1 handshake + 1 request)"],
+          ["Connection IDs", "c3a1f05b7e2d9a14 / f067a5502a4262b5"],
+          ["Total", "70 ms"]
+        ]
+      }
+    },
+    "loss": {
+      "name": "Ek packet kho gaya, ek stream ruki",
+      "summary": "Do files do streams par load hoti hain. Ek ka packet kho jata hai; doosri chalti rehti hai.",
+      "steps": [
+        {
+          "title": "Do requests",
+          "desc": "style.css stream 4 par, photo.jpg stream 8 par",
+          "detail": "Connection pehle se khula hai. Browser do files ek saath maangta hai, har ek apni stream par: style.css ke liye stream 4 aur photo.jpg ke liye stream 8. Dono requests ek 1-RTT packet mein fit ho jati hain.",
+          "facts": [
+            ["Stream 4", "GET /style.css"],
+            ["Stream 8", "GET /photo.jpg"],
+            ["Packet", "1-RTT, PKN 3"]
+          ]
+        },
+        {
+          "title": "Packet 5 kho gaya",
+          "desc": "Sirf stream 4 par asar",
+          "detail": "Server packet 5 (style.css) aur packet 6 (photo.jpg ka pehla hissa) bhejta hai. Packet 5 internet par drop ho jata hai. Packet 6 pahunch jata hai, aur QUIC uske photo bytes turant browser ko de deta hai, kyunki stream 8 mein koi gap nahi. Sirf stream 4 ko wait karna padta hai.",
+          "facts": [
+            ["Lost", "PKN 5 (stream 4)"],
+            ["Delivered", "PKN 6 (stream 8)"],
+            ["Stream 8", "Chalti rehti hai"]
+          ],
+          "quiz": {
+            "q": "TCP par HTTP/2 mein is situation mein photo bytes ka kya hota?",
+            "options": [
+              "Turant deliver, QUIC ki tarah",
+              "TCP unhe tab tak rokta jab tak kho gaye bytes dobara na aa jayein",
+              "Drop hokar phir maange jate",
+              "Naye TCP connection par bheje jate"
+            ],
+            "why": "TCP ek ordered byte stream hai. Gap ke baad ke bytes buffer mein wait karte hain chahe woh kisi alag HTTP/2 stream ke ho: head-of-line blocking."
+          }
+        },
+        {
+          "title": "Gap ke saath ACK",
+          "desc": "6 mila, 5 missing",
+          "detail": "Laptop ek ACK frame bhejta hai: largest acknowledged 6, phir ek gap jo 5 ko skip karta hai. Jab server dekhta hai ki baad wala packet acknowledge ho gaya aur 5 abhi bhi missing hai (aur time guzar gaya hai), woh 5 ko lost declare kar deta hai.",
+          "facts": [
+            ["Largest acked", "6"],
+            ["Missing", "5"],
+            ["Loss rule", "3 baad ke packets acked, ya lagbhag 9/8 RTT guzar gaya"]
+          ]
+        },
+        {
+          "title": "Naye packet mein dobara bhejo",
+          "desc": "Same data, naya packet number",
+          "detail": "Server style.css bytes dobara bhejta hai. QUIC packets nahi, frames dobara bhejta hai, isliye data bilkul naye packet mein naye number ke saath jata hai. Kabhi confusion nahi hota ki ACK kaunsi copy ka hai, jisse round-trip measurements exact hote hain.",
+          "facts": [
+            ["Resent", "Stream 4, offset 0"],
+            ["New PKN", "7"],
+            ["Stream 8", "Kabhi ruki nahi"]
+          ],
+          "quiz": {
+            "q": "Dobara bheja gaya style.css data kaunse packet number mein jata hai?",
+            "options": [
+              "Phir 5",
+              "7, agla naya number",
+              "0",
+              "Woh TCP sequence number reuse karta hai"
+            ],
+            "why": "QUIC packet numbers sirf badhte hain. Kho gaye frames agle naye packet mein daale jate hain."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Head-of-line blocking nahi",
+        "text": "Kyunki QUIC ordering har stream ke hisaab se track karta hai, ek lost packet sirf us stream ko late karta hai jiska data usme tha. TCP par har HTTP/2 stream gap bharne tak ruki rehti.",
+        "facts": [
+          ["Stalled", "Stream 4, ek RTT ke liye"],
+          ["Unaffected", "Stream 8"],
+          ["Retransmits", "Frames, naye packets mein"]
+        ]
+      }
+    },
+    "migration": {
+      "name": "Wi-Fi se mobile data, same connection",
+      "summary": "Phone video ke beech mein Wi-Fi range se bahar nikalta hai. QUIC connection restart hue bina mobile data par chala jata hai.",
+      "steps": [
+        {
+          "title": "Wi-Fi par dekhna",
+          "desc": "Is baar server par capture hua",
+          "detail": "Yeh capture video server par liya gaya hai. Phone ke packets home router ke public address 198.51.100.7, port 40122 se aate hain. Server connection ko uske connection ID f067a5502a4262b5 se jaanta hai, us address se nahi.",
+          "facts": [
+            ["From", "198.51.100.7:40122"],
+            ["DCID", "f067a5502a4262b5"],
+            ["Stream", "Video segments"]
+          ]
+        },
+        {
+          "title": "Mobile data par switch",
+          "desc": "Naya IP aur port, same connection",
+          "detail": "Phone Wi-Fi chhodta hai aur uska agla packet 4G par 198.51.100.200:61003 se nikalta hai. TCP connection mar jata: uski pehchan address/port ka pair hai. QUIC iske bajaye destination connection ID dekhta hai aur maujooda connection dhoondh leta hai. (Phones server ke pehle diye hue spare ID par bhi switch kar sakte hain, taaki dekhne wale dono paths ko link na kar sakein; idea wahi hai.)",
+          "facts": [
+            ["New source", "198.51.100.200:61003"],
+            ["DCID", "f067a5502a4262b5 (unchanged)"],
+            ["TCP karta", "Reset hokar phir shuru"]
+          ],
+          "quiz": {
+            "q": "Server ko naye address se aaye is packet ka purane connection se hona kaise pata chalta hai?",
+            "options": [
+              "IP address se",
+              "Destination connection ID se",
+              "HTTP header ke cookie se",
+              "Nahi pata chalta; woh naya handshake shuru karta hai"
+            ],
+            "why": "QUIC packets ko connection ID se connections tak route karta hai, isliye address ya port badalna bas ek naya path hai."
+          }
+        },
+        {
+          "title": "Naye path ko check karo",
+          "desc": "PATH_CHALLENGE aur PATH_RESPONSE",
+          "detail": "Naye address par bharosa karne se pehle server 8 random bytes ke saath PATH_CHALLENGE frame bhejta hai. Sirf wahi phone jo sach mein us address par hai use padh sakta hai aur bytes PATH_RESPONSE mein echo kar sakta hai. Tab tak server wahan kitna bhejta hai usse limit karta hai, taaki attacker traffic ko kisi victim par redirect na kar sake.",
+          "facts": [
+            ["Challenge", "8 random bytes"],
+            ["Response", "Wahi 8 bytes"],
+            ["Check hone tak", "3× amplification limit"]
+          ]
+        },
+        {
+          "title": "Video chalta rehta hai",
+          "desc": "Data ab 4G par beh raha hai",
+          "detail": "Path confirm ho jata hai aur server agla video data naye address par bhejta hai. Pehle ki streams, encryption keys aur congestion state chalte rehte hain (sender naye path ke liye apna congestion estimate reset karta hai). Viewer ko, zyada se zyada, chhota sa pause dikhta hai.",
+          "facts": [
+            ["Handshakes dobara", "0"],
+            ["Streams kept", "Sab"],
+            ["Gap", "Lagbhag ek RTT"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Connection migration",
+        "text": "Connection ko IP/port pair ki jagah ID se pehchanna QUIC ko network changes se bachne deta hai. Path validation yeh pakka karti hai ki naya address asli hai, uske baad hi us par zyada data bheja jata hai.",
+        "facts": [
+          ["Identity", "Connection ID"],
+          ["Path check", "PATH_CHALLENGE / RESPONSE"],
+          ["TCP equivalent", "Naya connection chahiye hota"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Packet types",
+      "items": [
+        ["Initial", "Long header, ClientHello / ServerHello"],
+        ["Handshake", "Long header, TLS ka baaki hissa"],
+        ["0-RTT", "Resumption par early data"],
+        ["Retry", "Server client se apna address prove karne ko kehta hai"],
+        ["1-RTT", "Short header, sara app data"]
+      ]
+    },
+    {
+      "title": "Common frames",
+      "items": [
+        ["0x00 / 0x01", "PADDING / PING"],
+        ["0x02", "ACK"],
+        ["0x06", "CRYPTO"],
+        ["0x08–0x0f", "STREAM"],
+        ["0x1a / 0x1b", "PATH_CHALLENGE / PATH_RESPONSE"],
+        ["0x1e", "HANDSHAKE_DONE"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["Client Initial", "≥ 1200 bytes"],
+        ["Amplification limit", "Address validate hone se pehle 3×"],
+        ["Stream IDs", "0, 4, 8… client bidirectional"],
+        ["Varint sizes", "1, 2, 4 ya 8 bytes (top 2 bits)"]
+      ]
+    }
+  ]
+}

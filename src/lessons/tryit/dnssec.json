@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Ask for DNSSEC records", "hinglish": "DNSSEC records maango" },
+      "why": { "en": "The +dnssec flag sets the DO bit, so the answer includes the RRSIG signature next to the A record.", "hinglish": "+dnssec flag DO bit set karta hai, isliye answer mein A record ke saath RRSIG signature bhi aata hai." },
+      "unix": "dig +dnssec example.com A",
+      "expect": { "en": "An A record plus an RRSIG record, and with a validating resolver the 'ad' flag in the header. Keys, dates and addresses vary.", "hinglish": "Ek A record aur ek RRSIG record, aur validating resolver ke saath header mein 'ad' flag. Keys, dates aur addresses alag ho sakte hain." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Look at a zone's public keys", "hinglish": "Zone ki public keys dekho" },
+      "why": { "en": "DNSKEY holds the zone's KSK (flags 257) and ZSK (flags 256).", "hinglish": "DNSKEY mein zone ki KSK (flags 257) aur ZSK (flags 256) hoti hain." },
+      "windows": "nslookup -type=DNSKEY cloudflare.com 1.1.1.1",
+      "unix": "dig DNSKEY cloudflare.com +short",
+      "expect": { "en": "Two or more long key records beginning with 256 or 257, then protocol 3 and an algorithm number (13 is ECDSA P-256). Output varies.", "hinglish": "256 ya 257 se shuru hone wale do ya zyada lambe key records, phir protocol 3 aur algorithm number (13 matlab ECDSA P-256). Output alag ho sakta hai." },
+      "step": 4
+    },
+    {
+      "title": { "en": "See the parent's DS record", "hinglish": "Parent ka DS record dekho" },
+      "why": { "en": "The DS record in the parent zone (.com) is the hash that links to the child's key.", "hinglish": "Parent zone (.com) mein DS record wo hash hai jo child ki key se link karta hai." },
+      "windows": "nslookup -type=DS cloudflare.com 1.1.1.1",
+      "unix": "dig DS cloudflare.com +short",
+      "expect": { "en": "A line with a key tag, algorithm, digest type 2 and a SHA-256 hash. Values vary.", "hinglish": "Key tag, algorithm, digest type 2 aur SHA-256 hash wali line. Values alag ho sakti hain." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Find keys and signatures in the capture", "hinglish": "Capture mein keys aur signatures dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and filter for the DNSSEC record types.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur DNSSEC record types filter karo." },
+      "wireshark": "dns.resp.type == 46 || dns.resp.type == 48 || dns.resp.type == 43 || dns.flags.rcode == 2",
+      "expect": { "en": "RRSIG (46), DNSKEY (48) and DS (43) records in the responses, and in the tampered capture a reply with rcode 2 (SERVFAIL).", "hinglish": "Responses mein RRSIG (46), DNSKEY (48) aur DS (43) records, aur tampered capture mein rcode 2 (SERVFAIL) wala reply." },
+      "step": 2
+    }
+  ]
+}

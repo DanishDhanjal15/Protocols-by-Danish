@@ -1,0 +1,215 @@
+{
+  "tagline": "Website ki copies aapke paas parked, sab ek hi IP address par.",
+  "description": "Content delivery network site ki files ki copies cache servers (edges) mein rakhta hai jo kai shehron mein faile hote hain. Anycast ke saath har shehar ka edge wahi same IP address announce karta hai, isliye internet ki routing aapko sabse paas wale edge tak le jaati hai. Pehle visitor ki request cache bharti hai; uske baad sabko milliseconds mein local se serve kiya jaata hai.",
+  "facts": [
+    ["Layer", "Application (HTTP) + routing (BGP anycast)"],
+    ["Transport", "TCP 80/443, QUIC 443"],
+    ["Cache control", "Cache-Control, Age, ETag"],
+    ["Routing trick", "Anycast: one IP, many places"],
+    ["Typical gain", "200 ms → 5 ms per round trip"],
+    ["Defined in", "RFC 9111 (HTTP caching), RFC 4786 (anycast)"]
+  ],
+  "legend": [
+    "DNS lookup",
+    "TCP handshake",
+    "Requests",
+    "Responses",
+    "Failures"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Cache miss, phir cache hit",
+      "summary": "Laptop Mumbai edge se ek image fetch karta hai. Yeh miss hai, isliye edge use Frankfurt se kheenchta hai. Aadhe ghante baad phone ko cached copy milti hai.",
+      "steps": [
+        {
+          "title": "Naam lookup karo",
+          "desc": "DNS CDN ki taraf point karta hai, origin ki nahi",
+          "detail": "Site owner ne www.example.com ko CNAME se CDN par point kiya hai. CDN ka naam 203.0.113.80 par resolve hota hai. Yeh ek hi address un har shehar se announce hota hai jahan CDN ka edge hai, isliye jawab Mumbai ke user aur Paris ke user ke liye same hota hai.",
+          "facts": [
+            ["Name", "www.example.com"],
+            ["CNAME", "www.example.com.cdn.example.net"],
+            ["Address", "203.0.113.80 (anycast)"]
+          ]
+        },
+        {
+          "title": "Sabse paas ke edge tak pahuncho",
+          "desc": "Anycast Mumbai chunta hai",
+          "detail": "Har edge 203.0.113.80 ko BGP se announce karta hai. Routers bas wahi shortest path follow karte hain jo unhe pata hai, jo Mumbai ke laptop ke liye Mumbai edge par khatam hota hai. Handshake 4 ms mein hota hai, Frankfurt tak ke lagbhag 140 ms ki jagah.",
+          "facts": [
+            ["Destination", "203.0.113.80"],
+            ["Answered by", "Mumbai edge"],
+            ["Round trip", "4 ms"]
+          ],
+          "quiz": {
+            "q": "Paris aur Mumbai ke users dono 203.0.113.80 se connect karte hain. Paris ke user ko kaun sa server jawab deta hai?",
+            "options": [
+              "Mumbai edge",
+              "Frankfurt ka origin",
+              "Paris ke sabse paas wala edge",
+              "Jo edge sabse kam busy ho, DNS dwara chuna hua"
+            ],
+            "why": "Anycast ke saath BGP routing har packet ko us address ko announce karne wali sabse paas ki jagah tak pahunchati hai."
+          }
+        },
+        {
+          "title": "Image maango",
+          "desc": "Edge apna cache check karta hai: MISS",
+          "detail": "Browser /img/hero.jpg maangta hai. Edge URL ko apne cache mein dhoondta hai aur kuch nahi milta, kyunki Mumbai ke aaspaas kisi ne abhi tak yeh image nahi maangi. Yeh cache miss hai. (Hum plain HTTP dikha rahe hain taaki headers dikhein; HTTPS mein wahi headers TLS ke andar jaate hain.)",
+          "facts": [
+            ["Request", "GET /img/hero.jpg"],
+            ["Cache key", "Host + path"],
+            ["Result", "MISS"]
+          ]
+        },
+        {
+          "title": "Origin se fetch karo",
+          "desc": "Mumbai Frankfurt se poochta hai",
+          "detail": "Edge origin ko apni request ek khuli rakhi connection par bhejta hai, isliye naya handshake nahi hota. Origin 200 OK ke saath Cache-Control: public, max-age=86400 se jawab deta hai, jo har cache ko image ek din tak rakhne ki permission deta hai.",
+          "facts": [
+            ["Edge → origin", "198.51.100.21 → 203.0.113.10"],
+            ["Round trip", "≈ 130 ms"],
+            ["Cache-Control", "public, max-age=86400"]
+          ],
+          "quiz": {
+            "q": "Agar origin Cache-Control: private bhejta to kya hota?",
+            "options": [
+              "Edge use zyada der tak cache karta",
+              "Edge use store nahi kar sakta; har user origin tak jaata",
+              "Browser image reject kar deta",
+              "Edge use encrypt kar deta"
+            ],
+            "why": "private ka matlab hai sirf user ka apna browser use rakh sakta hai. CDN jaise shared caches nahi rakh sakte."
+          }
+        },
+        {
+          "title": "Laptop ko serve karo",
+          "desc": "X-Cache: MISS, Age: 0",
+          "detail": "Edge ek copy store karta hai aur usi waqt image laptop ko stream karta hai. Uska response X-Cache: MISS aur Age: 0 jodta hai, taaki debug karne wala dekh sake ki copy seedha origin se aayi. Is pehle visitor ne Frankfurt ka safar ek baar kiya.",
+          "facts": [
+            ["X-Cache", "MISS"],
+            ["Age", "0 seconds"],
+            ["Total time", "≈ 146 ms"]
+          ]
+        },
+        {
+          "title": "Agla visitor: HIT",
+          "desc": "Tees minute baad, phone se",
+          "detail": "Aadhe ghante baad phone wahi page kholta hai aur usi Mumbai edge tak pahunchta hai. Copy 1800 seconds purani hai, jo uski 86400-second ki life ke andar hai, isliye edge seedha apne cache se jawab deta hai. Origin ko kuch pata hi nahi chalta.",
+          "facts": [
+            ["X-Cache", "HIT"],
+            ["Age", "1800 s (30 min)"],
+            ["Response time", "≈ 4 ms"]
+          ],
+          "quiz": {
+            "q": "Copy 1800 s purani hai aur max-age=86400 hai. Edge ko origin se dobara kab check karna hoga?",
+            "options": [
+              "Abhi",
+              "Aur 84600 seconds ke baad",
+              "Aur 1800 seconds ke baad",
+              "Kabhi nahi"
+            ],
+            "why": "Copy tab tak fresh rehti hai jab tak Age max-age tak na pahunche: abhi se 86400 − 1800 = 84600 seconds. Phir edge revalidate karta hai, aksar If-None-Match aur ETag se."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Ek baar fetch, kai baar serve",
+        "text": "Anycast ne dono devices ko Mumbai edge par bheja. Pehli request miss hui aur Frankfurt se bhari gayi; doosri hit thi jo 4 ms mein serve hui. Cache-Control ne edge ko bataya ki copy kitni der rakh sakta hai, aur Age aur X-Cache dikhate hain ki kya hua.",
+        "facts": [
+          ["First visit", "MISS, ≈ 146 ms"],
+          ["Later visits", "HIT, ≈ 4 ms"],
+          ["Origin requests", "1"],
+          ["Saved per hit", "≈ 140 ms aur ek origin request"]
+        ]
+      }
+    },
+    "edge-down": {
+      "name": "Mumbai edge down ho jaata hai",
+      "summary": "Sabse paas ka edge fail ho jaata hai. Uska anycast route gayab ho jaata hai aur users bina kisi address badle Chennai pahunch jaate hain.",
+      "steps": [
+        {
+          "title": "Mumbai fail",
+          "desc": "SYN kahin nahi jaata",
+          "detail": "Shaam ke beech Mumbai edge ki power chali jaati hai. Laptop ka SYN ab bhi purane route se Mumbai ki taraf jaata hai aur kho jaata hai. Browser apne retransmission timer ka wait karta hai, jo ek second se shuru hota hai.",
+          "facts": [
+            ["Destination", "203.0.113.80"],
+            ["Mumbai edge", "Down"],
+            ["SYN timer", "1 s, then 2 s"]
+          ]
+        },
+        {
+          "title": "Route gayab ho jaata hai",
+          "desc": "BGP Mumbai ka anycast route withdraw karta hai",
+          "detail": "Mumbai ke routers ko edge se awaaz aani band ho jaati hai (health checks fail hote hain, ya uska BGP session time out hota hai) aur ve 203.0.113.80 ka announcement withdraw kar lete hain. Region ke routers ab sirf baaki edges ke paths jaante hain, aur unmein se best Chennai ki taraf jaata hai.",
+          "facts": [
+            ["Withdrawn", "203.0.113.80 via Mumbai"],
+            ["Next best", "Chennai"],
+            ["Takes", "Kuch seconds"]
+          ],
+          "quiz": {
+            "q": "Kya laptop ko Chennai pahunchne ke liye DNS se naya IP address chahiye?",
+            "options": [
+              "Haan, pehle DNS update hona chahiye",
+              "Nahi, 203.0.113.80 ab seedha Chennai route hota hai",
+              "Haan, browser restart karna padega",
+              "Nahi, woh Mumbai se hi baat karta rahega"
+            ],
+            "why": "Anycast mein address kabhi nahi badalta. Sirf uska route badalta hai, isliye failover DNS caches ke expire hone ka wait nahi karta."
+          }
+        },
+        {
+          "title": "Chennai jawab deta hai",
+          "desc": "Same address, alag shehar",
+          "detail": "Do second baad teesra SYN naye route se Chennai jaata hai. Chennai edge 203.0.113.80 se waise hi jawab deta hai jaise Mumbai deta. Round trip ab 4 ms ki jagah 22 ms hai, lekin site chal rahi hai.",
+          "facts": [
+            ["Answered by", "Chennai edge"],
+            ["Round trip", "22 ms"],
+            ["Downtime seen", "≈ 3 s"]
+          ]
+        },
+        {
+          "title": "Chennai se serve hua",
+          "desc": "Popular file wahan bhi cached hai",
+          "detail": "Image popular hai, isliye Chennai ke paas pehle se apni copy hai aur woh use HIT ke roop mein serve karta hai. Agar na hoti, to Chennai use origin se fetch karta jaise Mumbai ne pehle kiya tha. Users ne bas teen second ka pause mehsoos kiya.",
+          "facts": [
+            ["X-Cache", "HIT"],
+            ["X-Served-By", "cache-maa-02"],
+            ["Origin load", "Unchanged"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Routing se failover",
+        "text": "Jab Mumbai edge mar gaya, BGP ne uska anycast route advertise karna band kar diya aur wahi IP address Chennai tak le gaya. Users ne outage ki jagah chhota pause dekha, aur kisi ko DNS badalne ka wait nahi karna pada.",
+        "facts": [
+          ["Failover", "BGP route withdrawal"],
+          ["Address change", "None"],
+          ["Pause", "≈ 3 s (SYN retries)"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Jaanne wale headers",
+      "items": [
+        ["Cache-Control: max-age=N", "N seconds tak fresh"],
+        ["public / private", "Shared caches store kar sakte hain / nahi kar sakte"],
+        ["no-store", "Copy kabhi mat rakho"],
+        ["Age", "Copy kitne seconds se cached hai"],
+        ["ETag", "Revalidation ke liye version fingerprint"],
+        ["X-Cache", "HIT ya MISS (CDN-specific)"]
+      ]
+    },
+    {
+      "title": "Words",
+      "items": [
+        ["Edge / PoP", "Shehar mein cache servers"],
+        ["Origin", "Site ka asli server"],
+        ["Anycast", "Wahi IP kai jagah se announce"],
+        ["Cache fill", "Miss par edge ka origin se fetch karna"],
+        ["Hit ratio", "Cache se serve hui requests ka hissa"]
+      ]
+    }
+  ]
+}

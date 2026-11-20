@@ -1,0 +1,255 @@
+{
+  "tagline": "Enterprise Wi-Fi: apne khud ke account se login karo, shared key se nahi.",
+  "description": "802.1X mein access point ya switch port ko tab tak band rakhta hai jab tak central RADIUS server haan na bol de. Laptop access point se EAP bolta hai, jo use RADIUS ke andar relay karta hai. Success par RADIUS Wi-Fi encryption ke liye keys aur us user ka VLAN wapas deta hai.",
+  "facts": [
+    ["Layer", "Data Link (EAPOL) + Application (RADIUS)"],
+    ["Transport", "Ethernet par EAPOL, UDP 1812 par RADIUS"],
+    ["Methods", "PEAP, EAP-TLS, EAP-TTLS"],
+    ["RADIUS header", "20 bytes + attributes"],
+    ["Attributes", "Type, length, value"],
+    ["Defined in", "IEEE 802.1X, RFC 2865, RFC 3579"]
+  ],
+  "legend": [
+    "EAPOL control",
+    "Laptop / AP se requests",
+    "Challenges aur keys",
+    "Accepted",
+    "Rejected"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "PEAP se enterprise Wi-Fi join karna",
+      "summary": "Laptop access point ke zariye RADIUS server ko prove karta hai ki woh kaun hai aur VLAN 20 par pahunchta hai.",
+      "steps": [
+        {
+          "title": "Hello, aap kaun ho?",
+          "desc": "EAPOL-Start aur EAP-Request/Identity",
+          "detail": "Laptop Wi-Fi network CorpWiFi se join ho chuka hai, lekin access point haan bolne tak sirf 802.1X frames guzarne deta hai. Laptop EAPOL-Start bhejta hai, aur AP identity ke liye EAP Request se jawab deta hai. Wired switch port par yehi frames AP ke MAC ke bajaye group address 01:80:c2:00:00:03 par jaate hain.",
+          "facts": [
+            ["EtherType", "0x888E (EAPOL)"],
+            ["Port state", "Blocked, EAPOL ko chhodkar"],
+            ["Roles", "Supplicant, authenticator, server"]
+          ]
+        },
+        {
+          "title": "Identity, relay hui",
+          "desc": "Outer identity Access-Request mein jaati hai",
+          "detail": "Laptop \"anonymous@example.com\" se jawab deta hai. PEAP mein asli user name encrypted tunnel banne tak chhupa rehta hai; yahan sirf realm chahiye taaki sahi server chuna jaye. AP EAP ko samajhta nahi: woh packet ko UDP 1812 par RADIUS Access-Request mein copy karta hai, apne baare mein details jodta hai, aur shared secret se sign karta hai.",
+          "facts": [
+            ["Outer identity", "anonymous@example.com"],
+            ["RADIUS port", "UDP 1812"],
+            ["Identifier", "0x41"]
+          ],
+          "quiz": {
+            "q": "Laptop asli user name ke bajaye “anonymous@…” kyun bhejta hai?",
+            "options": [
+              "AP asli names reject karta hai",
+              "Asli name baad mein encrypted PEAP tunnel ke andar bheja jaata hai",
+              "RADIUS mein names ke liye field hi nahi hai",
+              "Config mein typo hai"
+            ],
+            "why": "Outer identity network par clear mein jaati hai. @ ke baad ka realm routing ke liye kaafi hai; asli identity TLS ke andar travel karti hai."
+          }
+        },
+        {
+          "title": "PEAP use karte hain",
+          "desc": "EAP-Request/PEAP Start ke saath Access-Challenge",
+          "detail": "RADIUS server method chunta hai. Woh Access-Challenge se jawab deta hai jisme type 25 (PEAP) ka EAP Request Start flag ke saath hota hai, aur ek State cookie. AP EAP ko unpack karke EAPOL ke zariye laptop ko bhejta hai.",
+          "facts": [
+            ["RADIUS code", "11 (Access-Challenge)"],
+            ["EAP type", "25 (PEAP)"],
+            ["Flags", "Start, version 1"]
+          ]
+        },
+        {
+          "title": "TLS tunnel banao",
+          "desc": "Kai challenge rounds TLS handshake carry karte hain",
+          "detail": "Ab poora TLS handshake EAP ke andar travel karta hai, jo RADIUS ke andar travel karta hai. Laptop ka ClientHello upar jaata hai; server ka certificate ek packet ke liye bahut bada hai, isliye woh kai Access-Challenge rounds mein fragments mein wapas aata hai. Laptop ko us certificate ko company CA se check karna chahiye, warna evil twin access point passwords chura sakta hai.",
+          "facts": [
+            ["Rounds", "Lagbhag 4 se 6 challenges"],
+            ["Fragment", "1400 bytes tak (Framed-MTU)"],
+            ["Check", "Server cert vs company CA"]
+          ],
+          "quiz": {
+            "q": "Laptop RADIUS server ka certificate check karna skip kar deta hai. Fake AP wala attacker kya kar sakta hai?",
+            "options": [
+              "Kuch nahi, PEAP hamesha safe hai",
+              "Server ban kar inner login exchange capture kar sakta hai",
+              "Sirf network slow kar sakta hai",
+              "Doosre users ka VLAN traffic padh sakta hai"
+            ],
+            "why": "Certificate checks ke bina laptop kisi se bhi tunnel bana leta hai, isliye fake AP MSCHAPv2 exchange jama karke use crack karne ki koshish kar sakta hai."
+          }
+        },
+        {
+          "title": "Access-Accept",
+          "desc": "Password check hua, keys aur VLAN mil gaye",
+          "detail": "Tunnel ke andar laptop \"danish@example.com\" aur apne password ka MSCHAPv2 proof bhejta hai; server use directory se check karta hai. Phir woh EAP-Success ke saath Access-Accept bhejta hai, asli user name, do MS-MPPE keys (shared secret se chhupi hui) aur teen tunnel attributes jo is user ko VLAN 20 par daalte hain.",
+          "facts": [
+            ["RADIUS code", "2 (Access-Accept)"],
+            ["Keys", "MS-MPPE-Recv-Key, MS-MPPE-Send-Key"],
+            ["VLAN", "Tunnel-Private-Group-ID = 20"]
+          ],
+          "quiz": {
+            "q": "AP MS-MPPE keys ka kya karta hai?",
+            "options": [
+              "Unhe laptop ko clear mein bhejta hai",
+              "Unhe Wi-Fi 4-way handshake ke liye PMK ki tarah use karta hai",
+              "Unhe directory mein store karta hai",
+              "Kuch nahi, woh logging ke liye hain"
+            ],
+            "why": "Laptop ne wahi key TLS tunnel se derive ki thi. Ab dono sides ke paas PMK shared hai bina air par kabhi guzre."
+          }
+        },
+        {
+          "title": "4-way handshake",
+          "desc": "EAPOL-Key messages PMK ko Wi-Fi keys mein badalte hain",
+          "detail": "AP aur laptop ke paas ab PMK shared hai. Woh chaar EAPOL-Key messages mein nonces (ANonce aur SNonce) badalte hain, har ek MIC se prove karta hai ki use PMK pata hai. Message 3 group key encrypted carry karta hai. Message 4 ke baad port khul jaata hai aur traffic VLAN 20 par chalta hai.",
+          "facts": [
+            ["Messages", "4 EAPOL-Key frames"],
+            ["Result", "Pairwise key (PTK) + group key (GTK)"],
+            ["Cipher", "CCMP (AES)"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "danish ke roop mein connected",
+        "text": "Access point ne password kabhi nahi dekha. Usne EAP ko RADIUS tak relay kiya, jisne TLS tunnel ke andar user check kiya, phir Wi-Fi keys aur VLAN wapas bheje. Har user ko apni keys milti hain, aur ek account disable karne se sirf wahi insaan bahar hota hai.",
+        "facts": [
+          ["RADIUS round trips", "Lagbhag 8"],
+          ["Time", "LAN par lagbhag 70 ms"],
+          ["VLAN", "20 (staff)"],
+          ["Shared Wi-Fi password", "Koi nahi"]
+        ]
+      }
+    },
+    "reject": {
+      "name": "Galat password: Access-Reject",
+      "summary": "Shuruaat wahi, lekin inner MSCHAPv2 proof match nahi karta aur RADIUS na bol deta hai.",
+      "steps": [
+        {
+          "title": "Hello, aap kaun ho?",
+          "desc": "EAPOL-Start aur EAP-Request/Identity",
+          "detail": "Laptop Wi-Fi network CorpWiFi se join ho chuka hai, lekin access point haan bolne tak sirf 802.1X frames guzarne deta hai. Laptop EAPOL-Start bhejta hai, aur AP identity ke liye EAP Request se jawab deta hai. Wired switch port par yehi frames AP ke MAC ke bajaye group address 01:80:c2:00:00:03 par jaate hain.",
+          "facts": [
+            ["EtherType", "0x888E (EAPOL)"],
+            ["Port state", "Blocked, EAPOL ko chhodkar"],
+            ["Roles", "Supplicant, authenticator, server"]
+          ]
+        },
+        {
+          "title": "Identity, relay hui",
+          "desc": "Outer identity Access-Request mein jaati hai",
+          "detail": "Laptop \"anonymous@example.com\" se jawab deta hai. PEAP mein asli user name encrypted tunnel banne tak chhupa rehta hai; yahan sirf realm chahiye taaki sahi server chuna jaye. AP EAP ko samajhta nahi: woh packet ko UDP 1812 par RADIUS Access-Request mein copy karta hai, apne baare mein details jodta hai, aur shared secret se sign karta hai.",
+          "facts": [
+            ["Outer identity", "anonymous@example.com"],
+            ["RADIUS port", "UDP 1812"],
+            ["Identifier", "0x41"]
+          ],
+          "quiz": {
+            "q": "Laptop asli user name ke bajaye “anonymous@…” kyun bhejta hai?",
+            "options": [
+              "AP asli names reject karta hai",
+              "Asli name baad mein encrypted PEAP tunnel ke andar bheja jaata hai",
+              "RADIUS mein names ke liye field hi nahi hai",
+              "Config mein typo hai"
+            ],
+            "why": "Outer identity network par clear mein jaati hai. @ ke baad ka realm routing ke liye kaafi hai; asli identity TLS ke andar travel karti hai."
+          }
+        },
+        {
+          "title": "PEAP use karte hain",
+          "desc": "EAP-Request/PEAP Start ke saath Access-Challenge",
+          "detail": "RADIUS server method chunta hai. Woh Access-Challenge se jawab deta hai jisme type 25 (PEAP) ka EAP Request Start flag ke saath hota hai, aur ek State cookie. AP EAP ko unpack karke EAPOL ke zariye laptop ko bhejta hai.",
+          "facts": [
+            ["RADIUS code", "11 (Access-Challenge)"],
+            ["EAP type", "25 (PEAP)"],
+            ["Flags", "Start, version 1"]
+          ]
+        },
+        {
+          "title": "TLS tunnel banao",
+          "desc": "Kai challenge rounds TLS handshake carry karte hain",
+          "detail": "Ab poora TLS handshake EAP ke andar travel karta hai, jo RADIUS ke andar travel karta hai. Laptop ka ClientHello upar jaata hai; server ka certificate ek packet ke liye bahut bada hai, isliye woh kai Access-Challenge rounds mein fragments mein wapas aata hai. Laptop ko us certificate ko company CA se check karna chahiye, warna evil twin access point passwords chura sakta hai.",
+          "facts": [
+            ["Rounds", "Lagbhag 4 se 6 challenges"],
+            ["Fragment", "1400 bytes tak (Framed-MTU)"],
+            ["Check", "Server cert vs company CA"]
+          ],
+          "quiz": {
+            "q": "Laptop RADIUS server ka certificate check karna skip kar deta hai. Fake AP wala attacker kya kar sakta hai?",
+            "options": [
+              "Kuch nahi, PEAP hamesha safe hai",
+              "Server ban kar inner login exchange capture kar sakta hai",
+              "Sirf network slow kar sakta hai",
+              "Doosre users ka VLAN traffic padh sakta hai"
+            ],
+            "why": "Certificate checks ke bina laptop kisi se bhi tunnel bana leta hai, isliye fake AP MSCHAPv2 exchange jama karke use crack karne ki koshish kar sakta hai."
+          }
+        },
+        {
+          "title": "Galat password",
+          "desc": "EAP-Failure ke saath Access-Reject",
+          "detail": "Tunnel ke andar laptop galat type kiye password se bana MSCHAPv2 answer bhejta hai. Directory kehti hai ki match nahi karta, isliye RADIUS server EAP-Failure ke saath Access-Reject bhejta hai. AP failure aage pass karta hai aur port band rakhta hai.",
+          "facts": [
+            ["RADIUS code", "3 (Access-Reject)"],
+            ["EAP code", "4 (Failure)"],
+            ["Port", "Blocked rehta hai"]
+          ],
+          "quiz": {
+            "q": "Reject ke baad laptop is AP ke through kaunsa traffic bhej sakta hai?",
+            "options": [
+              "Kuch bhi, port khula hai",
+              "Sirf EAPOL frames, dobara try karne ke liye",
+              "Sirf DNS",
+              "Default mein guest VLAN ka traffic"
+            ],
+            "why": "Unauthorised 802.1X port sirf EAPOL pass karta hai. Kuch networks failed clients ko guest VLAN mein daalne ke liye set hote hain, lekin woh extra configuration hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Bahar rakha gaya",
+        "text": "Galat password Access-Reject aur EAP-Failure par khatam hota hai. Koi keys nahi milti, isliye laptop 4-way handshake shuru bhi nahi kar sakta. RADIUS server failure log karta hai, jo guessing attacks pakadne mein madad karta hai.",
+        "facts": [
+          ["Packets", "End tak success jaise hi"],
+          ["Result", "Access-Reject (3)"],
+          ["Keys issue hui", "Koi nahi"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "RADIUS codes",
+      "items": [
+        ["1 Access-Request", "AP poochta hai"],
+        ["2 Access-Accept", "Andar aane do"],
+        ["3 Access-Reject", "Bahar rakho"],
+        ["11 Access-Challenge", "Aur chahiye (agla EAP round)"],
+        ["4 / 5", "Accounting Request / Response (port 1813)"]
+      ]
+    },
+    {
+      "title": "Key attributes",
+      "items": [
+        ["1 User-Name", "Kaun"],
+        ["4 NAS-IP-Address", "Kaunsa AP ya switch"],
+        ["24 State", "Conversation cookie"],
+        ["79 EAP-Message", "EAP packet, 253 bytes par split"],
+        ["80 Message-Authenticator", "HMAC-MD5 integrity"],
+        ["64/65/81", "Tunnel type, medium, VLAN ID"],
+        ["26 / 311 / 16,17", "Microsoft MPPE send/receive keys"]
+      ]
+    },
+    {
+      "title": "EAP / EAPOL",
+      "items": [
+        ["EtherType 0x888E", "EAPOL"],
+        ["EAPOL types", "0 EAP, 1 Start, 3 Key"],
+        ["EAP codes", "1 Request, 2 Response, 3 Success, 4 Failure"],
+        ["EAP types", "1 Identity, 13 EAP-TLS, 25 PEAP"]
+      ]
+    }
+  ]
+}

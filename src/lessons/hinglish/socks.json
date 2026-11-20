@@ -1,0 +1,186 @@
+{
+  "tagline": "Ek chhota sa binary handshake, phir kisi bhi TCP connection ke liye relay.",
+  "description": "SOCKS5 ek general-purpose proxy hai. Client SOCKS server se connect karta hai, login method chunta hai, login karta hai, aur server se kisi host aur port se connect karne ko kehta hai. Ek line ke reply ke baad server bas bytes dono taraf copy karta rehta hai, isliye ye sirf HTTP nahi, har TCP protocol ke liye kaam karta hai.",
+  "facts": [
+    ["Layer", "Session (Layer 5)"],
+    ["Transport", "TCP, port 1080"],
+    ["Login", "Koi nahi, username/password, GSSAPI"],
+    ["Targets", "IPv4, IPv6 ya domain name"],
+    ["Encryption", "Apni koi nahi"],
+    ["Defined in", "RFC 1928, RFC 1929"]
+  ],
+  "legend": [
+    "TCP handshakes aur ACKs",
+    "SOCKS negotiation",
+    "Login",
+    "Laptop se data",
+    "Website se data"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Login karo aur name se connect karo",
+      "summary": "curl --socks5-hostname SOCKS5 server pe login karta hai aur uske through example.com fetch karta hai.",
+      "steps": [
+        {
+          "title": "Greeting",
+          "desc": "Version 5, do login methods offer kiye",
+          "detail": "Port 1080 pe connect hone ke baad client teen se chaar bytes bhejta hai: version 5, kitne login methods pata hain, aur unki list. Yahan wo 0x00 (no login) aur 0x02 (username aur password) offer karta hai.",
+          "facts": [
+            ["Bytes", "05 02 00 02"],
+            ["Methods", "No auth, username/password"],
+            ["Port", "1080"]
+          ]
+        },
+        {
+          "title": "Method selection",
+          "desc": "Server username/password chunta hai",
+          "detail": "Server sirf do bytes mein jawab deta hai: version 5 aur jo method usne chuna. Is server ko login chahiye, isliye wo 0x02 chunta hai.",
+          "facts": [
+            ["Bytes", "05 02"],
+            ["Chosen", "0x02 username/password"],
+            ["0xFF ka matlab", "Koi acceptable method nahi"]
+          ],
+          "quiz": {
+            "q": "Client ko ab agla kya bhejna hoga?",
+            "options": [
+              "CONNECT request",
+              "Apna username aur password",
+              "TLS Client Hello",
+              "Kuch nahi; tunnel khul chuka hai"
+            ],
+            "why": "Method 0x02 ka matlab hai ki kisi bhi command se pehle username/password exchange (RFC 1929) hona zaroori hai."
+          }
+        },
+        {
+          "title": "Username aur password",
+          "desc": "RFC 1929 login, clear text mein",
+          "detail": "Client version byte 1 bhejta hai, phir username aur password, har ek ke aage ek-byte ki length ke saath. Server unhe check karke 01 00 reply karta hai: success. Dhyan do ki password bilkul encrypted nahi hai.",
+          "facts": [
+            ["Username", "danish"],
+            ["Reply", "01 00 = success"],
+            ["Encrypted", "Nahi"]
+          ],
+          "quiz": {
+            "q": "Username \"danish\" hai. Uske theek pehle wala byte kya hai?",
+            "options": ["0x00", "0x05", "0x06", "0x01"],
+            "why": "Har string ke aage ek-byte ka length prefix hota hai, aur \"danish\" 6 bytes ka hai."
+          }
+        },
+        {
+          "title": "CONNECT example.com:80",
+          "desc": "Name se, isliye DNS proxy karta hai",
+          "detail": "Client server se example.com port 80 pe CONNECT karne ko kehta hai, IP ki jagah domain name (address type 3) deke. SOCKS server khud name lookup karta hai aur apna TCP connection kholta hai. Reply batata hai ki success hua aur server kaunsa address aur port use kar raha hai.",
+          "facts": [
+            ["Command", "1 CONNECT"],
+            ["Address type", "3 (domain name)"],
+            ["Bound", "198.51.100.30:40188"]
+          ],
+          "quiz": {
+            "q": "Aap example.com ko laptop ki jagah proxy se resolve kyun karwana chahoge?",
+            "options": [
+              "Type karna aasaan hai",
+              "Taaki aapka local network aur DNS server ye na dekh sake ki aap kaunsi site visit kar rahe ho",
+              "SOCKS IP addresses carry nahi kar sakta",
+              "IPv6 paane ke liye"
+            ],
+            "why": "Request mein domain name hone se DNS lookup proxy pe hota hai, isliye laptop se koi DNS query leak nahi hoti."
+          }
+        },
+        {
+          "title": "Data flows",
+          "desc": "SOCKS server bas bytes copy karta hai",
+          "detail": "Ab se SOCKS kuch add nahi karta. Laptop connection mein ek normal HTTP request bhejta hai; SOCKS server use example.com tak copy karta hai aur reply wapas copy karta hai. SSH, SMTP ya kisi bhi TCP protocol ke liye aise hi kaam karega.",
+          "facts": [
+            ["Overhead", "Handshake ke baad koi nahi"],
+            ["Works for", "Har TCP protocol"],
+            ["Website dekhti hai", "198.51.100.30 ko client ki tarah"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Dumb pipe, smart start",
+        "text": "Chhe chhote binary messages (greeting, method choice, login, login result, connect, reply) relay set up karte hain. Uske baad SOCKS dikhta hi nahi. Ye aapka address website se chhupata hai, lekin encryption add nahi karta, isliye andar TLS rakho ya ise SSH pe chalao (ssh -D).",
+        "facts": [
+          ["Handshake", "3 round trips"],
+          ["Login", "RFC 1929, clear text"],
+          ["Common uses", "ssh -D, Tor, browser proxy settings"]
+        ]
+      }
+    },
+    "bad-login": {
+      "name": "Galat password",
+      "summary": "Login fail ho jata hai aur SOCKS server connection band kar deta hai.",
+      "steps": [
+        {
+          "title": "Greeting aur method",
+          "desc": "Shuruaat pehle jaisi hi",
+          "detail": "Client connect karta hai, no-auth aur username/password offer karta hai, aur server username/password chunta hai.",
+          "facts": [
+            ["Client offers", "00, 02"],
+            ["Server picks", "02"],
+            ["Next", "Login"]
+          ]
+        },
+        {
+          "title": "Galat password",
+          "desc": "Status 1: failure",
+          "detail": "Is baar password galat type hua hai. Server 01 01 reply karta hai. RFC 1929 kehta hai ki failure ke baad server ko connection band karna hi hoga, isliye wo turant FIN bhejta hai. curl batata hai ki SOCKS5 login fail ho gaya.",
+          "facts": [
+            ["Reply", "01 01 = failure"],
+            ["Then", "Server band karta hai (FIN)"],
+            ["curl kehta hai", "User was rejected by the SOCKS5 server"]
+          ],
+          "quiz": {
+            "q": "Kya client usi connection pe doosra password try kar sakta hai?",
+            "options": [
+              "Haan, teen baar tak",
+              "Nahi, failure ke baad server ko connection band karna hi padta hai",
+              "Haan, greeting dobara bhejke",
+              "Sirf method 0x00 ke saath"
+            ],
+            "why": "RFC 1929 ke hisaab se failed login ke baad server ko connection close karna hota hai. Client ko dobara connect karke shuru se start karna padta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Login fail, connection band",
+        "text": "Failed RFC 1929 login connection khatam kar deta hai; CONNECT kabhi try hi nahi hota. Password internet pe clear text mein gaya, isliye eavesdropper ko galat aur sahi password dono barabar dikhte hain.",
+        "facts": [
+          ["Failure reply", "01 01"],
+          ["Then", "TCP close"],
+          ["Lesson", "SOCKS ko SSH ya TLS mein wrap karo"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Methods",
+      "items": [
+        ["0x00", "No authentication"],
+        ["0x01", "GSSAPI"],
+        ["0x02", "Username/password"],
+        ["0xFF", "Koi acceptable method nahi"]
+      ]
+    },
+    {
+      "title": "Commands aur address types",
+      "items": [
+        ["CMD 1", "CONNECT"],
+        ["CMD 2", "BIND (incoming)"],
+        ["CMD 3", "UDP ASSOCIATE"],
+        ["ATYP 1 / 3 / 4", "IPv4 / domain name / IPv6"]
+      ]
+    },
+    {
+      "title": "Reply codes",
+      "items": [
+        ["0", "Succeeded"],
+        ["1", "General failure"],
+        ["2", "Rules ne allow nahi kiya"],
+        ["4", "Host unreachable"],
+        ["5", "Connection refused"]
+      ]
+    }
+  ]
+}

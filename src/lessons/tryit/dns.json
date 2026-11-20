@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Look up a name", "hinglish": "Ek name lookup karo" },
+      "why": { "en": "Asks your configured resolver for example.com, just like the laptop in the lesson.", "hinglish": "Aapke configured resolver se example.com maangta hai, bilkul lesson ke laptop ki tarah." },
+      "windows": "nslookup example.com",
+      "unix": "dig example.com",
+      "expect": { "en": "The resolver address and one or more A records for example.com. dig also shows flags (qr rd ra), the TTL and the query time. Addresses and times vary by machine.", "hinglish": "Resolver ka address aur example.com ke ek ya zyada A records. dig flags (qr rd ra), TTL aur query time bhi dikhata hai. Addresses aur times machine ke hisaab se alag hote hain." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Walk the tree from the root", "hinglish": "Root se tree walk karo" },
+      "why": { "en": "dig +trace repeats the resolver's walk: root, then .com, then example.com's own servers.", "hinglish": "dig +trace resolver ka walk repeat karta hai: root, phir .com, phir example.com ke apne servers." },
+      "unix": "dig +trace example.com",
+      "expect": { "en": "Several blocks: the root servers' NS list, the .com servers, example.com's name servers, then the final A record. Server names and addresses can differ.", "hinglish": "Kai blocks: root servers ki NS list, .com servers, example.com ke name servers, phir final A record. Server names aur addresses alag ho sakte hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Watch the TTL count down", "hinglish": "TTL ko ghatte hue dekho" },
+      "why": { "en": "Query a public resolver twice a few seconds apart. The second answer comes from its cache with a smaller TTL.", "hinglish": "Public resolver se do baar kuch seconds ke gap pe poocho. Doosra answer uske cache se kam TTL ke saath aata hai." },
+      "windows": "nslookup -type=A -debug example.com 8.8.8.8",
+      "unix": "dig @8.8.8.8 example.com +noall +answer",
+      "expect": { "en": "The A record with a TTL number. Run it again after a few seconds and the TTL is lower. Values vary.", "hinglish": "A record ek TTL number ke saath. Kuch seconds baad dobara chalao to TTL kam hoga. Values alag ho sakti hain." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Trigger an NXDOMAIN", "hinglish": "NXDOMAIN trigger karo" },
+      "why": { "en": "A name that does not exist gets the definite answer NXDOMAIN (rcode 3).", "hinglish": "Jo name exist nahi karta use pakka jawab NXDOMAIN (rcode 3) milta hai." },
+      "windows": "nslookup wwww.example.com",
+      "unix": "dig wwww.example.com",
+      "expect": { "en": "nslookup says 'Non-existent domain'; dig shows 'status: NXDOMAIN' and an SOA record in the authority section.", "hinglish": "nslookup 'Non-existent domain' kehta hai; dig 'status: NXDOMAIN' aur authority section mein SOA record dikhata hai." }
+    }
+  ]
+}

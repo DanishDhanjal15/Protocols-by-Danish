@@ -1,0 +1,35 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Send a DoH query with curl", "hinglish": "curl se DoH query bhejo" },
+      "why": { "en": "Cloudflare's public DoH endpoint also speaks a JSON flavour, which is easy to read. It is still an HTTPS request on port 443.", "hinglish": "Cloudflare ka public DoH endpoint ek JSON flavour bhi samajhta hai, jo padhna aasaan hai. Ye phir bhi port 443 pe HTTPS request hai." },
+      "windows": "curl.exe -s -H \"accept: application/dns-json\" \"https://cloudflare-dns.com/dns-query?name=example.com&type=A\"",
+      "unix": "curl -s -H 'accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=example.com&type=A'",
+      "expect": { "en": "A JSON document with Status 0 and an Answer list holding example.com A records and their TTL. Addresses and TTLs vary.", "hinglish": "Status 0 aur example.com ke A records aur unke TTL wali Answer list ke saath ek JSON document. Addresses aur TTLs alag ho sakte hain." },
+      "step": 4
+    },
+    {
+      "title": { "en": "See the HTTP side of DoH", "hinglish": "DoH ka HTTP side dekho" },
+      "why": { "en": "Looking at the response headers shows the content type and cache lifetime that RFC 8484 talks about.", "hinglish": "Response headers dekhne se content type aur cache lifetime dikhta hai jiski RFC 8484 baat karta hai." },
+      "windows": "curl.exe -sI -H \"accept: application/dns-message\" \"https://cloudflare-dns.com/dns-query?dns=AAABAAABAAAAAAAAB2V4YW1wbGUDY29tAAABAAE\"",
+      "unix": "curl -sI -H 'accept: application/dns-message' 'https://cloudflare-dns.com/dns-query?dns=AAABAAABAAAAAAAAB2V4YW1wbGUDY29tAAABAAE'",
+      "expect": { "en": "HTTP 200 with 'content-type: application/dns-message' and a cache-control: max-age value close to the record's TTL. Exact headers vary by provider.", "hinglish": "'content-type: application/dns-message' aur record ke TTL ke kareeb cache-control: max-age value ke saath HTTP 200. Exact headers provider ke hisaab se alag hote hain." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Compare with plain DNS", "hinglish": "Plain DNS se compare karo" },
+      "why": { "en": "The same question over UDP 53 is what an ISP can read. Capture it in Wireshark with the filter below and compare.", "hinglish": "UDP 53 pe wahi sawal wo hai jo ISP padh sakta hai. Neeche wale filter se Wireshark mein capture karke compare karo." },
+      "windows": "nslookup example.com 1.1.1.1",
+      "unix": "dig @1.1.1.1 example.com",
+      "expect": { "en": "The same A records, but this query travels in plain text over UDP 53. Addresses vary.", "hinglish": "Wahi A records, lekin ye query UDP 53 pe plain text mein jaati hai. Addresses alag ho sakte hain." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Find the DoH traffic in the capture", "hinglish": "Capture mein DoH traffic dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and filter for the TLS handshake and the plain DNS contrast.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur TLS handshake aur plain DNS contrast filter karo." },
+      "wireshark": "tls.handshake.type == 1 || dns",
+      "expect": { "en": "The Client Hello shows SNI dns.example and ALPN h2 in clear; the DoH query itself is encrypted, while the plain DNS packets from the comparison step are readable.", "hinglish": "Client Hello clear mein SNI dns.example aur ALPN h2 dikhata hai; DoH query khud encrypted hai, jabki comparison step ke plain DNS packets padhe ja sakte hain." },
+      "step": 2
+    }
+  ]
+}

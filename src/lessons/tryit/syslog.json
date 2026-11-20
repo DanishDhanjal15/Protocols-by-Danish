@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Send a test syslog message to yourself", "hinglish": "Khud ko ek test syslog message bhejo" },
+      "why": { "en": "Sends one RFC 5424 style message over UDP 514 to your own machine, so you can watch it in Wireshark or a local syslog daemon.", "hinglish": "Apni hi machine ko UDP 514 par ek RFC 5424 style message bhejta hai, taaki aap use Wireshark ya local syslog daemon mein dekh sako." },
+      "unix": "logger -n 127.0.0.1 -P 514 -d -p local0.info \"test from lesson\"",
+      "expect": { "en": "No output on success. If a syslog daemon listens on UDP 514 locally the line appears in its log; in Wireshark (loopback capture, filter syslog) you see a message starting <134>, which is local0.info. Needs the util-linux logger with -n; macOS logger lacks it. Output varies.", "hinglish": "Success par koi output nahi. Agar local par syslog daemon UDP 514 sun raha hai to line uske log mein dikhti hai; Wireshark (loopback capture, filter syslog) mein <134> se shuru hone wala message dikhta hai, jo local0.info hai. util-linux ka logger -n ke saath chahiye; macOS ke logger mein yeh nahi hota. Output alag ho sakta hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "See recent local logs", "hinglish": "Haal ke local logs dekho" },
+      "why": { "en": "Look at the kind of lines a device would forward to a log server. Read-only.", "hinglish": "Aise lines dekho jo device log server ko forward karta hai. Read-only." },
+      "windows": "Get-WinEvent -LogName System -MaxEvents 5 | Format-List TimeCreated, ProviderName, LevelDisplayName, Message",
+      "unix": "journalctl -n 5 --no-pager",
+      "expect": { "en": "Five recent log entries, each with a time, a source program and a severity level (Information, Warning, Error), the same fields a syslog line carries. Content varies by machine.", "hinglish": "Haal ki paanch log entries, har ek mein time, source program aur severity level (Information, Warning, Error), wahi fields jo syslog line mein hote hain. Content machine ke hisaab se alag hota hai." }
+    },
+    {
+      "title": { "en": "Read the priority in the capture", "hinglish": "Capture mein priority padho" },
+      "why": { "en": "Open the downloaded .pcap and filter syslog packets; Wireshark splits the PRI into facility and severity.", "hinglish": "Download kiya .pcap kholo aur syslog packets filter karo; Wireshark PRI ko facility aur severity mein baant deta hai." },
+      "wireshark": "syslog",
+      "expect": { "en": "The UDP 514 message shows facility LOCAL0 (16) and level INFO (6) for <134>. The TLS 6514 records appear only as encrypted Application Data.", "hinglish": "UDP 514 message <134> ke liye facility LOCAL0 (16) aur level INFO (6) dikhata hai. TLS 6514 records sirf encrypted Application Data ki tarah dikhte hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Find warnings only", "hinglish": "Sirf warnings dhoondo" },
+      "why": { "en": "Severity 4 is warning, so the failed SSH login stands out.", "hinglish": "Severity 4 warning hai, isliye failed SSH login alag dikhta hai." },
+      "wireshark": "syslog.level == 4",
+      "expect": { "en": "Messages with PRI <132> remain, such as the AUTH_FAIL line, if it is visible (not encrypted) in the capture you opened.", "hinglish": "PRI <132> wale messages bachte hain, jaise AUTH_FAIL line, agar woh aapke khole hue capture mein visible (encrypted nahi) hai." },
+      "step": 5
+    }
+  ]
+}

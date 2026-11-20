@@ -1,0 +1,27 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Ask a public RTSP stream what it offers", "hinglish": "Public RTSP stream se poocho wo kya offer karti hai" },
+      "why": { "en": "ffprobe (part of FFmpeg) sends OPTIONS, DESCRIBE and SETUP like VLC and prints the codec from the SDP. Use a stream you are allowed to watch, such as your own camera or a public demo stream.", "hinglish": "ffprobe (FFmpeg ka hissa) VLC ki tarah OPTIONS, DESCRIBE aur SETUP bhejta hai aur SDP se codec print karta hai. Aisi stream use karo jo dekhne ki ijazat ho, jaise apna camera ya public demo stream." },
+      "windows": "ffprobe -rtsp_transport tcp rtsp://192.168.1.64/stream1",
+      "unix": "ffprobe -rtsp_transport tcp rtsp://192.168.1.64/stream1",
+      "expect": { "en": "Lines like 'Stream #0:0: Video: h264 ... 25 fps' once connected. Replace the address with your own camera; with an unreachable address you will see 'Connection timed out'. Output varies by camera.", "hinglish": "Connect hone par 'Stream #0:0: Video: h264 ... 25 fps' jaisi lines. Address apne camera ke saath badlo; unreachable address pe 'Connection timed out' dikhega. Output camera ke hisaab se alag hota hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Check whether the RTSP port is open on your own camera", "hinglish": "Apne camera pe RTSP port khula hai ya nahi check karo" },
+      "why": { "en": "Tests TCP 554 on a device you own. Never run it against cameras you do not own.", "hinglish": "Aapke apne device pe TCP 554 test karta hai. Ise kabhi aise cameras pe mat chalao jo aapke nahi." },
+      "windows": "Test-NetConnection 192.168.1.64 -Port 554",
+      "unix": "nc -vz 192.168.1.64 554",
+      "expect": { "en": "'TcpTestSucceeded : True' (Windows) or 'succeeded' (nc) if the camera listens; otherwise False or 'Connection refused'. Use your camera's real address.", "hinglish": "Camera sun raha ho to 'TcpTestSucceeded : True' (Windows) ya 'succeeded' (nc); warna False ya 'Connection refused'. Apne camera ka asli address use karo." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find the RTSP requests and RTP video in the capture", "hinglish": "Capture mein RTSP requests aur RTP video dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and filter for RTSP, RTP and RTCP.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur RTSP, RTP aur RTCP filter karo." },
+      "wireshark": "rtsp || rtp || rtcp",
+      "expect": { "en": "OPTIONS, DESCRIBE, SETUP, PLAY and TEARDOWN with matching CSeq numbers, RTP packets on UDP, and RTCP Sender and Receiver Reports. Try 'rtsp.method == \"DESCRIBE\"' to see the SDP.", "hinglish": "Matching CSeq numbers ke saath OPTIONS, DESCRIBE, SETUP, PLAY aur TEARDOWN, UDP pe RTP packets, aur RTCP Sender aur Receiver Reports. SDP dekhne ke liye 'rtsp.method == \"DESCRIBE\"' try karo." },
+      "step": 1
+    }
+  ]
+}

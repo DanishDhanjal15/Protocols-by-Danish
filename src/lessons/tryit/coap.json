@@ -1,0 +1,31 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Read a resource from your own CoAP server", "hinglish": "Apne CoAP server se resource padho" },
+      "why": { "en": "Uses the libcoap client against a CoAP server you run yourself (for example a local test server).", "hinglish": "libcoap client ko aapke khud ke chalaye CoAP server (jaise local test server) par use karta hai." },
+      "unix": "coap-client -m get coap://localhost/sensors/temp",
+      "expect": { "en": "Needs libcoap's coap-client and a CoAP server on your own machine; otherwise it times out after the CoAP retries (2 s, 4 s, ...), which is itself the backoff lesson. A working server prints the payload, for example 22.5. Output varies.", "hinglish": "libcoap ka coap-client aur aapki apni machine par CoAP server chahiye; warna CoAP retries (2 s, 4 s, ...) ke baad timeout ho jaata hai, jo khud backoff ka lesson hai. Chalta hua server payload print karta hai, jaise 22.5. Output alag ho sakta hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Check that UDP 5683 is free on your PC", "hinglish": "Dekho aapke PC par UDP 5683 free hai ya nahi" },
+      "why": { "en": "Lists local UDP listeners so you can see whether a CoAP server is running here.", "hinglish": "Local UDP listeners list karta hai taaki dikhe ki yahan CoAP server chal raha hai ya nahi." },
+      "windows": "netstat -ano -p UDP | findstr :5683",
+      "unix": "ss -lun | grep 5683",
+      "expect": { "en": "Usually no output, meaning nothing listens on 5683. If you started a CoAP server you see a line with 0.0.0.0:5683 or *:5683.", "hinglish": "Aam taur par koi output nahi, matlab 5683 par kuch nahi sun raha. Agar aapne CoAP server chalaya hai to 0.0.0.0:5683 ya *:5683 wali line dikhegi." }
+    },
+    {
+      "title": { "en": "See CoAP messages in the capture", "hinglish": "Capture mein CoAP messages dekho" },
+      "why": { "en": "Open the downloaded .pcap and read type, code, Message ID and token.", "hinglish": "Download kiya .pcap kholo aur type, code, Message ID aur token padho." },
+      "wireshark": "coap",
+      "expect": { "en": "You see CON GET, ACK 2.05 Content, the Observe notifications and the empty ACK. Click a packet and expand the CoAP tree for options like Uri-Path and Observe.", "hinglish": "CON GET, ACK 2.05 Content, Observe notifications aur empty ACK dikhte hain. Packet par click karke CoAP tree expand karo aur Uri-Path aur Observe jaise options dekho." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Spot retransmissions and errors", "hinglish": "Retransmissions aur errors pakdo" },
+      "why": { "en": "Shows repeated Message IDs and error codes (class 4 and 5).", "hinglish": "Repeated Message IDs aur error codes (class 4 aur 5) dikhata hai." },
+      "wireshark": "coap.opt.observe || coap.code >= 128 || coap.mid == 0x7d40",
+      "expect": { "en": "Observe notifications, the 4.04 reply and the three copies of MID 0x7d40 from the lost-CON capture match, depending on which scenario you opened.", "hinglish": "Aapne kaunsa scenario khola us par depend karke Observe notifications, 4.04 reply aur lost-CON capture ki MID 0x7d40 ki teen copies match hoti hain." }
+    }
+  ]
+}

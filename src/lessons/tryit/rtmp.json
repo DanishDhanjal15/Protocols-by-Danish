@@ -1,0 +1,26 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Check the RTMP port is reachable", "hinglish": "RTMP port reachable hai ya nahi check karo" },
+      "why": { "en": "RTMP rides on TCP port 1935. A public ingest host lets you see the TCP connection open before the C0/C1 handshake.", "hinglish": "RTMP TCP port 1935 par chalta hai. Public ingest host par aap C0/C1 handshake se pehle TCP connection khulte dekh sakte ho." },
+      "windows": "Test-NetConnection a.rtmp.youtube.com -Port 1935",
+      "unix": "nc -vz a.rtmp.youtube.com 1935",
+      "expect": { "en": "Usually TcpTestSucceeded : True (or 'succeeded'), but it varies by network; some networks block 1935. This is only the TCP step, no RTMP data is sent.", "hinglish": "Aam taur par TcpTestSucceeded : True (ya 'succeeded') aata hai, par ye network par depend karta hai; kuch networks 1935 block karte hain. Ye sirf TCP step hai, koi RTMP data nahi jaata." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Find the RTMP handshake in the capture", "hinglish": "Capture mein RTMP handshake dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and filter on the RTMP port to see the C0/C1, S0/S1/S2 and C2 blocks.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur RTMP port par filter lagao, C0/C1, S0/S1/S2 aur C2 blocks dikh jayenge." },
+      "wireshark": "tcp.port == 1935",
+      "expect": { "en": "A TCP handshake, then the 1537-byte C0+C1 split over two segments, the 3073-byte server reply, then RTMP chunk messages.", "hinglish": "Pehle TCP handshake, phir 1537-byte C0+C1 do segments mein split, 3073-byte server reply, aur uske baad RTMP chunk messages." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Spot the stream key in clear text", "hinglish": "Clear text mein stream key pakdo" },
+      "why": { "en": "Plain RTMP is unencrypted, so the publish command carries the key in the open. Filter RTMP messages and inspect the publish packet.", "hinglish": "Plain RTMP encrypted nahi hota, isliye publish command mein key khuli hoti hai. RTMP messages filter karo aur publish packet dekho." },
+      "wireshark": "rtmpt",
+      "expect": { "en": "Packets decoded as RTMP; the publish packet shows the stream name (the key) as readable text. The bad-key scenario shows an onStatus with NetStream.Publish.BadName.", "hinglish": "Packets RTMP ki tarah decode hote hain; publish packet mein stream name (key) padhne layak text mein dikhta hai. bad-key scenario mein onStatus aur NetStream.Publish.BadName dikhta hai." },
+      "step": 5
+    }
+  ]
+}

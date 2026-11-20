@@ -1,0 +1,31 @@
+{
+  "commands": [
+    {
+      "title": { "en": "See Modbus requests in the capture", "hinglish": "Capture mein Modbus requests dekho" },
+      "why": { "en": "Open the downloaded .pcap and filter on Modbus/TCP. No real PLC is needed.", "hinglish": "Download kiya .pcap kholo aur Modbus/TCP par filter lagao. Asli PLC ki zaroorat nahi." },
+      "wireshark": "mbtcp",
+      "expect": { "en": "You see Read Holding Registers (function 3) requests and responses, and a Write Single Coil (function 5). Click one and expand the MBAP header to see the transaction ID and length.", "hinglish": "Read Holding Registers (function 3) requests aur responses, aur ek Write Single Coil (function 5) dikhte hain. Ek par click karke MBAP header expand karo aur transaction ID aur length dekho." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Find every write", "hinglish": "Har write dhoondo" },
+      "why": { "en": "Writes change the plant, so these are the packets to watch in real networks.", "hinglish": "Writes plant ko badalte hain, isliye asli networks mein inhi packets par nazar rakhni chahiye." },
+      "wireshark": "modbus.func_code == 5 || modbus.func_code == 6 || modbus.func_code == 15 || modbus.func_code == 16",
+      "expect": { "en": "In the normal capture only the HMI's Write Single Coil appears. In the unauthenticated-write capture, check the source IP: it is the office PC, not the HMI.", "hinglish": "Normal capture mein sirf HMI ka Write Single Coil dikhta hai. Unauthenticated-write capture mein source IP dekho: woh office PC hai, HMI nahi." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Spot exception responses", "hinglish": "Exception responses pakdo" },
+      "why": { "en": "Exceptions have the top bit set in the function code (0x83 and so on).", "hinglish": "Exceptions ke function code mein top bit set hota hai (0x83 waghera)." },
+      "wireshark": "modbus.exception_code",
+      "expect": { "en": "In the exception scenario one packet matches, with function 0x83 and exception code 2 (Illegal Data Address).", "hinglish": "Exception scenario mein ek packet match karta hai, function 0x83 aur exception code 2 (Illegal Data Address) ke saath." }
+    },
+    {
+      "title": { "en": "Check if port 502 is open on your own lab device", "hinglish": "Apne lab device par port 502 open hai ya nahi check karo" },
+      "why": { "en": "Only for a PLC or simulator you own. Never test devices that are not yours.", "hinglish": "Sirf aapke apne PLC ya simulator ke liye. Jo devices aapke nahi hain unhe kabhi test mat karo." },
+      "windows": "Test-NetConnection 127.0.0.1 -Port 502",
+      "unix": "nc -vz 127.0.0.1 502",
+      "expect": { "en": "On a normal PC this fails (connection refused) because nothing listens on 502. It succeeds only if you run a Modbus simulator locally. Output varies.", "hinglish": "Normal PC par yeh fail hoga (connection refused) kyunki 502 par kuch nahi sunta. Sirf tab succeed hoga jab aap local par Modbus simulator chalao. Output alag ho sakta hai." }
+    }
+  ]
+}

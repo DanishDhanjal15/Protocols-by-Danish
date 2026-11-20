@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find VXLAN packets in the capture", "hinglish": "Capture mein VXLAN packets dhoondo" },
+      "why": { "en": "VXLAN uses UDP port 4789, and Wireshark decodes the inner Ethernet frame for you.", "hinglish": "VXLAN UDP port 4789 use karta hai, aur Wireshark inner Ethernet frame ko khud decode kar deta hai." },
+      "wireshark": "vxlan",
+      "expect": { "en": "Each packet shows outer Ethernet/IP/UDP, a VXLAN layer with the VNI, then the inner Ethernet and IP. Values differ in your copy.", "hinglish": "Har packet mein outer Ethernet/IP/UDP, VNI wali VXLAN layer, phir inner Ethernet aur IP dikhta hai. Tumhari copy mein values alag ho sakti hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Separate tenants by VNI", "hinglish": "VNI se tenants alag karo" },
+      "why": { "en": "The VNI is what keeps Red and Blue apart even when their inner IPs match.", "hinglish": "VNI hi Red aur Blue ko alag rakhta hai, chahe unke inner IPs same hon." },
+      "wireshark": "vxlan.vni == 10010",
+      "expect": { "en": "Only the Red tenant's frames remain. Change 10010 to 20020 to see Blue.", "hinglish": "Sirf Red tenant ke frames bachte hain. Blue dekhne ke liye 10010 ko 20020 kar do." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Check your own interface MTU", "hinglish": "Apne interface ka MTU check karo" },
+      "why": { "en": "VXLAN adds 50 bytes, so MTU is the first thing to check. This is read-only.", "hinglish": "VXLAN 50 bytes jodta hai, isliye sabse pehle MTU check karte hain. Yeh sirf read-only hai." },
+      "windows": "netsh interface ipv4 show subinterfaces",
+      "unix": "ip link show || ifconfig",
+      "expect": { "en": "A list of interfaces with their MTU, usually 1500 for Ethernet and Wi-Fi. It varies by machine.", "hinglish": "Interfaces ki list unke MTU ke saath, Ethernet aur Wi-Fi ke liye aksar 1500. Yeh machine ke hisaab se alag hota hai." }
+    },
+    {
+      "title": { "en": "Find the largest packet that fits", "hinglish": "Sabse bada packet jo fit ho dhoondo" },
+      "why": { "en": "Pinging with the Don't Fragment flag shows where a size limit starts, the same way the MTU black hole appears.", "hinglish": "Don't Fragment flag ke saath ping karne se dikhta hai ki size limit kahan se shuru hoti hai, bilkul MTU black hole jaisa." },
+      "windows": "ping -f -l 1472 example.com",
+      "unix": "ping -c 3 -M do -s 1472 example.com",
+      "expect": { "en": "On a normal 1500 MTU path 1472 succeeds; 1473 or more fails with “needs to be fragmented”. On macOS use -D instead of -M do. Results vary by network.", "hinglish": "Normal 1500 MTU path par 1472 chal jaata hai; 1473 ya usse zyada “needs to be fragmented” ke saath fail hota hai. macOS par -M do ki jagah -D use karo. Results network ke hisaab se alag hote hain." },
+      "step": 2
+    }
+  ]
+}

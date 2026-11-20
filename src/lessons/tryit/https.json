@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Watch the TLS handshake and certificate", "hinglish": "TLS handshake aur certificate dekho" },
+      "why": { "en": "curl -v prints the TLS version, cipher, certificate subject and issuer, then the HTTP exchange.", "hinglish": "curl -v TLS version, cipher, certificate subject aur issuer print karta hai, phir HTTP exchange." },
+      "windows": "curl.exe -v https://example.com/ -o NUL",
+      "unix": "curl -v https://example.com/ -o /dev/null",
+      "expect": { "en": "Lines like “TLSv1.3 / TLS_AES_256_GCM_SHA384”, a server certificate with subject and issuer, then the HTTP request and a 200 response. Exact cipher and issuer vary.", "hinglish": "“TLSv1.3 / TLS_AES_256_GCM_SHA384” jaisi lines, subject aur issuer wala server certificate, phir HTTP request aur 200 response. Exact cipher aur issuer badal sakte hain." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Check HSTS on a site", "hinglish": "Site par HSTS check karo" },
+      "why": { "en": "The Strict-Transport-Security header is what makes the browser skip plain HTTP.", "hinglish": "Strict-Transport-Security header hi browser ko plain HTTP skip karne par majboor karta hai." },
+      "windows": "curl.exe -sI https://github.com/",
+      "unix": "curl -sI https://github.com/",
+      "expect": { "en": "Headers including strict-transport-security: max-age=31536000 (the value may differ).", "hinglish": "Headers mein strict-transport-security: max-age=31536000 (value alag ho sakti hai)." },
+      "step": 7
+    },
+    {
+      "title": { "en": "Find the Client Hello and its SNI", "hinglish": "Client Hello aur uska SNI dhoondo" },
+      "why": { "en": "The SNI is sent in clear, so Wireshark can show the site name even though the page is encrypted.", "hinglish": "SNI clear mein bheja jaata hai, isliye page encrypted hone ke bawajood Wireshark site ka naam dikha sakta hai." },
+      "wireshark": "tls.handshake.type == 1",
+      "expect": { "en": "A Client Hello; expand it to see server_name = example.com, supported versions, ALPN and the key share.", "hinglish": "Ek Client Hello; use expand karke server_name = example.com, supported versions, ALPN aur key share dekho." },
+      "step": 2
+    },
+    {
+      "title": { "en": "See the encrypted data", "hinglish": "Encrypted data dekho" },
+      "why": { "en": "After the handshake, everything is Application Data records of random-looking bytes.", "hinglish": "Handshake ke baad sab kuch random dikhne wale bytes ke Application Data records hain." },
+      "wireshark": "tls.record.content_type == 23",
+      "expect": { "en": "Application Data packets with no readable HTTP inside, unlike the plain-HTTP lesson.", "hinglish": "Application Data packets jinke andar padhne layak HTTP nahi hai, plain-HTTP lesson se alag." },
+      "step": 5
+    }
+  ]
+}

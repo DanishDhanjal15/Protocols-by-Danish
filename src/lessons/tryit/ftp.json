@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Check the FTP control port", "hinglish": "FTP control port check karo" },
+      "why": { "en": "FTP commands travel on TCP port 21. This only opens a TCP connection to a public test server and does not log in.", "hinglish": "FTP commands TCP port 21 par jaate hain. Ye sirf public test server se TCP connection kholta hai, login nahi karta." },
+      "windows": "Test-NetConnection test.rebex.net -Port 21",
+      "unix": "nc -vz test.rebex.net 21",
+      "expect": { "en": "TcpTestSucceeded : True (or 'succeeded'). It varies by network; some block outgoing FTP.", "hinglish": "TcpTestSucceeded : True (ya 'succeeded'). Network par depend karta hai; kuch outgoing FTP block karte hain." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Peek at an anonymous FTP listing over HTTP-style tools", "hinglish": "Anonymous FTP listing ek tool se dekho" },
+      "why": { "en": "curl speaks FTP too. This lists a public demo server with its published read-only demo login and shows the 220/331/230 replies with -v.", "hinglish": "curl FTP bhi bolta hai. Ye public demo server ki listing uske published read-only demo login se karta hai aur -v ke saath 220/331/230 replies dikhata hai." },
+      "windows": "curl.exe -v --user demo:password ftp://test.rebex.net/",
+      "unix": "curl -v --user demo:password ftp://test.rebex.net/",
+      "expect": { "en": "Lines starting with '<' show server replies such as 220 greeting, 331 password required, 230 logged in, 227/229 passive mode, then a file listing. The USER and PASS lines are sent in plain text. Exact text varies by server.", "hinglish": "'<' se shuru hone wali lines 220 greeting, 331 password required, 230 logged in, 227/229 passive mode jaise server replies dikhati hain, phir file listing. USER aur PASS lines plain text mein jaati hain. Exact text server ke hisaab se badalta hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Find the clear-text login in the capture", "hinglish": "Capture mein clear-text login dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark to see USER and PASS in plain text on port 21.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur port 21 par USER aur PASS plain text mein dekho." },
+      "wireshark": "ftp.request.command == \"USER\" || ftp.request.command == \"PASS\"",
+      "expect": { "en": "The USER and PASS packets with the password readable in the packet details.", "hinglish": "USER aur PASS packets jinke packet details mein password padha ja sakta hai." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Follow the passive-mode data connection", "hinglish": "Passive-mode data connection follow karo" },
+      "why": { "en": "The 227 reply holds the data port. Filter the data connection to port 50069 to see the file bytes.", "hinglish": "227 reply mein data port hota hai. File bytes dekhne ke liye data connection ko port 50069 par filter karo." },
+      "wireshark": "ftp.response.code == 227 || tcp.port == 50069",
+      "expect": { "en": "The 227 reply with (203,0,113,40,195,149), then a separate TCP connection to port 50069 carrying 2 segments of 1460 bytes.", "hinglish": "(203,0,113,40,195,149) wala 227 reply, phir port 50069 par alag TCP connection jo 1460 bytes ke 2 segments carry karta hai." },
+      "step": 4
+    }
+  ]
+}

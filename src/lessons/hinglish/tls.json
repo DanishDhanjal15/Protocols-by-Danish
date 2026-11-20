@@ -1,0 +1,369 @@
+{
+  "tagline": "Padlock: ek round trip mein private, tamper-proof connections.",
+  "description": "TLS ek TCP connection ko encryption mein wrap karta hai taaki path par koi data padh ya badal na sake, aur ye certificates use karta hai taaki browser ko pata chale ki wo asli website tak pahuncha hai. TLS 1.3 ek hi round trip mein keys tay kar leta hai aur lagbhag poora handshake, certificate samet, encrypt kar deta hai.",
+  "facts": [
+    ["Layer", "TCP aur app ke beech (5–6)"],
+    ["Port", "HTTPS ke liye 443 (TCP par chalta hai)"],
+    ["Handshake", "1 round trip (resumption ke saath 0)"],
+    ["Key exchange", "ECDHE, usually x25519"],
+    ["Ciphers", "AES-GCM, ChaCha20-Poly1305"],
+    ["Defined in", "RFC 8446"]
+  ],
+  "legend": [
+    "TCP handshake",
+    "TLS hello messages (clear text)",
+    "Encrypted handshake aur keys",
+    "Laptop se encrypted data",
+    "Server se encrypted data"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "example.com ke saath TLS 1.3 handshake",
+      "summary": "Browser https://example.com kholta hai: hellos ka ek round trip, phir sab kuch encrypted.",
+      "steps": [
+        {
+          "title": "Pehle TCP",
+          "desc": "TLS khule TCP connection par chalta hai",
+          "detail": "TLS apna alag connection nahi kholta. Browser pehle port 443 se normal TCP connection banata hai. Abhi kuch secret nahi hai: ye teen packets plain HTTP jaise hi hain.",
+          "facts": [
+            ["Server", "203.0.113.10:443"],
+            ["Laptop port", "51500"],
+            ["Takes", "1 round trip (34 ms)"]
+          ]
+        },
+        {
+          "title": "Client Hello",
+          "desc": "Main ye support karta hoon, aur ye meri key hai",
+          "detail": "Browser apne cipher suites aur extensions list karta hai. Teen extensions sabse zaroori hain: server_name batata hai ki use kaun si site chahiye, supported_versions TLS 1.3 offer karta hai, aur key_share mein pehle se 32-byte x25519 public key hai. Server ke kuch chunne se pehle hi key bhej dena wo trick hai jo poora ek round trip bacha leti hai.",
+          "facts": [
+            ["Size", "230 bytes"],
+            ["SNI", "example.com (network ko dikhta hai)"],
+            ["Key share", "x25519, 32 bytes"]
+          ],
+          "quiz": {
+            "q": "Legacy version field TLS 1.2 kehta hai. Browser asal mein TLS 1.3 kahan offer karta hai?",
+            "options": [
+              "Record header mein",
+              "supported_versions extension mein",
+              "Sirf cipher suite list mein",
+              "Nahi kar sakta; server decide karta hai"
+            ],
+            "why": "Purane version fields 1.2 par frozen hain kyunki kuch middleboxes naye values par toot jaate the. Versions ki asli list supported_versions extension mein hoti hai."
+          }
+        },
+        {
+          "title": "Server Hello",
+          "desc": "Cipher chunna aur apni key bhejna",
+          "detail": "Server TLS 1.3 aur TLS_AES_128_GCM_SHA256 chunta hai, aur apni x25519 public key wapas bhejta hai. Ab har side apni private key ko doosre ki public key ke saath combine karti hai aur same shared secret paati hai, jise dekhne wala koi compute nahi kar sakta. Is secret se dono handshake keys derive karte hain.",
+          "facts": [
+            ["Version", "TLS 1.3 (supported_versions mein)"],
+            ["Cipher", "TLS_AES_128_GCM_SHA256"],
+            ["Shared secret", "x25519 (ECDHE)"]
+          ],
+          "quiz": {
+            "q": "Server Hello ke turant baad server kya kar sakta hai?",
+            "options": [
+              "Client ke jawab dene tak kuch nahi",
+              "Apne baaki messages encrypt kar sakta hai",
+              "Page clear text mein bhej sakta hai",
+              "Client se password maang sakta hai"
+            ],
+            "why": "Dono public keys ab pata hain, isliye dono sides ke paas shared secret hai. Server Server Hello ke baad sab kuch encrypt karta hai, certificate samet."
+          }
+        },
+        {
+          "title": "Encrypted server flight",
+          "desc": "Certificate, signature aur Finished, sab hidden",
+          "detail": "Server ki pehli flight ka baaki hissa pehle se encrypted hai, isliye Application Data records ki tarah dikhta hai. Andar hain EncryptedExtensions (ALPN ne h2 chuna), Certificate chain, CertificateVerify (handshake par certificate ki key se signature) aur Finished (ab tak ki har cheez par MAC). Browser chain ko apne trusted roots, name aur dates ke against check karta hai.",
+          "facts": [
+            ["Certificate", "1368 bytes, encrypted"],
+            ["CertificateVerify", "ECDSA P-256 signature"],
+            ["Finished", "Handshake par HMAC-SHA256"]
+          ],
+          "quiz": {
+            "q": "CertificateVerify kyun zaroori hai? Public certificate to koi bhi copy kar sakta hai.",
+            "options": [
+              "Ye certificate ko chhota banata hai",
+              "Ye prove karta hai ki server ke paas certificate ki private key hai",
+              "Ye browser ko expiry date batata hai",
+              "Ye cipher suite chunta hai"
+            ],
+            "why": "Certificate public hota hai. Sirf matching private key se isi handshake par bana signature prove karta hai ki server asli owner hai."
+          }
+        },
+        {
+          "title": "Client Finished",
+          "desc": "Browser confirm karta hai, aur turant bol sakta hai",
+          "detail": "Browser apna Finished bhejta hai, jisse prove hota hai ki usne wahi handshake dekha. Ek dummy Change Cipher Spec pehle sirf isliye jaata hai ki purane middleboxes shaant rahein. Ab dono sides handshake keys se application keys par switch karti hain.",
+          "facts": [
+            ["Round trips used", "1"],
+            ["Keys", "Application traffic secrets"],
+            ["Change Cipher Spec", "Dummy, middleboxes ke liye"]
+          ]
+        },
+        {
+          "title": "Encrypted HTTP",
+          "desc": "Request aur page TLS ke andar jaate hain",
+          "detail": "Ab HTTP/2 frames encrypted records ke andar jaate hain. Wire par har record Application Data kehta hai aur end mein 16-byte tag hota hai; agar koi ek bit bhi badle, to tag check fail hota hai aur connection drop ho jaata hai. Pehla request Client Hello ke sirf ek round trip baad nikla.",
+          "facts": [
+            ["Request", "HTTP/2 par GET /"],
+            ["Record overhead", "5-byte header + 1 type byte + 16-byte tag"],
+            ["Response", "200 OK"]
+          ]
+        },
+        {
+          "title": "Session tickets",
+          "desc": "Agli baar ke liye ticket",
+          "detail": "Handshake ke baad server do NewSessionTicket messages bhejta hai, baaki sab ki tarah encrypted. Har ticket browser ko baad mein certificate exchange ke bina resume karne deta hai, aur apna pehla request Client Hello mein hi bhejne bhi (0-RTT).",
+          "facts": [
+            ["Tickets", "2"],
+            ["Lifetime", "Zyaada se zyaada 7 days (604800 s)"],
+            ["Used for", "Resumption aur 0-RTT"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Ek round trip mein secure",
+        "text": "Browser aur server ne apne hellos mein key shares badle, isliye server apna certificate turant encrypt kar saka. Ek round trip ke baad browser ne apna request bheja, un keys se protected jinhe koi aur compute nahi kar sakta.",
+        "facts": [
+          ["Data se pehle round trips", "1"],
+          ["Clear mein visible", "Hellos, SNI"],
+          ["Encrypted", "Certificate se aage"],
+          ["Total time", "0.106 s"]
+        ]
+      }
+    },
+    "tls12": {
+      "name": "Wahi cheez TLS 1.2 mein",
+      "summary": "Ek purana server sirf TLS 1.2 bolta hai: do round trips, visible certificate aur asli Change Cipher Spec.",
+      "steps": [
+        {
+          "title": "Wahi Client Hello",
+          "desc": "Browser 1.3 aur 1.2 offer karta hai",
+          "detail": "Browser pehle jaisa hi Client Hello bhejta hai; use abhi nahi pata ki server kitna purana hai. Wo TLS 1.3 aur 1.2 suites offer karta hai. TCP handshake ho chuka hai.",
+          "facts": [
+            ["Offered", "TLS 1.3 aur 1.2"],
+            ["Server", "Sirf 1.2 support karta hai"],
+            ["Time", "TCP ke baad shuru"]
+          ]
+        },
+        {
+          "title": "Hello, certificate clear mein",
+          "desc": "Server Hello, Certificate, Server Key Exchange",
+          "detail": "Server supported_versions aur key_share ignore karta hai aur AES-128-GCM ke saath ECDHE-RSA chunta hai. Uska certificate clear text mein jaata hai. Phir Server Key Exchange aata hai: ek alag message jisme uski ECDHE public key hai, certificate ki key se signed. Server Hello Done kehta hai 'ab tumhari baari'.",
+          "facts": [
+            ["Cipher", "ECDHE-RSA-AES128-GCM-SHA256"],
+            ["Certificate", "Path par koi bhi padh sakta hai"],
+            ["Extra message", "Server Key Exchange"]
+          ],
+          "quiz": {
+            "q": "TLS 1.2 server TLS 1.3 ki tarah apna certificate encrypt kyun nahi kar sakta?",
+            "options": [
+              "Certificate bahut bada hai",
+              "Abhi koi shared key hai hi nahi: client ne apna key share bheja nahi",
+              "RSA encrypt nahi kar sakta",
+              "Certificates kanoon se public hone chahiye"
+            ],
+            "why": "TLS 1.2 mein client apna key share server ka dekhne ke baad hi bhejta hai. Isliye is point par encrypt karne ko kuch nahi hai."
+          }
+        },
+        {
+          "title": "Client key, phir switch",
+          "desc": "Client Key Exchange, Change Cipher Spec, Finished",
+          "detail": "Ab browser Client Key Exchange mein apni public key bhejta hai. Phir ek Change Cipher Spec, jiska TLS 1.2 mein asli matlab hai 'ab se main encrypt karta hoon', uske baad encrypted Finished. Us Finished ka record type ab bhi Handshake kehta hai.",
+          "facts": [
+            ["Client key", "32 bytes x25519"],
+            ["Change Cipher Spec", "1.2 mein asli matlab"],
+            ["Finished", "40 bytes encrypted"]
+          ]
+        },
+        {
+          "title": "Doosra round trip",
+          "desc": "Server ka Change Cipher Spec aur Finished",
+          "detail": "Server apne Change Cipher Spec aur Finished se jawab deta hai. Sirf ab, Client Hello ke do round trips baad, browser apna request bhej sakta hai. 34 ms path par ye har naye connection ke liye TLS 1.3 se 34 ms dheema hai.",
+          "facts": [
+            ["Round trips", "Data se pehle 2"],
+            ["Extra delay", "TLS 1.3 se 34 ms zyaada"],
+            ["Forward secrecy", "Haan, ECDHE ki wajah se"]
+          ],
+          "quiz": {
+            "q": "TLS 1.2 mein pehla request nikalne se pehle Client Hello ke baad kitne round trips lagte hain?",
+            "options": [
+              "0",
+              "1",
+              "2",
+              "3"
+            ],
+            "why": "Client Hello → server flight ek hai; Client Key Exchange/Finished → server Finished doosra hai. TLS 1.3 ko sirf ek chahiye."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Do round trips, zyaada khule mein",
+        "text": "TLS 1.2 client ke apni key bhejne se pehle server ki key ka wait karta hai, isliye use doosra round trip chahiye. Certificate aur handshake ki aur details unencrypted jaati hain. TLS 1.3 ne dono theek kiye aur purane, kamzor options hata diye.",
+        "facts": [
+          ["TLS 1.2", "2 RTT, certificate visible"],
+          ["TLS 1.3", "1 RTT, certificate encrypted"],
+          ["1.3 mein hataye", "RSA key exchange, CBC, SHA-1, compression"]
+        ]
+      }
+    },
+    "expired": {
+      "name": "Expired certificate",
+      "summary": "Server ka certificate teen din pehle expire ho gaya; browser fatal alert ke saath mana kar deta hai.",
+      "steps": [
+        {
+          "title": "Hello hamesha jaisa",
+          "desc": "Abhi kuch galat nahi lagta",
+          "detail": "Browser normal Client Hello bhejta hai. Hellos mein kuch bhi certificate ke baare mein nahi batata; wo server ki flight mein encrypted aata hai.",
+          "facts": [
+            ["Site", "example.com"],
+            ["Version", "TLS 1.3"],
+            ["Problem", "Abhi visible nahi"]
+          ]
+        },
+        {
+          "title": "Ek purana certificate",
+          "desc": "Server date nikla hua certificate bhejta hai",
+          "detail": "Server ki flight bilkul achhi flight jaisi dikhti hai. Encrypted Certificate message ke andar, certificate ki Not After date teen din pehle guzar chuki hai. Kisi ne renew karna bhula diya.",
+          "facts": [
+            ["Not After", "3 din pehle"],
+            ["Signature", "Valid"],
+            ["Chain", "Trusted root"]
+          ],
+          "quiz": {
+            "q": "Signature theek hai aur name match karta hai. Browser kya karega?",
+            "options": [
+              "Accept kar lega; key abhi bhi achhi hai",
+              "Fatal alert ke saath reject karega",
+              "Server se naya maangega",
+              "TLS 1.2 par downgrade karega"
+            ],
+            "why": "Expired certificate ki guarantee ab uski CA nahi leti, aur wo bina kisi ke track kiye revoke bhi ho sakta tha. Browsers ise hard failure maante hain."
+          }
+        },
+        {
+          "title": "Fatal alert 45",
+          "desc": "certificate_expired, phir close",
+          "detail": "Browser level 2 (fatal) aur description 45 (certificate_expired) wala alert bhejta hai. Kyunki handshake keys pehle se hain, alert bhi encrypted hai, isliye wire par wo ek chhota 24-byte Application Data record hai. Phir wo TCP close kar deta hai. User ko NET::ERR_CERT_DATE_INVALID jaisa error page dikhta hai.",
+          "facts": [
+            ["Alert level", "2 (fatal)"],
+            ["Description", "45 certificate_expired"],
+            ["Browser shows", "Your connection is not private"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Refuse hua, jaisa hona chahiye",
+        "text": "TLS har connection par dates, names aur chain of trust check karta hai. Expired certificate handshake ko fatal alert ke saath khatam kar deta hai, kisi data ke move hone se pehle. Automatic renewal (jaise ACME ke saath) is outage ko rokti hai.",
+        "facts": [
+          ["Alert", "45 certificate_expired"],
+          ["Related alerts", "42 bad_certificate, 48 unknown_ca"],
+          ["Fix", "Renew karo; ACME se automate karo"]
+        ]
+      }
+    },
+    "zero-rtt": {
+      "name": "0-RTT ke saath resumption",
+      "summary": "Browser agle din ticket ke saath wapas aata hai aur apna request bilkul pehli flight ke andar bhejta hai.",
+      "steps": [
+        {
+          "title": "Ticket aur request saath",
+          "desc": "pre_shared_key aur early data ke saath Client Hello",
+          "detail": "TCP handshake ke baad browser Client Hello bhejta hai jisme kal ka ticket pre_shared_key mein hai, saath mein naya x25519 key share. Uske theek peeche, same segment mein, ek encrypted HTTP request aata hai: early data, jo ticket ke secret se keyed hai. Binder prove karta hai ki browser ke paas sach mein wo ticket hai.",
+          "facts": [
+            ["Ticket", "Pichli visit se"],
+            ["Early data", "GET /news"],
+            ["Still sends", "Naya key share"]
+          ],
+          "quiz": {
+            "q": "Early data server ke jawab dene se pehle hi encrypted hai. Kaun sa secret ise possible banata hai?",
+            "options": [
+              "Naya x25519 shared secret",
+              "Session ticket ke saath stored secret",
+              "Server ke certificate ki key",
+              "Koi nahi; early data clear text hai"
+            ],
+            "why": "Naya key exchange abhi poora nahi hua. Early data un keys se chalta hai jo ticket ke saath aaye resumption secret se derive hui hain."
+          }
+        },
+        {
+          "title": "Accepted, certificate nahi",
+          "desc": "Server Hello ticket chunta hai aur request ka jawab deta hai",
+          "detail": "Server ticket kholta hai, use accept karta hai (selected identity 0) aur EncryptedExtensions mein early data ko haan kehta hai. Is baar Certificate ya CertificateVerify nahi. Kyunki uske paas request pehle se hai, pehli flight response bhi le jaati hai.",
+          "facts": [
+            ["Certificate", "Skip"],
+            ["Response", "Pehli server flight mein"],
+            ["Time to first byte", "TCP ke baad 1 RTT"]
+          ]
+        },
+        {
+          "title": "End of early data",
+          "desc": "Browser handshake poora karta hai",
+          "detail": "Browser EndOfEarlyData aur apna Finished bhejta hai. Ek catch hai: jis attacker ne pehli flight record ki, wo use dobara bhej sakta hai, aur server request do baar chala sakta hai. Isliye browsers aur servers 0-RTT sirf GET jaise safe requests ke liye allow karte hain, 'pay now' ke liye kabhi nahi.",
+          "facts": [
+            ["Risk", "Early data ka replay"],
+            ["Allowed for", "Idempotent requests (GET)"],
+            ["Defence", "Single-use tickets, replay caches"]
+          ],
+          "quiz": {
+            "q": "Kaun sa request 0-RTT early data ki tarah bhejna unsafe hai?",
+            "options": [
+              "GET /news",
+              "GET /logo.png",
+              "POST /transfer?amount=5000",
+              "HEAD /"
+            ],
+            "why": "Early data attacker replay kar sakta hai. Paise ka transfer dohrana nuksaandeh hota; page load dohrana nahi."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Request ke liye zero round trips",
+        "text": "Session ticket ke saath browser ne apna request Client Hello ke saath bheja aur page pehli server flight mein wapas paya. Keemat hai replay risk, isliye 0-RTT unhi requests ke liye rakha jaata hai jo dohrane par safe hain.",
+        "facts": [
+          ["Handshake RTTs", "Early data ke liye 0"],
+          ["Certificate sent", "Nahi"],
+          ["Replay protection", "Server par depend"],
+          ["Extensions", "pre_shared_key (41), early_data (42)"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Handshake messages",
+      "items": [
+        ["1 ClientHello", "Versions, suites, key share offer karta hai"],
+        ["2 ServerHello", "Unhe chunta hai, apna key share bhejta hai"],
+        ["8 EncryptedExtensions", "Baaki choices (ALPN)"],
+        ["11 Certificate", "Server ki chain"],
+        ["15 CertificateVerify", "Key ownership prove karne wala signature"],
+        ["20 Finished", "Handshake par MAC"],
+        ["4 NewSessionTicket", "Resumption ke liye ticket"]
+      ]
+    },
+    {
+      "title": "Extensions",
+      "items": [
+        ["0 server_name", "Kaun si site (SNI)"],
+        ["10 supported_groups", "Key exchange curves"],
+        ["13 signature_algorithms", "Accepted signatures"],
+        ["16 ALPN", "h2 ya http/1.1"],
+        ["43 supported_versions", "Asli version negotiation"],
+        ["51 key_share", "ECDHE ke liye public key"],
+        ["41 pre_shared_key", "Resumption ticket (aakhri)"]
+      ]
+    },
+    {
+      "title": "Alerts aur numbers",
+      "items": [
+        ["Record types", "20 CCS, 21 Alert, 22 Handshake, 23 Application Data"],
+        ["Alert 40", "handshake_failure"],
+        ["Alert 42 / 45 / 48", "bad / expired / unknown CA certificate"],
+        ["Alert 116", "certificate_required (mTLS)"],
+        ["Record limit", "16 KB plaintext + 256 bytes"]
+      ]
+    }
+  ]
+}

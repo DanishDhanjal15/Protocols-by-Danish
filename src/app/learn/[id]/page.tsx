@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { compactLesson } from "@/lib/catalog";
-import { getLesson, lessonIds } from "@/lessons";
+import { getHinglish, getLesson, getTryIt, lessonIds } from "@/lessons";
 import { Player } from "@/components/player/Player";
 
 export async function generateStaticParams() {
@@ -26,7 +26,7 @@ export default async function LessonPage({ params }: { params: Promise<{ id: str
   if (!lesson) notFound();
   return (
     <>
-      <Player lesson={compactLesson(lesson)} />
+      <Player lesson={compactLesson(lesson)} hinglish={await getHinglish(id)} tryit={await getTryIt(id)} />
       {/* Plain-text outline: readable without JavaScript and by search engines */}
       <details className="max-w-[1800px] w-full mx-auto px-4 pb-10 text-[14px] text-muted">
         <summary className="cursor-pointer py-2">Lesson outline: {lesson.name} ({lesson.full})</summary>

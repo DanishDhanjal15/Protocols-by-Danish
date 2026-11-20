@@ -1,0 +1,343 @@
+{
+  "tagline": "QR se ₹250 pay karne ke baad do seconds mein asal mein kya hota hai.",
+  "description": "UPI se koi bhi bank app kisi bhi bank account ko seconds mein pay kar sakta hai. Aapka app apne bank (PSP) se baat karta hai, jo central UPI switch se baat karta hai, jo aapke bank se debit aur shop ke bank se credit karne ko kehta hai. Har hop HTTPS hai, aur aapka UPI PIN phone par seal ho jaata hai taaki beech ka koi hop use padh na sake. Yeh lesson public design ka ek simplified teaching model hai, asli API traffic nahi.",
+  "facts": [
+    ["Layer", "Application, HTTPS par"],
+    ["Messages", "XML: ReqPay / RespPay aur saathi"],
+    ["Two factors", "Device binding + UPI PIN"],
+    ["Hub", "Central UPI switch"],
+    ["Address", "UPI ID, jaise name@bank"],
+    ["Typical time", "End to end kuch seconds"]
+  ],
+  "legend": [
+    "Payment requests",
+    "Responses",
+    "Acks aur success",
+    "Lookups aur status checks",
+    "Failures aur scams"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "QR se shop ko ₹250 pay karo",
+      "summary": "Aap shop ka QR code scan karte ho, PIN daalte ho, aur ₹250 aapke bank se UPI switch ke zariye shop ke bank mein chala jaata hai.",
+      "steps": [
+        {
+          "title": "Scan, check, PIN",
+          "desc": "App pay request banata hai",
+          "detail": "QR code mein upi://pay?pa=chai.shop@payeebank&pn=Chai Shop&cu=INR jaisa link hota hai. Aap ₹250 aur apna UPI PIN type karte ho. PIN phone ki ek secure library mein jaata hai jo use turant public key se encrypt kar deti hai, isliye aapka apna UPI app bhi use padh nahi sakta. App HTTPS par apne bank, payer PSP, ko pay request bhejta hai, jo pehle se jaanta hai ki yeh phone aur SIM aapke naam par registered hain (device binding: pehla factor; PIN doosra factor hai).",
+          "facts": [
+            ["Payee", "chai.shop@payeebank"],
+            ["Amount", "₹250.00 INR"],
+            ["Factors", "Yeh phone + PIN"]
+          ],
+          "quiz": {
+            "q": "Raaste mein kaun aapka UPI PIN plain form mein padh sakta hai?",
+            "options": [
+              "UPI app",
+              "Aapka PSP aur switch",
+              "Sirf woh secure systems jo aapke bank ke liye use verify karte hain",
+              "Wi-Fi par koi bhi"
+            ],
+            "why": "PIN secure library se nikalne se pehle phone par encrypt ho jaata hai. Beech ke hops bas sealed blob aage pass karte hain; sirf woh secure hardware jo aapke bank ke liye PINs check karta hai use kholta hai."
+          }
+        },
+        {
+          "title": "PSP se switch tak",
+          "desc": "Signed ReqPay, turant acknowledged",
+          "detail": "PSP request check karta hai, apni details aur digital signature jodta hai, aur ek alag HTTPS connection par UPI switch ko ReqPay message (XML) forward karta hai. UPI asynchronous hai: switch turant chhote Ack se jawab deta hai jiska matlab “mil gaya”, aur asli result baad mein RespPay ki tarah aata hai.",
+          "facts": [
+            ["Message", "ReqPay, type PAY"],
+            ["Signed by", "Payer PSP"],
+            ["Turant reply", "Ack (mil gaya, hua nahi)"]
+          ]
+        },
+        {
+          "title": "chai.shop kaun hai?",
+          "desc": "Switch payee ke PSP se poochta hai",
+          "detail": "Switch @ ke baad ka bank handle padhta hai aur us PSP se UPI ID resolve karne ko kehta hai (ReqAuthDetails). Shop ka bank confirm karta hai ki ID active hai aur credit ke liye zaroori account details lautata hai, plus merchant name jo app ne aapko dikhaya. Aapke app ko shop ka account number kabhi pata nahi chalta.",
+          "facts": [
+            ["Request", "ReqAuthDetails"],
+            ["Answer", "RespAuthDetails"],
+            ["Aapse share hua", "Sirf name"]
+          ],
+          "quiz": {
+            "q": "Switch ko kaise pata chalta hai ki chai.shop@payeebank ke baare mein kaunse PSP se poochna hai?",
+            "options": [
+              "@ ke baad ke hisse, bank handle, se",
+              "Woh har bank se poochta hai",
+              "Shop ke IP address se",
+              "Aapka phone use account number batata hai"
+            ],
+            "why": "UPI ID name@handle hota hai, email address jaisa. Handle ek PSP se map hota hai, jo us name ke lookup ka maalik hai."
+          }
+        },
+        {
+          "title": "Aapka account debit karo",
+          "desc": "Aapka bank PIN check karta hai aur ₹250 leta hai",
+          "detail": "Switch aapke bank ko debit ReqPay bhejta hai, ab bhi sealed PIN ke saath. Bank ka secure hardware use check karta hai, confirm karta hai ki aapke paas balance hai, aur ₹250 debit karta hai. Woh RespPay result SUCCESS aur ek reference number ke saath jawab deta hai jo dono statements par dikhega.",
+          "facts": [
+            ["Request", "ReqPay (DEBIT)"],
+            ["Checks", "PIN, balance, limits"],
+            ["Result", "SUCCESS + reference no."]
+          ],
+          "quiz": {
+            "q": "Aapka bank SUCCESS bolta hai. Kya shop ko paisa mil gaya?",
+            "options": [
+              "Haan, debit aur credit saath hote hain",
+              "Nahi, shop ke bank mein credit alag step hai",
+              "Haan, PSP shop ko pay karta hai",
+              "Tab hi jab aap phir confirm karo"
+            ],
+            "why": "Debit aur credit do alag banks ko do alag requests hain. Yehi gap hai jiski wajah se payment kabhi kabhi pending mein atak sakta hai."
+          }
+        },
+        {
+          "title": "Shop ko credit karo",
+          "desc": "Shop ka bank ₹250 add karta hai",
+          "detail": "Ab switch shop ke bank ko credit ReqPay bhejta hai, jo shop ke account mein ₹250 jodta hai aur SUCCESS se jawab deta hai. Phir bank shop ke soundbox ko notification push karta hai, jo payment ko zor se announce karta hai.",
+          "facts": [
+            ["Request", "ReqPay (CREDIT)"],
+            ["Result", "SUCCESS"],
+            ["Shop sunta hai", "“₹250 received”"]
+          ]
+        },
+        {
+          "title": "Apne phone ko batao",
+          "desc": "RespPay jis raaste aaya usi se wapas jaata hai",
+          "detail": "Dono legs poore hone par switch aakhri RespPay aapke PSP ko bhejta hai, jo app ko reply karta hai. App reference number ke saath green tick dikhata hai. In sab hops mein se har ek TLS-encrypted HTTPS message tha, isliye network dekhne wale ko sirf encrypted records aur unke sizes dikhe.",
+          "facts": [
+            ["Final status", "SUCCESS"],
+            ["Total hops", "8 HTTPS messages + acks"],
+            ["Time", "Lagbhag 1.5 s"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "₹250 lagbhag 1.5 seconds mein move hue",
+        "text": "App ne PSP se poocha, PSP ne switch se poocha, switch ne shop resolve kiya, aapka bank debit kiya aur shop ka bank credit kiya, phir report wapas bheji. Har hop HTTPS tha, aur aapka PIN phone se us system tak sealed raha jo use check karta hai.",
+        "facts": [
+          ["Hops", "Phone → PSP → switch → banks"],
+          ["Messages", "ReqPay / RespPay, ReqAuthDetails"],
+          ["Security", "Har leg par TLS + sealed PIN"],
+          ["Model", "Simplified, illustrative"]
+        ]
+      }
+    },
+    "wrong-pin": {
+      "name": "Galat UPI PIN",
+      "summary": "Aap PIN galat type karte ho; aapka bank debit reject karta hai aur kuch move nahi hota.",
+      "steps": [
+        {
+          "title": "Typo ke saath request",
+          "desc": "Wahi safar, andar galat PIN",
+          "detail": "Aap 1234 ki jagah 1243 type karte ho. Phone ko pata nahi chalta: PIN koi check kare us se pehle hi sealed ho jaata hai. Request PSP aur switch se bilkul sahi request ki tarah guzarti hai.",
+          "facts": [
+            ["PIN typed", "Galat (sealed)"],
+            ["Check karta hai", "Aapke bank ke secure systems"],
+            ["Beech ke hops", "Pata nahi kar sakte"]
+          ]
+        },
+        {
+          "title": "Bank debit reject karta hai",
+          "desc": "RespPay FAILURE: incorrect PIN",
+          "detail": "Aapka bank sealed PIN kholta hai, dekhta hai ki match nahi karta, aur RespPay result FAILURE aur incorrect PIN ka matlab batane wale error code (jaise ZM) se jawab deta hai. Koi paisa debit nahi hota, isliye switch shop ke bank se kabhi contact nahi karta. Banks galat attempts ginte hain; teen ke baad UPI payments aam taur par lagbhag 24 ghante ke liye block ho jaate hain.",
+          "facts": [
+            ["Result", "FAILURE (incorrect PIN)"],
+            ["Debited", "Kuch nahi"],
+            ["Limit", "Aam taur par 3 tries, phir 24 h block"]
+          ],
+          "quiz": {
+            "q": "PIN fail hone ke baad, kya switch shop ke bank ko credit request bhejta hai?",
+            "options": [
+              "Haan, phir reverse karta hai",
+              "Nahi, payment debit par ruk jaata hai",
+              "Haan, credits pehle bheje jaate hain",
+              "Sirf ₹2,000 se upar ke amounts ke liye"
+            ],
+            "why": "Credit leg sirf successful debit ke baad shuru hota hai, isliye galat PIN ka matlab shop ka bank kabhi involve nahi hota."
+          }
+        },
+        {
+          "title": "App error dikhata hai",
+          "desc": "Dhyaan se dobara try karo",
+          "detail": "Failure aapke PSP aur app tak wapas jaata hai, jo “Incorrect UPI PIN” dikhata hai aur retry karne deta hai. Aapke account se kuch nahi liya gaya, isliye refund ki zaroorat nahi.",
+          "facts": [
+            ["Final status", "FAILED"],
+            ["Paisa moved", "Koi nahi"],
+            ["Aage", "Retry ya PIN reset"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Safely reject hua",
+        "text": "PIN sirf aapka bank check kar sakta hai, isliye galat PIN debit step par pakda jaata hai aur kuch move nahi hota. Bahut zyada galat tries UPI ko kuch der ke liye block kar deti hain taaki guessing ruke.",
+        "facts": [
+          ["Pakda gaya", "Aapke bank mein"],
+          ["Paisa moved", "Koi nahi"],
+          ["Guessing", "Kuch tries ke baad block"]
+        ]
+      }
+    },
+    "pending": {
+      "name": "Timeout: pending, phir auto-reversal",
+      "summary": "Aapka bank ₹250 debit karta hai lekin shop ka bank samay par jawab nahi deta; payment pending dikhta hai aur paisa wapas aa jaata hai.",
+      "steps": [
+        {
+          "title": "Debit succeed hota hai",
+          "desc": "Aapka ₹250 aapke account se nikal gaya",
+          "detail": "Pehla half normal jaata hai: request switch tak pahunchti hai aur aapka bank PIN check karke ₹250 debit karta hai.",
+          "facts": [
+            ["Debit", "SUCCESS"],
+            ["Aapka balance", "−₹250"],
+            ["Aage", "Shop ko credit karo"]
+          ]
+        },
+        {
+          "title": "Credit timeout ho jaata hai",
+          "desc": "Shop ka bank khamosh ho jaata hai",
+          "detail": "Switch credit request bhejta hai, lekin shop ka bank overloaded hai aur uska jawab time limit ke andar kabhi nahi aata. Switch ko pata nahi ki shop credit hua ya nahi, isliye woh payment ko na success keh sakta hai na failure.",
+          "facts": [
+            ["Credit reply", "Samay par nahi aaya"],
+            ["Shop credited?", "Pata nahi"],
+            ["Status", "Deemed / pending"]
+          ],
+          "quiz": {
+            "q": "Aapka paisa account se nikal gaya lekin credit status pata nahi. App ko kya dikhana chahiye?",
+            "options": [
+              "Success",
+              "Failed",
+              "Pending",
+              "Kuch nahi"
+            ],
+            "why": "Success kehna galat ho sakta hai, aur failed kehne se aap do baar pay kar sakte ho. Status confirm hone tak Pending hi imaandaar jawab hai."
+          }
+        },
+        {
+          "title": "Phone pending bolta hai",
+          "desc": "Do baar pay mat karo",
+          "detail": "Switch PSP ko deemed (pending) status report karta hai aur app “Payment pending” dikhata hai. Sahi kadam intezaar karna hai, dobara pay karna nahi. Switch aur banks tay karenge ki asal mein kya hua.",
+          "facts": [
+            ["App dikhata hai", "Pending"],
+            ["Salah", "Dobara pay mat karo"],
+            ["Shop ko dikhta hai", "Abhi kuch nahi"]
+          ]
+        },
+        {
+          "title": "Check, phir reverse",
+          "desc": "Status check mein credit nahi mila; ₹250 wapas aata hai",
+          "detail": "Baad mein switch shop ke bank se seedha transaction ka status poochta hai (check-transaction request). Bank confirm karta hai ki credit kabhi hua hi nahi, to switch aapke bank ko debit reverse karne ko kehta hai aur ₹250 wapas aa jaata hai. RBI ke rules ke hisaab se yeh auto-reversal agle working day (T+1) tak hona zaroori hai, aur bank late ho to compensation milta hai.",
+          "facts": [
+            ["Status check", "ReqChkTxn → not credited"],
+            ["Action", "Aapke bank ko reversal"],
+            ["Deadline", "T+1 day (RBI rules)"]
+          ],
+          "quiz": {
+            "q": "Agar status check mein shop KO credit hua milta to?",
+            "options": [
+              "Phir bhi reverse karte",
+              "Payment ko SUCCESS mark karte",
+              "Aapse dobara charge karte",
+              "Shop ko refund karte"
+            ],
+            "why": "Pending ka matlab bas pata nahi. Agar debit aur credit dono hue the, to payment seedha success ban jaata hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Bina maange paisa wapas",
+        "text": "Kyunki debit aur credit alag steps hain, beech mein timeout payment ko pending chhod deta hai. Switch asli status check karta hai aur agar credit hua hi nahi to debit reverse kar deta hai, isliye do baar pay karne se intezaar karna safer hai.",
+        "facts": [
+          ["Wajah", "Samay par credit reply nahi"],
+          ["Status", "Pending (deemed)"],
+          ["Fix", "Status check + auto-reversal"],
+          ["Rule", "T+1 tak reversal"]
+        ]
+      }
+    },
+    "collect-scam": {
+      "name": "Fake collect request scam",
+      "summary": "Ek “buyer” collect request bhejta hai aur dikhawa karta hai ki woh aapko paisa bhejega. Aapka PIN daalna unhe pay kar dega.",
+      "steps": [
+        {
+          "title": "Chara",
+          "desc": "“Main paisa bhejta hoon, bas approve kar do”",
+          "detail": "Aap ek purana phone bechne ke liye list karte ho. Ek “buyer” turant maan jaata hai aur kehta hai ki woh UPI se ₹5,000 bhejega; aapko bas use “accept” karna hai. Asli UPI mein paisa receive karne ke liye PIN ki kabhi zaroorat nahi hoti. Aapse bheje jaane wale pay requests ko PIN chahiye; aapko aane wale paise ko kuch nahi chahiye.",
+          "facts": [
+            ["Kahani", "Utsuk buyer"],
+            ["Maang", "Request approve karo"],
+            ["Sach", "Receive karne ko PIN nahi chahiye"]
+          ]
+        },
+        {
+          "title": "Collect request aati hai",
+          "desc": "Aapko unhe pay karne ki request",
+          "detail": "Collect request UPI ka normal feature hai: payee payer se paisa maangta hai, jaise shop aapko bill karta hai. Scammer ka PSP switch ke zariye aapke PSP ko ₹5,000 ke liye ReqPay type COLLECT bhejta hai, aur aapke app par “buyer99@pspx is requesting ₹5,000” pop up hota hai. Scammers aapko confuse karne ke liye “Receive money” jaise notes jodte hain.",
+          "facts": [
+            ["Type", "COLLECT (pull)"],
+            ["From", "buyer99@pspx"],
+            ["Amount", "Aapse ₹5,000"]
+          ],
+          "quiz": {
+            "q": "Agar aap is screen par UPI PIN daalte ho, to kya hota hai?",
+            "options": [
+              "Aapko ₹5,000 milte hain",
+              "₹5,000 aapke account se scammer ko chale jaate hain",
+              "Buyer ke confirm karne tak kuch nahi",
+              "Bank check karta hai ki scam hai ya nahi aur block kar deta hai"
+            ],
+            "why": "PIN daalna hamesha aapke account se paisa BAHAR jaane ko authorise karta hai. Collect request par yeh requester ko pay karne ko approve karta hai."
+          }
+        },
+        {
+          "title": "Decline karo aur report karo",
+          "desc": "PIN nahi, paisa move nahi",
+          "detail": "Aap Decline tap karte ho. App collect ko reject karne wala response bhejta hai, switch scammer ke PSP ko batata hai, aur aapke bank ko kuch nahi chhuta. Aap app mein UPI ID ko block aur report bhi kar sakte ho, aur national cybercrime helpline 1930 par fraud report kar sakte ho.",
+          "facts": [
+            ["Aapka action", "Decline"],
+            ["Aapka bank", "Kabhi contact nahi hua"],
+            ["Report", "In-app + 1930 helpline"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "PIN ka matlab hamesha pay",
+        "text": "Collect request aapse pay karne ko kehti hai; yeh receive karne ka tareeka kabhi nahi hai. UPI PIN sirf paisa bhejne ke liye chahiye, isliye jo bhi message paisa “receive” karne ke liye PIN maange woh scam hai.",
+        "facts": [
+          ["Rule", "PIN = paisa bahar"],
+          ["Receiving", "Na PIN, na approval chahiye"],
+          ["Defence", "Decline, block, report"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Who is who",
+      "items": [
+        ["Payer PSP", "Aapke UPI app ke peeche ka bank"],
+        ["UPI switch", "Central hub jo har payment route karta hai"],
+        ["Remitter bank", "Aapka account rakhta hai, aapka PIN check karta hai"],
+        ["Beneficiary bank", "Shop ka account rakhta hai"],
+        ["UPI ID", "name@handle; handle PSP chunta hai"]
+      ]
+    },
+    {
+      "title": "Messages (simplified)",
+      "items": [
+        ["ReqPay / RespPay", "Pay, debit, credit, reversal aur unke results"],
+        ["ReqAuthDetails", "UPI ID ko account se resolve karo"],
+        ["Ack", "“Mil gaya”, turant bheja jaata hai"],
+        ["ReqChkTxn", "Asli status poochho"]
+      ]
+    },
+    {
+      "title": "Safety rules",
+      "items": [
+        ["PIN", "Sirf paisa bhejne ke liye, receive ke liye kabhi nahi"],
+        ["Collect request", "AAPKO pay karne ki request"],
+        ["Pending", "Intezaar karo; do baar pay mat karo"],
+        ["Fraud", "App mein aur 1930 par report karo"]
+      ]
+    }
+  ]
+}

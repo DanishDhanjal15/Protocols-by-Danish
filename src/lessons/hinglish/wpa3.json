@@ -1,0 +1,230 @@
+{
+  "tagline": "Wi-Fi password exchange jo recording se crack nahi ho sakta.",
+  "description": "WPA3-Personal WPA2 ke password step ko SAE se replace karta hai, jo elliptic curve par ek Dragonfly key exchange hai. Dono sides aise tareeke se sabit karte hain ki unhe password pata hai ki sunne wale ke paas guesses test karne ke liye kuch nahi bachta, isliye record kiya hua join offline crack nahi ho sakta. SAE ke baad, jaana-pehchana 4-way handshake keys install karta hai.",
+  "facts": [
+    ["Layer", "Data link (Layer 2)"],
+    ["Key exchange", "SAE (Dragonfly), phir 4-way handshake"],
+    ["Curve", "Group 19 (NIST P-256)"],
+    ["AKM suite", "00-0f-ac:8 (SAE)"],
+    ["PMF (802.11w)", "Required"],
+    ["Defined in", "IEEE 802.11-2020, WPA3 spec"]
+  ],
+  "legend": [
+    "Dhoondna aur join karna (management)",
+    "SAE aur key handshake",
+    "Confirmed / accepted",
+    "Encrypted data",
+    "Attack"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "WPA3 network join karna",
+      "summary": "SAE Commit aur Confirm password sabit karte hain, phir association aur 4-way handshake keys install karte hain.",
+      "steps": [
+        {
+          "title": "WPA3 beacon",
+          "desc": "RSN element kehta hai SAE, PMF required",
+          "detail": "Router ka beacon WPA2 jaisa dikhta hai, lekin uske RSN element mein AKM 2 (PSK) ki jagah AKM 8 (SAE) hota hai aur “management frame protection required” set hota hai. Jo laptop WPA3 support nahi karta woh join karne ki koshish bhi nahi karega.",
+          "facts": [
+            ["AKM", "8 (SAE)"],
+            ["RSN capabilities", "0x00c0: PMF capable + required"],
+            ["Cipher", "AES-CCMP"]
+          ],
+          "quiz": {
+            "q": "WPA2 beacon ke mukable kaunsa field badla?",
+            "options": [
+              "SSID",
+              "RSN element mein AKM suite",
+              "Channel",
+              "Beacon interval"
+            ],
+            "why": "AKM (Authentication and Key Management) suite batata hai ki password kaise use hota hai: WPA2 PSK ke liye 2, SAE ke liye 8."
+          }
+        },
+        {
+          "title": "SAE Commit",
+          "desc": "Dono sides ek scalar aur ek element bhejte hain",
+          "detail": "Authentication frames ab algorithm 3 (SAE) use karte hain. Har side password aur dono MAC addresses se curve par ek secret point (password element) banata hai, fresh random numbers chunta hai, aur ek scalar aur ek element bhejta hai. Dono commits hawa mein cross ho sakte hain: SAE “simultaneous” hai, koi side leader nahi hoti.",
+          "facts": [
+            ["Algorithm", "3 (SAE)"],
+            ["Transaction seq", "1 (Commit)"],
+            ["Sizes", "Scalar 32 B, element 64 B"]
+          ],
+          "quiz": {
+            "q": "Kya Commit frame mein password se bani koi cheez hai jis par eavesdropper guesses test kar sake?",
+            "options": [
+              "Haan, password ka hash",
+              "Nahi: element ek secret random number se masked hai jo device se kabhi bahar nahi jata",
+              "Haan, plain text password",
+              "Sirf pehla letter"
+            ],
+            "why": "Element password point ko ek random secret ke saath mila deta hai. Us secret ke bina guess ko check nahi kiya ja sakta."
+          }
+        },
+        {
+          "title": "SAE Confirm",
+          "desc": "Sabit karo ki tumhe wahi key mili",
+          "detail": "Dusri side ke commit aur apne secrets se har side wahi shared secret compute karti hai, aur usse PMK. Har side use sabit karne ke liye Confirm hash bhejti hai. Agar passwords alag hain to hashes match nahi karte aur join ruk jata hai. Har join naya PMK banata hai, isliye baad mein leak hua password purani recordings decrypt nahi kar sakta (forward secrecy).",
+          "facts": [
+            ["Transaction seq", "2 (Confirm)"],
+            ["Result", "Shared PMK, har baar naya"],
+            ["Forward secrecy", "Haan"]
+          ],
+          "quiz": {
+            "q": "Attacker ne poora exchange record kar liya. Woh offline kitne password guesses test kar sakta hai?",
+            "options": [
+              "Jitne chahe, WPA2 ki tarah",
+              "Ek bhi nahi: har guess ke liye router ke saath live exchange chahiye",
+              "Bilkul ek",
+              "Sirf 8 characters se chhote guesses"
+            ],
+            "why": "Guess test karne ke liye ek side ki secret random values chahiye. Password try karne ka ek hi tareeka hai router ke saath SAE chalana, jo tumhe rate-limit kar sakta hai."
+          }
+        },
+        {
+          "title": "Associate",
+          "desc": "SAE aur PMF ke saath join karne ko kaho",
+          "detail": "SAE ho jane ke baad laptop Association Request bhejta hai jiske RSN element mein wahi choice dohrai jati hai: AKM 8, CCMP, PMF required. Router accept karta hai aur Association ID 1 assign karta hai.",
+          "facts": [
+            ["AKM", "SAE"],
+            ["PMF", "Required"],
+            ["Association ID", "1"]
+          ]
+        },
+        {
+          "title": "4-way handshake",
+          "desc": "Wahi chaar EAPOL messages, SAE PMK se keyed",
+          "detail": "4-way handshake bilkul WPA2 ki tarah chalta hai, lekin uska PMK seedha password se nahi balki SAE se aaya hai. Isliye message 2 ki MIC password guess karne walon ke kisi kaam ki nahi. Key descriptor version 0 ka matlab hai SAE AKM algorithms chunta hai (MIC ke liye AES-CMAC).",
+          "facts": [
+            ["PMK from", "SAE (password nahi)"],
+            ["Key descriptor version", "0 (AKM-defined)"],
+            ["Delivers", "PTK + GTK + IGTK"]
+          ]
+        },
+        {
+          "title": "Encrypted data",
+          "desc": "Data ke liye CCMP, aur management frames bhi protected",
+          "detail": "Data frames WPA2 jaise hi dikhte hain: ek CCMP header, encrypted contents aur ek MIC. Fark yeh hai ki deauthentication aur dusre action frames bhi protected hain (PMF mandatory hai), isliye forged kick-offs ab kaam nahi karte.",
+          "facts": [
+            ["Data", "AES-CCMP"],
+            ["Management frames", "Protected (802.11w)"],
+            ["Forged deauth", "Ignored"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "WPA3 ke saath joined",
+        "text": "SAE ne dono sides ko fresh elliptic-curve exchange se password sabit karne diya jise sunne wala guesses test karne ke liye use nahi kar sakta. Phir 4-way handshake ne SAE PMK se keys install ki, aur PMF management frames ko bhi protect karta hai.",
+        "facts": [
+          ["Offline cracking", "Capture se mumkin nahi"],
+          ["Forward secrecy", "Haan"],
+          ["WPA2 ke mukable extra frames", "4 (do commits, do confirms)"]
+        ]
+      }
+    },
+    "downgrade": {
+      "name": "Transition-mode downgrade",
+      "summary": "Evil twin sirf WPA2 offer karta hai, is ummeed mein ki transition-mode laptop fallback karke crack hone layak handshake leak kar de.",
+      "steps": [
+        {
+          "title": "Transition mode",
+          "desc": "Asli router WPA2 aur WPA3 dono offer karta hai",
+          "detail": "Taaki purane phones bhi join kar saken, kai routers WPA3 “transition mode” chalate hain: ek SSID jo PSK (WPA2) aur SAE (WPA3) dono accept karta hai, PMF optional ke saath. Dono ke liye wahi password chalta hai.",
+          "facts": [
+            ["AKMs", "2 (PSK) + 8 (SAE)"],
+            ["PMF", "Capable, required nahi"],
+            ["Weak spot", "WPA2 abhi bhi allowed hai"]
+          ]
+        },
+        {
+          "title": "Evil twin aata hai",
+          "desc": "Wahi naam, sirf WPA2, zyada tez signal",
+          "detail": "Attacker wahi SSID aur BSSID wala fake access point start karta hai jo sirf WPA2-PSK offer karta hai. Paas hone se uska signal zyada strong hota hai. Jis laptop ne HomeNet ko “WPA2 ya WPA3” ke roop mein save kiya hai use kuch galat nahi lagta.",
+          "facts": [
+            ["Fake SSID", "HomeNet"],
+            ["Offers", "Sirf AKM 2, PMF nahi"],
+            ["Goal", "WPA2 handshake lena"]
+          ],
+          "quiz": {
+            "q": "Sirf WPA2 offer karke attacker kya paane ki ummeed rakhta hai?",
+            "options": [
+              "Plain text password",
+              "MIC ke saath WPA2 message 2, jo offline crack ho sakta hai",
+              "SAE element",
+              "GTK"
+            ],
+            "why": "Attacker ko password nahi pata, isliye join message 3 par fail hoga. Lekin message 2 ki MIC offline guesses test karne ke liye kaafi hai."
+          }
+        },
+        {
+          "title": "Laptop fallback karta hai",
+          "desc": "Open auth, association, messages 1 aur 2",
+          "detail": "Laptop twin se WPA2 ke saath join karta hai. Twin apne ANonce ke saath message 1 bhejta hai; laptop SNonce aur asli password se bani MIC ke saath jawab deta hai. Twin valid message 3 nahi bhej sakta, isliye join fail ho jata hai, lekin ab uske paas offline guessing ke liye sab kuch hai.",
+          "facts": [
+            ["Laptop ne use kiya", "WPA2-PSK"],
+            ["Captured", "ANonce, SNonce, MIC"],
+            ["Join result", "Fail, lekin der ho chuki"]
+          ]
+        },
+        {
+          "title": "Defence: sirf WPA3",
+          "desc": "SAE-only network, ya Transition Disable",
+          "detail": "Agar router WPA3-only (SAE, PMF required) par set hai, to laptop ka saved profile HomeNet ke liye WPA2 kabhi accept nahi karta, isliye twin ka offer ignore hota hai. Transition mode ke naye routers, kisi device ke SAE se join karne ke baad message 3 ke andar Transition Disable flag bhi bhej sakte hain; laptop use yaad rakhta hai aur us network ke liye uske baad WPA2 mana kar deta hai.",
+          "facts": [
+            ["Router setting", "Sirf WPA3-Personal, PMF required"],
+            ["Client memory", "Transition Disable indication"],
+            ["Twin ko milta hai", "Kuch nahi"]
+          ],
+          "quiz": {
+            "q": "WPA3-only profile ke saath laptop twin ke WPA2-only beacon ka kya karta hai?",
+            "options": [
+              "Phir bhi WPA2 se join karta hai",
+              "Ise galat security type maanta hai aur asli router ke saath SAE use karta rehta hai",
+              "Check karne ke liye password bhejta hai",
+              "Saare Wi-Fi se disconnect ho jata hai"
+            ],
+            "why": "Profile sirf AKM 8 allow karta hai. Sirf AKM 2 offer karne wala network match nahi karta, isliye laptop kabhi WPA2 message 2 nahi bhejta."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Downgrade block ho gaya",
+        "text": "WPA3 transition mode purane devices ke liye WPA2 ko zinda rakhta hai, aur evil twin ise crack hone layak handshake jama karne ke liye use kar sakta hai. PMF required ke saath WPA3-only chalana, ya Transition Disable ko maanna, darwaza band kar deta hai.",
+        "facts": [
+          ["Attack", "Evil twin + WPA2 par downgrade"],
+          ["Defence", "SAE-only, PMF required"],
+          ["Also", "Transition Disable (WPA3 v3)"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "SAE messages",
+      "items": [
+        ["Commit (seq 1)", "Group, scalar, element"],
+        ["Confirm (seq 2)", "Send-confirm, confirm hash"],
+        ["Auth algorithm", "3 = SAE (0 = Open System)"],
+        ["Anti-clogging token", "Router flood hone par maangta hai"]
+      ]
+    },
+    {
+      "title": "WPA2 vs WPA3-Personal",
+      "items": [
+        ["Password step", "PSK vs SAE"],
+        ["Offline cracking", "Mumkin vs mumkin nahi"],
+        ["Forward secrecy", "Nahi vs haan"],
+        ["PMF", "Optional vs required"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["AKM 2 / 8", "PSK / SAE"],
+        ["Group 19", "NIST P-256"],
+        ["RSN caps 0x00c0", "PMF required"],
+        ["Status 126", "SAE hash-to-element variant"]
+      ]
+    }
+  ]
+}

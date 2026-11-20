@@ -1,0 +1,34 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Look up a domain's MX records", "hinglish": "Domain ke MX records dekho" },
+      "why": { "en": "Before relaying, a mail server asks DNS where the recipient domain's mail goes. You can do the same lookup.", "hinglish": "Relay se pehle mail server DNS se poochta hai ki recipient domain ka mail kahan jayega. Wahi lookup aap bhi kar sakte ho." },
+      "windows": "nslookup -type=MX gmail.com",
+      "unix": "dig MX gmail.com +short",
+      "expect": { "en": "A list of lines like '5 gmail-smtp-in.l.google.com' with a preference number and a host. The exact hosts and numbers can change; the lowest number is tried first.", "hinglish": "'5 gmail-smtp-in.l.google.com' jaisi lines ki list, preference number aur host ke saath. Exact hosts aur numbers badal sakte hain; sabse chhota number pehle try hota hai." },
+      "step": 6
+    },
+    {
+      "title": { "en": "Test if the submission port is open", "hinglish": "Submission port khula hai ya nahi test karo" },
+      "why": { "en": "Port 587 is where mail apps submit mail. This only opens a TCP connection and does not send any email.", "hinglish": "Port 587 wo hai jahan mail apps mail submit karti hain. Ye sirf TCP connection kholta hai, koi email nahi bhejta." },
+      "windows": "Test-NetConnection smtp.gmail.com -Port 587",
+      "unix": "nc -vz smtp.gmail.com 587",
+      "expect": { "en": "TcpTestSucceeded : True (or 'succeeded'). Some home or office networks block outgoing SMTP ports, so it may fail on yours.", "hinglish": "TcpTestSucceeded : True (ya 'succeeded'). Kuch home ya office networks outgoing SMTP ports block karte hain, isliye aapke network par fail ho sakta hai." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Read the SMTP commands in the capture", "hinglish": "Capture mein SMTP commands padho" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark to see EHLO, MAIL FROM, RCPT TO, DATA and the 3-digit replies.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur EHLO, MAIL FROM, RCPT TO, DATA aur 3-digit replies dekho." },
+      "wireshark": "smtp",
+      "expect": { "en": "A list of command and reply lines. Right-click one and choose Follow > TCP Stream to read the whole conversation, including the 550 in the bounce scenario.", "hinglish": "Command aur reply lines ki list. Kisi par right-click karke Follow > TCP Stream chuno aur poori baatcheet padho, bounce scenario ka 550 bhi." },
+      "step": 5
+    },
+    {
+      "title": { "en": "Find the TLS upgrade", "hinglish": "TLS upgrade dhoondo" },
+      "why": { "en": "After STARTTLS the same connection turns into a TLS handshake. Filter to see where plain SMTP stops.", "hinglish": "STARTTLS ke baad wahi connection TLS handshake ban jaata hai. Filter lagao aur dekho plain SMTP kahan rukta hai." },
+      "wireshark": "smtp.req.command == \"STARTTLS\" || tls.handshake",
+      "expect": { "en": "The STARTTLS command, then TLS Client Hello and Server Hello, after which the data is unreadable.", "hinglish": "STARTTLS command, phir TLS Client Hello aur Server Hello, jiske baad data padha nahi ja sakta." },
+      "step": 3
+    }
+  ]
+}

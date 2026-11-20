@@ -1,0 +1,24 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Find labelled packets in the capture", "hinglish": "Capture mein labelled packets dhoondo" },
+      "why": { "en": "MPLS sits between Ethernet and IP, so Wireshark has a filter for the label stack itself.", "hinglish": "MPLS Ethernet aur IP ke beech baithta hai, isliye Wireshark mein label stack ke liye alag filter hai." },
+      "wireshark": "mpls",
+      "expect": { "en": "Packets show an MPLS layer with Label, TC, S and TTL fields before the IP header. Values differ in your copy.", "hinglish": "Packets mein IP header se pehle MPLS layer dikhti hai jisme Label, TC, S aur TTL fields hain. Tumhari copy mein values alag ho sakti hain." },
+      "step": 2
+    },
+    {
+      "title": { "en": "Spot the two-label VPN packets", "hinglish": "Do-label wale VPN packets pehchano" },
+      "why": { "en": "In the VPN scenario the stack has a transport label and a VPN label; the bottom one has S = 1.", "hinglish": "VPN scenario mein stack mein transport label aur VPN label hote hain; neeche wale par S = 1 hota hai." },
+      "wireshark": "mpls.bottom == 1 && mpls.label == 18",
+      "expect": { "en": "Only packets whose bottom label is 18 (the SHOP-A VPN label) remain.", "hinglish": "Sirf woh packets bachte hain jinka bottom label 18 (SHOP-A ka VPN label) hai." }
+    },
+    {
+      "title": { "en": "See label-style hops with traceroute", "hinglish": "Traceroute se label-style hops dekho" },
+      "why": { "en": "Many ISPs show MPLS hops in traceroute; some routers even reveal the label in ICMP extensions.", "hinglish": "Bahut se ISPs traceroute mein MPLS hops dikhate hain; kuch routers ICMP extensions mein label bhi bata dete hain." },
+      "windows": "tracert -d example.com",
+      "unix": "traceroute -n example.com",
+      "expect": { "en": "A list of hops with times. It varies by network; hops inside an ISP core may be slow to respond or hidden.", "hinglish": "Times ke saath hops ki list. Yeh network ke hisaab se alag hoti hai; ISP core ke andar ke hops der se reply de sakte hain ya chhupe ho sakte hain." }
+    }
+  ]
+}

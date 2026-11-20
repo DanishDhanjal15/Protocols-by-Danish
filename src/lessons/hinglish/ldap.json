@@ -1,0 +1,324 @@
+{
+  "tagline": "Company ki phone book jo aapka password bhi check karti hai.",
+  "description": "LDAP woh tareeka hai jisse apps directory se baat karte hain: ek organisation ke users, groups aur computers ki central list (OpenLDAP, Active Directory). App login (bind) kar sakta hai, logon ko look up (search) kar sakta hai, aur user ka password uske naam se bind karke check kar sakta hai. Messages chhote ASN.1 structures hote hain jo BER mein encoded hote hain.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP 389, LDAPS on 636"],
+    ["Encoding", "ASN.1 BER"],
+    ["Main operations", "Bind, Search, Modify, Unbind"],
+    ["Secure karo", "StartTLS ya LDAPS se"],
+    ["Defined in", "RFC 4511"]
+  ],
+  "legend": [
+    "Handshake aur success",
+    "Web app se requests",
+    "Directory ke answers",
+    "TLS encryption",
+    "Errors aur attacks"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Web app Danish ko login karata hai",
+      "summary": "Wiki directory mein Danish ko dhoondta hai, phir uske naam se bind karke password check karta hai.",
+      "steps": [
+        {
+          "title": "Login form submit hua",
+          "desc": "HTTPS POST, phir port 389 par TCP connection",
+          "detail": "Danish company wiki mein apna username aur password type karta hai. Browser unhe HTTPS se bhejta hai, isliye woh hop encrypted hai. Wiki khud passwords store nahi karta; woh poochne ke liye port 389 par LDAP directory se TCP connection kholta hai.",
+          "facts": [
+            ["Directory", "192.0.2.20, TCP 389"],
+            ["Web app port", "50412 (temporary)"],
+            ["Browser hop", "HTTPS (encrypted)"]
+          ]
+        },
+        {
+          "title": "App LDAP mein login karta hai",
+          "desc": "Service account ke naam se bindRequest",
+          "detail": "Search karne se pehle wiki apne service account, cn=webapp, se authenticate karta hai. Simple bind mein DN aur password hota hai. Packet kholo: password seedha plain bytes mein dikh jaata hai, kyunki is connection par TLS nahi hai. Directory resultCode 0, success se jawab deta hai.",
+          "facts": [
+            ["Bind DN", "cn=webapp,ou=services,dc=example,dc=com"],
+            ["Method", "simple (password)"],
+            ["Result", "0 success"]
+          ],
+          "quiz": {
+            "q": "Koi network par yeh packet capture kar leta hai. Woh kya seekh sakta hai?",
+            "options": [
+              "Kuch nahi, LDAP encrypted hai",
+              "Sirf username",
+              "Service account ka password, plain text mein",
+              "Ek hash jo unhe crack karna padega"
+            ],
+            "why": "Plain port 389 par simple bind password ko jaisa hai waisa bhejta hai. Isliye LDAP ko TLS ke andar chalana chahiye (StartTLS ya LDAPS)."
+          }
+        },
+        {
+          "title": "User ko dhoondo",
+          "desc": "Filter (uid=danish) ke saath searchRequest",
+          "detail": "Wiki ou=people ke neeche filter (uid=danish) se match karne wali entries search karta hai aur sirf cn, mail aur memberOf maangta hai. Filter text ki tarah nahi bheja jaata: woh attribute aur value ke saath equalityMatch structure mein encode hota hai. Directory ek searchResEntry bhejta hai, phir searchResDone jo batata hai ki search khatam ho gaya.",
+          "facts": [
+            ["Base", "ou=people,dc=example,dc=com"],
+            ["Filter", "(uid=danish)"],
+            ["Mila", "uid=danish,ou=people,dc=example,dc=com"]
+          ],
+          "quiz": {
+            "q": "Wiki ko kaise pata chalta hai ki ab aur results nahi aayenge?",
+            "options": [
+              "TCP connection close ho jaata hai",
+              "Same messageID ke saath searchResDone message",
+              "Ek timeout",
+              "Entry par 'last' flag hota hai"
+            ],
+            "why": "Har search searchResDone par khatam hota hai, jisme result code hota hai. Usse pehle ki entries ka messageID same hota hai."
+          }
+        },
+        {
+          "title": "Password check karo",
+          "desc": "Phir se bind, is baar Danish ke naam se",
+          "detail": "Password check karne ke liye wiki bas Danish ke DN aur uske type kiye password se bind karne ki koshish karta hai. Directory use stored hash se compare karta hai aur success se jawab deta hai. Wiki ko stored hash kabhi nahi dikhta, aur Danish ke groups (staff, wiki-editors) tay karte hain ki woh kya kar sakta hai.",
+          "facts": [
+            ["Bind DN", "uid=danish,ou=people,dc=example,dc=com"],
+            ["Result", "0 success"],
+            ["Groups", "staff, wiki-editors"]
+          ],
+          "quiz": {
+            "q": "Agar password galat hota to kya wapas aata?",
+            "options": [
+              "Khaali search result",
+              "resultCode 49 (invalidCredentials) ke saath bindResponse",
+              "Ek TCP reset",
+              "Code 32 ke saath searchResDone"
+            ],
+            "why": "Fail hua bind resultCode 49, invalidCredentials, lautata hai. Connection khula rehta hai."
+          }
+        },
+        {
+          "title": "Alvida kaho",
+          "desc": "unbindRequest, close, user ko login karao",
+          "detail": "Wiki unbindRequest bhejta hai, jiska koi reply nahi hota, aur TCP connection close kar deta hai. Phir woh browser ko home page ka redirect aur session cookie ke saath jawab deta hai. Busy apps aksar har baar close karne ke bajaye open LDAP connections ka pool rakhte hain.",
+          "facts": [
+            ["unbind", "Response expected nahi"],
+            ["Phir", "TCP FIN dono taraf"],
+            ["Browser ko milta hai", "302 → /home + cookie"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Directory ke zariye login ho gaya",
+        "text": "Wiki ne apne service account se bind kiya, uid=danish search kiya, aur Danish ke naam se bind karke password check kiya. Yeh kaam karta hai, lekin dono passwords network par plain text mein gaye. Agla scenario: wahi cheez TLS mein wrap hokar.",
+        "facts": [
+          ["LDAP messages", "7"],
+          ["Operations", "bind, search, bind, unbind"],
+          ["Weak spot", "Clear-text simple bind"],
+          ["Total time", "6 ms"]
+        ]
+      }
+    },
+    "starttls": {
+      "name": "Safely karo: StartTLS",
+      "summary": "App bind karne se pehle port 389 ko TLS mein upgrade karta hai, to passwords encrypted rehte hain.",
+      "steps": [
+        {
+          "title": "Upgrade maango",
+          "desc": "extendedRequest StartTLS",
+          "detail": "Connect hote hi (handshake yahan nahi dikhaya) app StartTLS OID 1.3.6.1.4.1.1466.20037 ke saath extendedRequest bhejta hai. Directory success se agree karta hai. Agle byte se dono sides usi connection par TLS bolte hain. Alternative LDAPS hai: port 636 par pehle byte se hi TLS.",
+          "facts": [
+            ["Request OID", "1.3.6.1.4.1.1466.20037"],
+            ["Port", "389, same connection"],
+            ["Alternative", "LDAPS on 636"]
+          ],
+          "quiz": {
+            "q": "Agar server StartTLS par success se jawab NA de, to app ko kya karna chahiye?",
+            "options": [
+              "Phir bhi clear text mein bind karo",
+              "Password bhejne se mana karo aur ruk jao",
+              "UDP par switch karo",
+              "Password do baar bhejo"
+            ],
+            "why": "Clear text par fallback karne se attacker StartTLS hata kar passwords padh sakta hai. Safe client fail closed hota hai."
+          }
+        },
+        {
+          "title": "TLS handshake",
+          "desc": "Client Hello, Server Hello, encrypted certificate",
+          "detail": "Ek normal TLS 1.3 handshake hota hai. App check karta hai ki directory ka certificate ldap.example.com ke liye valid hai aur aise CA se signed hai jise woh trust karta hai. Yeh check beech mein baitha koi insaan directory ban kar dhokha dene se rokta hai.",
+          "facts": [
+            ["Version", "TLS 1.3"],
+            ["Key exchange", "x25519"],
+            ["Certificate", "ldap.example.com"]
+          ]
+        },
+        {
+          "title": "Bind, ab chhupa hua",
+          "desc": "TLS ke andar wahi bindRequest",
+          "detail": "App ab bilkul wahi bindRequest bhejta hai jo pehle tha, lekin encrypted TLS record ke andar. Capture mein sirf Application Data dikhta hai. Password wire par safe hai.",
+          "facts": [
+            ["Wire par dikhta hai", "Sirf TLS records"],
+            ["Andar", "bindRequest(2) cn=webapp"],
+            ["Result", "success"]
+          ],
+          "quiz": {
+            "q": "Ab eavesdropper bind ka kaunsa hissa dekh sakta hai?",
+            "options": [
+              "Password",
+              "Bind DN",
+              "Sirf record sizes aur timing",
+              "Sab kuch, TLS sirf data sign karta hai"
+            ],
+            "why": "TLS poora LDAP message encrypt karta hai. Sirf sizes aur timing leak hote hain."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Wahi LDAP, TLS mein wrapped",
+        "text": "StartTLS koi bhi password bheje jaane se pehle plain LDAP connection ko TLS mein upgrade karta hai. Kai directories (LDAP signing aur channel binding ke saath Active Directory samet) ko clear-text binds bilkul refuse karne ke liye set kiya ja sakta hai.",
+        "facts": [
+          ["StartTLS", "Port 389, wahin upgrade"],
+          ["LDAPS", "Port 636, shuru se TLS"],
+          ["Best practice", "TLS ke bina simple bind refuse karo"]
+        ]
+      }
+    },
+    "wrong-password": {
+      "name": "Galat password (invalidCredentials)",
+      "summary": "Danish password galat type karta hai; bind resultCode 49 ke saath fail hota hai.",
+      "steps": [
+        {
+          "title": "Typo ke saath bind",
+          "desc": "uid=danish ke naam se bindRequest",
+          "detail": "App ko Danish ka DN pehle scenario ki tarah mil chuka hai aur ab woh uske type kiye password se bind karta hai, jisme do digits aapas mein badal gaye hain.",
+          "facts": [
+            ["Bind DN", "uid=danish,ou=people,dc=example,dc=com"],
+            ["Password", "correct-horse-24 (galat)"],
+            ["messageID", "3"]
+          ]
+        },
+        {
+          "title": "invalidCredentials",
+          "desc": "bindResponse resultCode 49",
+          "detail": "Directory resultCode 49, invalidCredentials se jawab deta hai. Woh jaanbujhkar galat password aur na-maujood user dono ke liye same answer deta hai, taaki attackers usse usernames na pata kar saken. Isi wajah se wiki bhi vague “Invalid username or password” dikhata hai.",
+          "facts": [
+            ["resultCode", "49 invalidCredentials"],
+            ["Active Directory jodta hai", "data 52e (bad password), 775 (locked)"],
+            ["Policy", "Baar baar fail hone par lockout"]
+          ],
+          "quiz": {
+            "q": "Login page ko khaas taur par “wrong password” kyun NAHI kehna chahiye?",
+            "options": [
+              "Yeh display karne ke liye bahut lamba hai",
+              "Isse confirm ho jaayega ki username exist karta hai",
+              "LDAP app ko batata hi nahi",
+              "Browsers woh text block kar dete hain"
+            ],
+            "why": "“No such user” aur “wrong password” ke alag messages attackers ko valid usernames ki list banane dete hain."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Ek saaf, shaant failure",
+        "text": "Fail hua bind resultCode 49 lautata hai aur connection ko usable chhodta hai. Achhe apps generic error dikhate hain, failures count karte hain, aur guessing slow karne ke liye directory ki lockout policy par rely karte hain.",
+        "facts": [
+          ["Code", "49 invalidCredentials"],
+          ["Connection", "Khula rehta hai"],
+          ["User ko message", "Generic"]
+        ]
+      }
+    },
+    "injection": {
+      "name": "LDAP injection aur parameterised filters",
+      "summary": "Attacker username box mein filter syntax type karta hai aur bina password ke admin ban kar login karta hai.",
+      "steps": [
+        {
+          "title": "Ajeeb username",
+          "desc": "username = admin)(&)",
+          "detail": "Yeh purana login page apna filter text jod kar banata hai: (&(uid=USER)(userPassword=PASS)). Agar search ko koi entry mil jaye, to user login ho jaata hai. Attacker username mein admin)(&) aur password mein x type karta hai.",
+          "facts": [
+            ["Typed username", "admin)(&)"],
+            ["Typed password", "x"],
+            ["App ka template", "(&(uid=…)(userPassword=…))"]
+          ],
+          "quiz": {
+            "q": "Jodne ke baad filter text (&(uid=admin)(&))(userPassword=x)) hai. LDAP library asal mein kya bhejti hai?",
+            "options": [
+              "Error, kuch nahi bheja jaata",
+              "(&(uid=admin)(&)), password wala hissa hat jaata hai",
+              "(uid=admin)(userPassword=x)",
+              "Poora text ek string ki tarah"
+            ],
+            "why": "Kai libraries pehla complete filter parse karti hain aur baaki ignore kar deti hain. (&) hamesha-true filter hai, isliye password test gayab ho jaata hai."
+          }
+        },
+        {
+          "title": "Filter hijack ho gaya",
+          "desc": "Search (&(uid=admin)(&)) admin se match karta hai",
+          "detail": "Packet mein filter dekho: (uid=admin) aur ek khaali AND ka AND, jo hamesha true hai. Password check gayab hai. Directory farz nibhate hue admin entry de deta hai, aur app attacker ko admin bana kar login kar deta hai.",
+          "facts": [
+            ["Bheja gaya filter", "(&(uid=admin)(&))"],
+            ["Password check hua", "Nahi"],
+            ["Result", "Logged in as admin"]
+          ]
+        },
+        {
+          "title": "Fix: input escape karo",
+          "desc": "Special characters \\29 \\28 ban jaate hain",
+          "detail": "Fixed app user input ko RFC 4515 ke hisaab se escape karta hai: ( ban jaata hai \\28, ) ban jaata hai \\29, * ban jaata hai \\2a, \\ ban jaata hai \\5c. Isse bhi behtar, woh aisa filter builder use karta hai jo values ko parameters ki tarah leta hai. Ab poora typed text bas compare karne wali value hai, kisi ka aisa uid nahi, aur search zero entries lautati hai. Asli fix yeh bhi hai ki filters mein passwords compare karna band karo aur user ke naam se bind karo.",
+          "facts": [
+            ["Escaped value", "admin\\29\\28&\\29"],
+            ["Result", "0 entries, login refused"],
+            ["Best practice", "Parameterised filters + password check ke liye bind"]
+          ],
+          "quiz": {
+            "q": "LDAP filter value mein kin characters ko escape karna zaroori hai?",
+            "options": [
+              "Sirf quotes",
+              "( ) * \\ aur NUL",
+              "Sirf spaces",
+              "A–Z ke bahar ke letters"
+            ],
+            "why": "RFC 4515 assertion values mein (, ), *, \\ aur NUL escape karne ko kehta hai, kyunki filter syntax mein inka matlab hota hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Data kabhi code nahi banna chahiye",
+        "text": "LDAP injection SQL injection ka directory wala cousin hai: user ka type kiya text query ka matlab badal deta hai. Values ko escape karna ya filter builder use karna unhe data hi rakhta hai, aur password bind se check karna sabse lalachi target hata deta hai.",
+        "facts": [
+          ["Attack", "LDAP filter injection"],
+          ["Defence", "RFC 4515 escaping / parameterised filters"],
+          ["Aur", "Passwords verify karne ke liye bind, least-privilege service account"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Operations (BER tag)",
+      "items": [
+        ["bindRequest 0x60 / bindResponse 0x61", "Login"],
+        ["searchRequest 0x63", "Filter se entries dhoondo"],
+        ["searchResEntry 0x64 / searchResDone 0x65", "Results, phir end marker"],
+        ["unbindRequest 0x42", "Alvida, koi reply nahi"],
+        ["extendedRequest 0x77", "StartTLS, password modify, whoami"]
+      ]
+    },
+    {
+      "title": "Result codes",
+      "items": [
+        ["0 success", "Kaam ho gaya"],
+        ["32 noSuchObject", "Base DN exist nahi karta"],
+        ["49 invalidCredentials", "Galat DN ya password"],
+        ["50 insufficientAccessRights", "Allowed nahi"],
+        ["4 sizeLimitExceeded", "sizeLimit se zyada entries"]
+      ]
+    },
+    {
+      "title": "Filters and ports",
+      "items": [
+        ["(uid=danish)", "Equality"],
+        ["(&(a)(b)) (|(a)(b)) (!(a))", "AND, OR, NOT"],
+        ["(cn=Dan*)", "Substring"],
+        ["Escape", "( \\28  ) \\29  * \\2a  \\ \\5c"],
+        ["Ports", "389 LDAP/StartTLS, 636 LDAPS"]
+      ]
+    }
+  ]
+}

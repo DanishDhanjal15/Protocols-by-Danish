@@ -4,6 +4,7 @@ export type Lang = "en" | "hi";
 
 const en = {
   home: "Home",
+  labs: "Labs",
   learn: "Roadmap",
   journey: "Journey",
   compare: "Compare",
@@ -62,6 +63,7 @@ const en = {
 
 const hi: typeof en = {
   home: "होम",
+  labs: "लैब्स",
   learn: "रोडमैप",
   journey: "जर्नी",
   compare: "तुलना",

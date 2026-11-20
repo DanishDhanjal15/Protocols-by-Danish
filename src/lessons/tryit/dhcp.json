@@ -1,0 +1,33 @@
+{
+  "commands": [
+    {
+      "title": { "en": "See your DHCP lease", "hinglish": "Apni DHCP lease dekho" },
+      "why": { "en": "Shows the address, gateway, DNS server and lease times your own machine got from DHCP.", "hinglish": "Dikhata hai ki tumhari machine ko DHCP se kaunsa address, gateway, DNS server aur lease times mile." },
+      "windows": "ipconfig /all",
+      "unix": "ipconfig getpacket en0",
+      "expect": { "en": "On Windows look for DHCP Server, Lease Obtained and Lease Expires. On macOS the getpacket output lists the offered options. Values differ per machine and network; the DHCP server is usually your router, e.g. 192.168.1.1.", "hinglish": "Windows par DHCP Server, Lease Obtained aur Lease Expires dhoondo. macOS par getpacket output mein offered options dikhte hain. Values machine aur network ke hisaab se alag hongi; DHCP server aam taur par tumhara router hota hai, jaise 192.168.1.1." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Spot a 169.254 address", "hinglish": "169.254 address pehchano" },
+      "why": { "en": "A 169.254.x.x address means DHCP failed and the machine used APIPA.", "hinglish": "169.254.x.x address ka matlab DHCP fail hua aur machine ne APIPA use kiya." },
+      "windows": "ipconfig | findstr IPv4",
+      "unix": "ip -4 addr show",
+      "expect": { "en": "On a healthy network you will see a normal private address (192.168.x.x or 10.x.x.x). A 169.254 address would show the no-server scenario. Output varies by machine.", "hinglish": "Healthy network par normal private address (192.168.x.x ya 10.x.x.x) dikhega. 169.254 address no-server scenario dikhata. Output machine ke hisaab se alag hota hai." }
+    },
+    {
+      "title": { "en": "Find the DORA packets in the capture", "hinglish": "Capture mein DORA packets dhoondo" },
+      "why": { "en": "Open the downloaded .pcap in Wireshark and filter for DHCP traffic.", "hinglish": "Download kiya hua .pcap Wireshark mein kholo aur DHCP traffic filter karo." },
+      "wireshark": "dhcp",
+      "expect": { "en": "You should see Discover, Offer, Request and ACK, with the options (gateway, DNS, lease time) inside the Offer and ACK.", "hinglish": "Discover, Offer, Request aur ACK dikhne chahiye, aur Offer tatha ACK ke andar options (gateway, DNS, lease time) honge." },
+      "step": 1
+    },
+    {
+      "title": { "en": "Show only the DISCOVER", "hinglish": "Sirf DISCOVER dikhao" },
+      "why": { "en": "Filter on DHCP message type 1 (DISCOVER) sent from 0.0.0.0.", "hinglish": "DHCP message type 1 (DISCOVER) par filter karo jo 0.0.0.0 se bheja gaya." },
+      "wireshark": "dhcp.option.dhcp == 1 && ip.src == 0.0.0.0",
+      "expect": { "en": "One packet from 0.0.0.0:68 to 255.255.255.255:67, matching the first step.", "hinglish": "0.0.0.0:68 se 255.255.255.255:67 tak ek packet, jo pehle step se match karta hai." },
+      "step": 1
+    }
+  ]
+}

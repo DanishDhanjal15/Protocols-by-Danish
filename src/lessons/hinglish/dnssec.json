@@ -1,0 +1,252 @@
+{
+  "tagline": "Signed DNS answers, root se link-by-link check hote hue.",
+  "description": "DNSSEC DNS records mein digital signatures jodta hai. Validating resolver har signature ko zone ki public key se check karta hai, aur us key ko parent zone ke publish kiye hash se check karta hai, root tak. Forged ya badla hua answer check fail karta hai aur phenk diya jaata hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "UDP/TCP 53, EDNS chahiye"],
+    ["New records", "DNSKEY, RRSIG, DS, NSEC/NSEC3"],
+    ["Common algorithm", "13: ECDSA P-256 / SHA-256"],
+    ["Trust shuru hota hai", "Root key-signing key se"],
+    ["Defined in", "RFC 4033, 4034, 4035"]
+  ],
+  "legend": [
+    "Queries",
+    "Referrals aur answers",
+    "Keys aur signatures",
+    "Validated answer",
+    "Tampered ya failed"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Root se neeche example.com ko validate karna",
+      "summary": "Resolver har level pe signatures aur keys laata hai aur tabhi AD flag ke saath answer lautaata hai.",
+      "steps": [
+        {
+          "title": "Laptop poochta hai",
+          "desc": "AD bit ke saath normal query",
+          "detail": "Laptop apne resolver se example.com, type A maangta hai. Wo query mein AD bit set karta hai ye kehne ke liye \"bata dena agar tumne validate kiya\". Laptop khud koi crypto nahi karta; wo checking ke liye resolver pe bharosa karta hai.",
+          "facts": [
+            ["Question", "example.com A"],
+            ["Flags", "RD, AD"],
+            ["Resolver", "192.0.2.53 (validating)"]
+          ]
+        },
+        {
+          "title": "Root: referral plus DS",
+          "desc": ".com pe jao, aur ye raha .com ki key ka hash",
+          "detail": "Resolver DO bit on karke root server se poochta hai. Root ko example.com nahi pata, isliye wo resolver ko .com servers ke paas refer karta hai. Referral ke saath ek DS record aata hai (.com ki key-signing key ka SHA-256 hash) aur uspe root ki zone-signing key se bana RRSIG. Resolver root ka DNSKEY set bhi laata hai us signature ko check karne ke liye. Note: asli root abhi bhi RSA (algorithm 8) use karta hai; yahan packets chhote rakhne ke liye har zone algorithm 13 use karta hai.",
+          "facts": [
+            ["Referral", "com NS a/b.gtld-servers.net"],
+            ["DS com", "19718 13 2 (SHA-256)"],
+            ["Root keys", "KSK 47131, ZSK 61050"]
+          ],
+          "quiz": {
+            "q": "Root referral ke saath .com ka DS record kyun bhejta hai?",
+            "options": [
+              "Packet bada karne ke liye",
+              "Taaki resolver baad mein check kar sake ki .com ki key sahi hai",
+              "Isme .com ka IP address hota hai",
+              "Ye NS records ki jagah leta hai"
+            ],
+            "why": "DS parent ka child ke liye gawah hona hai: child ki key ka signed hash. Ye wo link hai jo do zones ko jodta hai."
+          }
+        },
+        {
+          "title": ".com: referral plus DS",
+          "desc": "Wahi pattern, ek level neeche",
+          "detail": ".com server resolver ko ns1.example.com ke paas refer karta hai aur example.com ka DS record jodta hai, jo .com ki zone-signing key (26838) se signed hai. Resolver .com ka DNSKEY set laata hai taaki uske paas wo key ho, aur key-signing key 19718 bhi jiski taraf root ka DS point karta hai.",
+          "facts": [
+            ["Referral", "example.com NS ns1.example.com (203.0.113.53)"],
+            ["DS example.com", "31589 13 2"],
+            ["com keys", "KSK 19718, ZSK 26838"]
+          ]
+        },
+        {
+          "title": "example.com: signed answer",
+          "desc": "A record aur uska RRSIG",
+          "detail": "example.com ka server A record 203.0.113.10 aur uske upar apni zone-signing key 4820 se bane RRSIG ke saath jawab deta hai. Resolver example.com ka DNSKEY set bhi laata hai, jisme wo zone-signing key hai aur wo key-signing key jiska hash .com zone mein baitha hai.",
+          "facts": [
+            ["Answer", "example.com A 203.0.113.10, TTL 300"],
+            ["Signed by", "ZSK 4820"],
+            ["RRSIG valid", "12 Nov – 3 Dec 2026"]
+          ],
+          "quiz": {
+            "q": "A record ko example.com ki kaunsi key ne sign kiya?",
+            "options": [
+              "Key-signing key (flags 257)",
+              "Zone-signing key (flags 256)",
+              "Root key",
+              ".com key"
+            ],
+            "why": "Zone-signing key roz ke records sign karti hai. Key-signing key sirf DNSKEY set sign karti hai, jisse parent se DS update karwaye bina ZSK badli ja sakti hai."
+          }
+        },
+        {
+          "title": "Chain of trust chalo",
+          "desc": "Built-in root key se neeche A record tak",
+          "detail": "Resolver ke saath root key-signing key 47131 trust anchor ki tarah aati hai. Wo key root DNSKEY set verify karti hai, isliye root ZSK trusted hai; wo .com ka DS verify karti hai; wo hash .com ki KSK se match karta hai, jo .com ki keys verify karti hai; .com ki ZSK example.com ka DS verify karti hai; wo example.com ki KSK se match karta hai, jo uski ZSK verify karti hai; aur ZSK A record verify karti hai. Har link theek hai, isliye answer \"secure\" hai.",
+          "facts": [
+            ["Trust anchor", "Root KSK 47131"],
+            ["Links checked", "9 (3 zones × 3)"],
+            ["Result", "Secure"]
+          ],
+          "quiz": {
+            "q": "Resolver ke paas example.com ka DS record hai. Use ise kis se check karna hoga?",
+            "options": [
+              "A record se",
+              "example.com ke DNSKEY set ki key-signing key ke hash se",
+              ".com ke NS records se",
+              "Root ke DS record se"
+            ],
+            "why": "Resolver example.com ki KSK ka hash khud banata hai aur .com se mile DS se compare karta hai. Match hona proof hai ki parent us key ka gawah hai."
+          }
+        },
+        {
+          "title": "AD ke saath answer",
+          "desc": "Authenticated Data flag set",
+          "detail": "Resolver example.com A 203.0.113.10 ko AD flag set karke laptop ko lautaata hai, jiska matlab \"maine ise validate kiya\". Wo keys aur DS records cache karta hai, isliye .com ya example.com mein baad ke lookups is kaam ka zyadatar hissa skip karte hain. Laptop ne DO set nahi kiya tha, isliye use signatures khud nahi milte.",
+          "facts": [
+            ["Answer", "A 203.0.113.10"],
+            ["Flags", "QR, RD, RA, AD"],
+            ["Total time", "120 ms (cold cache)"]
+          ],
+          "quiz": {
+            "q": "Laptop public café Wi-Fi pe hai. Kya wo AD flag pe poora bharosa kar sakta hai?",
+            "options": [
+              "Haan, AD signed hota hai",
+              "Tabhi jab resolver tak ka path trusted ho, jaise DoH ya DoT se encrypted",
+              "Nahi, AD kabhi kaam ka nahi",
+              "Sirf A records ke liye"
+            ],
+            "why": "AD flag khud signed nahi hota. Laptop aur resolver ke beech koi use set kar sakta hai, isliye stub ko secure channel ya apni validation chahiye."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Verified answer",
+        "text": "Har zone ne apne records apni key se sign kiye, aur har parent ne apne child ki key ka hash publish kiya. Ek built-in root key se shuru karke resolver ne har link check kiya aur AD mark ke saath answer lauta diya.",
+        "facts": [
+          ["Queries by resolver", "6 (3 referrals/answers + 3 DNSKEY)"],
+          ["Record types", "DNSKEY, RRSIG, DS"],
+          ["Algorithm", "13: ECDSA P-256"],
+          ["Flag", "AD = authenticated data"]
+        ]
+      }
+    },
+    "tampered": {
+      "name": "Tampered answer SERVFAIL ban jaata hai",
+      "summary": "Raste mein koi A record rewrite kar deta hai. Signature ab match nahi karta aur resolver jawab dene se mana kar deta hai.",
+      "steps": [
+        {
+          "title": "Phir poocho",
+          "desc": "Keys aur DS pehle se cached",
+          "detail": "Ek din baad A record cache se expire ho chuka hai, lekin keys aur DS records abhi bhi cached hain. Isliye resolver DO bit set karke seedha example.com ke server se poochta hai.",
+          "facts": [
+            ["Cached", "Root, .com aur example.com keys"],
+            ["Query", "example.com A, DO"],
+            ["Attacker", "Resolver ke raste mein baitha hai"]
+          ]
+        },
+        {
+          "title": "Answer badla jaata hai",
+          "desc": "A badal ke 198.51.100.66",
+          "detail": "Raste ka attacker asli reply pakadta hai aur address ko 198.51.100.66 mein rewrite kar deta hai, jo uska apna server hai. Wo original RRSIG rakhta hai, kyunki example.com ki private key ke bina naya valid RRSIG nahi bana sakta. DNSSEC ke bina ye bilkul kaam kar jaata.",
+          "facts": [
+            ["Real address", "203.0.113.10"],
+            ["Forged address", "198.51.100.66"],
+            ["RRSIG", "Original, unchanged"]
+          ],
+          "quiz": {
+            "q": "Attacker kya NAHI kar sakta?",
+            "options": [
+              "IP address badalna",
+              "Purana signature rakhna",
+              "Naye address ke liye valid signature banana",
+              "Packet resolver ko bhejna"
+            ],
+            "why": "Signing ke liye example.com ki private zone-signing key chahiye, jo zone owner se kabhi bahar nahi jaati. Uske bina koi bhi change signature tod deta hai."
+          }
+        },
+        {
+          "title": "Signature check fail",
+          "desc": "Bogus: hash match nahi karta",
+          "detail": "Resolver mile hue A record (198.51.100.66) ka hash banata hai aur RRSIG ko example.com ki ZSK 4820 se check karta hai. Signature 203.0.113.10 pe bana tha, isliye ECDSA verification fail ho jaata hai. Answer bogus mark hota hai aur cache nahi hota.",
+          "facts": [
+            ["Key used", "ZSK 4820 (cached)"],
+            ["Signed data", "A 203.0.113.10"],
+            ["Received", "A 198.51.100.66 → bogus"]
+          ],
+          "quiz": {
+            "q": "Validating resolver bogus answer ka kya karta hai?",
+            "options": [
+              "AD ke bina aage de deta hai",
+              "SERVFAIL lautaata hai",
+              "NXDOMAIN lautaata hai",
+              "HTTP pe retry karta hai"
+            ],
+            "why": "Bogus answer na hone se bhi bura hai. Resolver doosre servers try kar sakta hai, lekin har answer fail ho to wo SERVFAIL lautaata hai."
+          }
+        },
+        {
+          "title": "SERVFAIL",
+          "desc": "Galat answer se behtar koi answer nahi",
+          "detail": "Laptop ko SERVFAIL milta hai, Extended DNS Error ke saath, code 6 \"DNSSEC Bogus\", jo wajah batata hai. Browser example.com tak nahi pahunch paata, lekin use attacker ke server pe nahi bheja gaya. Admin debugging ke liye CD (checking disabled) bit ke saath dobara query karke raw, bogus data dekh sakta hai.",
+          "facts": [
+            ["RCODE", "2 (SERVFAIL)"],
+            ["Extended error", "6: DNSSEC Bogus"],
+            ["Debug", "dig +cd example.com"]
+          ],
+          "quiz": {
+            "q": "Wahi attack aise resolver pe jo validate NAHI karta, to...",
+            "options": [
+              "Wahan bhi SERVFAIL milta",
+              "Laptop ko fake address milta",
+              "NXDOMAIN milta",
+              "UDP se block ho jaata"
+            ],
+            "why": "Signatures tabhi kaam aate hain jab koi unhe check kare. Non-validating resolver RRSIG ignore karke forged address aage de deta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Tampering pakdi gayi",
+        "text": "Signed record ka ek byte bhi badalne se uska signature toot jaata hai. Validating resolver ne mismatch pakda, forged address ko cache ya aage dene se mana kiya, aur laptop ko SERVFAIL bataya.",
+        "facts": [
+          ["Attack", "A record ka on-path rewrite"],
+          ["Detected by", "ZSK se RRSIG check"],
+          ["Result", "SERVFAIL + EDE 6"],
+          ["DNSSEC ke bina", "Laptop fake server pe bheja jaata"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Record types",
+      "items": [
+        ["DNSKEY (48)", "Zone ki public keys: KSK (257) aur ZSK (256)"],
+        ["RRSIG (46)", "Records ke ek set pe signature"],
+        ["DS (43)", "Child ki KSK ka hash, parent mein rakha"],
+        ["NSEC / NSEC3", "Signed proof ki name exist nahi karta"]
+      ]
+    },
+    {
+      "title": "Flags aur bits",
+      "items": [
+        ["DO", "EDNS bit: mujhe DNSSEC records bhejo"],
+        ["AD", "Answer validate hua"],
+        ["CD", "Checking disabled: validate mat karo"],
+        ["SERVFAIL", "Validation fail hui (ya koi aur server error)"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["Algorithm 13", "ECDSA P-256, 64-byte keys aur signatures"],
+        ["Algorithm 8", "RSA/SHA-256 (root ye use karta hai)"],
+        ["Digest type 2", "SHA-256, 32 bytes"],
+        ["EDE 6", "DNSSEC Bogus (RFC 8914)"]
+      ]
+    }
+  ]
+}

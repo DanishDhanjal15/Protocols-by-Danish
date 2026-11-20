@@ -1,0 +1,310 @@
+{
+  "tagline": "Network join karte hi device ko IP address kaise milta hai.",
+  "description": "Naya device jis network mein aaya hai, uske baare mein kuch nahi jaanta: na apna address, na router, na DNS server. DHCP yeh problem chaar messages (Discover, Offer, Request, Ack) mein solve karta hai, phir device ek fixed time ke liye address rent par leta hai aur khatam hone se pehle renew karta hai.",
+  "facts": [
+    ["Layer", "Application (UDP ke upar chalta hai)"],
+    ["Ports", "UDP 68 client, 67 server"],
+    ["Messages", "DISCOVER, OFFER, REQUEST, ACK"],
+    ["Address rent hota hai", "Lease time tak"],
+    ["Header", "236 bytes + options"],
+    ["Defined in", "RFC 2131, options RFC 2132 mein"]
+  ],
+  "legend": [
+    "Client puch raha hai (broadcast)",
+    "Server jawab deta hai",
+    "Background: ARP checks",
+    "Problems aur attacks"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Network join karna (DORA) aur renew karna",
+      "summary": "Laptop plug in hota hai, chaar messages mein 192.168.1.10 paata hai, aur lease ke beech mein renew karta hai.",
+      "steps": [
+        {
+          "title": "DISCOVER",
+          "desc": "“Kya yahan koi DHCP server hai?”",
+          "detail": "Laptop ke paas IP address nahi hai aur use server ka pata bhi nahi, isliye woh chillata hai. Woh 0.0.0.0 se 255.255.255.255 ko bhejta hai, ff:ff:ff:ff:ff:ff wale Ethernet frame ke andar, taaki network ka har device sun le. Woh ek random transaction ID chunta hai taaki replies ko is request se match kar sake.",
+          "facts": [
+            ["From", "0.0.0.0 : 68"],
+            ["To", "255.255.255.255 : 67"],
+            ["Ethernet to", "ff:ff:ff:ff:ff:ff (sabko)"]
+          ],
+          "quiz": {
+            "q": "Laptop 0.0.0.0 address se kyun bhejta hai?",
+            "options": [
+              "Woh apni identity chhupata hai",
+              "Abhi uske paas IP address nahi hai",
+              "0.0.0.0 DHCP server hai",
+              "Routers ko yeh chahiye"
+            ],
+            "why": "0.0.0.0 ka matlab hai “yeh host, abhi address nahi”. Message ke andar ka MAC address server ko batata hai ki kaun puch raha hai."
+          }
+        },
+        {
+          "title": "OFFER",
+          "desc": "Server ek address suggest karta hai",
+          "detail": "Home router ek chhota DHCP server chalata hai. Woh apne pool se ek free address 192.168.1.10 chunta hai aur subnet mask, gateway, ek DNS server aur lease time ke saath offer karta hai. Laptop ne broadcast reply maanga tha (uske paas unicast receive karne ke liye address nahi hai), isliye offer bhi broadcast hota hai.",
+          "facts": [
+            ["Offered", "192.168.1.10"],
+            ["Gateway, DNS", "192.168.1.1, 192.168.1.1"],
+            ["Lease", "86400 s (24 h)"]
+          ],
+          "quiz": {
+            "q": "OFFER 255.255.255.255 ko bheja jata hai. Seedha 192.168.1.10 ko kyun nahi?",
+            "options": [
+              "Laptop ke paas abhi woh address nahi hai aur usne broadcast flag set kiya",
+              "Routers kabhi unicast nahi bhejte",
+              "UDP unicast nahi kar sakta",
+              "Bandwidth bachane ke liye"
+            ],
+            "why": "Address sirf offer hua hai, confirm nahi, aur laptop ne broadcast replies maange kyunki uska IP stack abhi configured nahi hai."
+          }
+        },
+        {
+          "title": "REQUEST",
+          "desc": "“Haan please, yeh wala main le lunga”",
+          "detail": "Laptop ek REQUEST broadcast karke accept karta hai, jisme woh address (option 50) aur chuna hua server (option 54) likha hota hai. Yeh broadcast isliye hai ki agar kai servers ne offer diye the, to baaki dekh lein ki unhe nahi chuna gaya aur apne addresses pool mein wapas daal dein.",
+          "facts": [
+            ["Requested IP", "192.168.1.10"],
+            ["Chosen server", "192.168.1.1"],
+            ["Still from", "0.0.0.0 (abhi confirm nahi)"]
+          ],
+          "quiz": {
+            "q": "Laptop server ko jaanta hai, phir REQUEST broadcast kyun hota hai?",
+            "options": [
+              "Baaki servers ko batane ke liye ki unke offers decline hue",
+              "Kyunki UDP mein unicast nahi hota",
+              "Internet tak pahunchne ke liye",
+              "Aisa nahi hai; yeh 192.168.1.1 ko jata hai"
+            ],
+            "why": "Har server REQUEST sunta hai aur option 54 dekhta hai. Sirf named server jawab deta hai; baaki apne offered addresses free kar dete hain."
+          }
+        },
+        {
+          "title": "ACK",
+          "desc": "Lease confirm ho gayi",
+          "detail": "Server lease ko apni table mein likhta hai aur ACK se confirm karta hai. Ab jaake laptop 192.168.1.10/24 configure karta hai, 192.168.1.1 ko default gateway set karta hai aur DNS ke liye use karta hai. Kai systems phir ek quick ARP check bhejte hain ki address par koi aur toh nahi hai.",
+          "facts": [
+            ["Address", "192.168.1.10/24"],
+            ["Renew at (T1)", "43200 s (12 h)"],
+            ["Rebind at (T2)", "75600 s (21 h)"]
+          ]
+        },
+        {
+          "title": "T1 par Renew",
+          "desc": "Lease ke beech mein, extend karne ko kaho",
+          "detail": "Baarah ghante baad (T1, aadhi lease) laptop apna address rakhne ko kehta hai. Ab uske paas working address hai aur server pata hai, isliye REQUEST seedha 192.168.1.1 ko jata hai aur ciaddr field mein uska apna address hota hai. Server naya ACK deta hai aur 24 ghante ki clock phir se shuru hoti hai. Agar server T2 tak chup rehta, to laptop kisi bhi server ko broadcast karta.",
+          "facts": [
+            ["When", "T1 = 43200 s"],
+            ["Sent", "unicast 192.168.1.10 → 192.168.1.1"],
+            ["ciaddr", "192.168.1.10 (ab bhara gaya)"]
+          ],
+          "quiz": {
+            "q": "Baarah ghante baad renewal REQUEST kaise address hoga?",
+            "options": [
+              "Pehle ki tarah 0.0.0.0 se broadcast",
+              "192.168.1.10 se 192.168.1.1 ko unicast",
+              "Saare routers ko multicast",
+              "Bheja hi nahi jata; leases khud renew hoti hain"
+            ],
+            "why": "Laptop ke paas ab valid address hai aur server pata hai, isliye woh seedha usse baat kar sakta hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Configured aur renewed",
+        "text": "Chaar broadcasts aur replies (Discover, Offer, Request, Ack) ne laptop ko address, gateway aur DNS server de diya. Lease ke beech mein usne do chhote unicast messages se renew kiya, isliye address kabhi khatam nahi hua.",
+        "facts": [
+          ["Join ke messages", "4 (DORA)"],
+          ["Join karne ka time", "Lagbhag 1 s"],
+          ["Renewal", "T1 par, unicast"],
+          ["Ports", "UDP 68 ↔ 67"]
+        ]
+      }
+    },
+    "no-server": {
+      "name": "DHCP server nahi hai (APIPA 169.254.x.x)",
+      "summary": "DISCOVER ka koi jawab nahi deta, to laptop khud ko link-local address deta hai jo sirf local wire par chalta hai.",
+      "steps": [
+        {
+          "title": "DISCOVER, koi jawab nahi",
+          "desc": "Awaaz ka koi jawab nahi aata",
+          "detail": "Router ki DHCP service band ho gayi hai (ya crash). DISCOVER network ke har device tak pahunchta hai, lekin port 67 par koi sun nahi raha, isliye kuch wapas nahi aata.",
+          "facts": [
+            ["Sent", "DISCOVER (broadcast)"],
+            ["Replies", "Koi nahi"],
+            ["Laptop wait karta hai", "Lagbhag 4 s"]
+          ]
+        },
+        {
+          "title": "Phir try karo, zyada wait karo",
+          "desc": "Badhte gaps ke saath retries",
+          "detail": "DHCP UDP par chalta hai, jisme delivery guarantee nahi, isliye client apni retries khud karta hai. Woh attempts ke beech lagbhag 4, phir 8, phir 16 seconds wait karta hai (thodi randomness ke saath). Seconds-elapsed field har baar badhta hai taaki server dekh sake ki client kitni der se wait kar raha hai.",
+          "facts": [
+            ["Retries at", "≈ 4 s, 12 s, 28 s"],
+            ["Backoff", "Har baar double"],
+            ["secs field", "Badhta jata hai"]
+          ],
+          "quiz": {
+            "q": "Har fail attempt ke baad waiting time double kyun hota hai?",
+            "options": [
+              "Busy network ko broadcasts se flood hone se bachane ke liye",
+              "Kyunki lease double hoti hai",
+              "UDP ko yeh chahiye",
+              "Taaki switch MAC seekh sake"
+            ],
+            "why": "Backoff se sainkdon devices network par broadcasts ki bauchhar nahi karte jab server slow ya missing ho."
+          }
+        },
+        {
+          "title": "169.254 address chuno",
+          "desc": "APIPA: random chuno, pehle check karo",
+          "detail": "Lagbhag ek minute baad laptop haar maan leta hai aur 169.254.0.0/16 mein ek random link-local address chunta hai (Windows ise APIPA kehta hai). Use karne se pehle woh 0.0.0.0 se ARP probes bhejta hai ki kya 169.254.37.112 pehle se kisi ke paas hai. Chuppi ka matlab address free hai.",
+          "facts": [
+            ["Range", "169.254.1.0 – 169.254.254.255"],
+            ["Picked", "169.254.37.112"],
+            ["Defined in", "RFC 3927"]
+          ],
+          "quiz": {
+            "q": "Laptop address check karte waqt ARP probe ka sender IP kya hota hai?",
+            "options": [
+              "169.254.37.112",
+              "0.0.0.0",
+              "255.255.255.255",
+              "192.168.1.1"
+            ],
+            "why": "Laptop ko address claim nahi karna chahiye jab tak pata na ho ki woh free hai, isliye probe ka sender IP 0.0.0.0 hota hai."
+          }
+        },
+        {
+          "title": "Announce karo aur usi ke saath jiyo",
+          "desc": "Address sirf is wire par chalta hai",
+          "detail": "Kisi ne jawab nahi diya, to laptop gratuitous ARP se address announce karta hai aur use karna shuru karta hai. Woh usi switch ke un devices se baat kar sakta hai jinke paas bhi 169.254 addresses hain, lekin gateway aur DNS nahi hai, isliye internet unreachable hai. 169.254 address dikhna DHCP fail hone ki classic nishani hai.",
+          "facts": [
+            ["Address", "169.254.37.112/16"],
+            ["Gateway", "Koi nahi"],
+            ["Internet", "Access nahi"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Self-assigned, lekin atka hua",
+        "text": "DHCP server nahi hone par laptop ne self-assigned 169.254 address le liya. Woh background mein DISCOVERs bhejta rehta hai, aur jaise hi koi server jawab deta hai woh proper address par switch ho jata hai.",
+        "facts": [
+          ["Symptom", "169.254.x.x address"],
+          ["Cause", "DISCOVER ka reply nahi"],
+          ["Fix", "DHCP server, cable ya Wi-Fi check karo"]
+        ]
+      }
+    },
+    "rogue": {
+      "name": "Rogue DHCP server aur DHCP snooping",
+      "summary": "Attacker asli router se pehle jawab deta hai aur khud gateway ban jata hai; switch par DHCP snooping use block karti hai.",
+      "steps": [
+        {
+          "title": "DISCOVER sabko pahunchta hai",
+          "desc": "Attacker ko bhi",
+          "detail": "Broadcast switch ke har port par jata hai. Jo attacker network mein laptop (ya sasta router) laga deta hai, woh DISCOVER ko waise hi dekhta hai jaise asli server. DHCP mein yeh prove karne ka koi built-in tareeka nahi ki kaunsa server genuine hai.",
+          "facts": [
+            ["Heard by", "Router aur attacker"],
+            ["Authentication", "DHCP mein nahi hai"],
+            ["Attacker", "192.168.1.66"]
+          ]
+        },
+        {
+          "title": "Rogue pehle jawab deta hai",
+          "desc": "Fake gateway ke saath fake offer",
+          "detail": "Attacker ka server ek millisecond ke andar, asli router se pehle jawab deta hai. Uska offer normal dikhta hai, lekin usme attacker ki apni machine default gateway aur DNS server dono ke roop mein likhi hoti hai. Clients aam taur par pehla mila hua offer le lete hain.",
+          "facts": [
+            ["Rogue gateway", "192.168.1.66"],
+            ["Rogue DNS", "192.168.1.66"],
+            ["Real offer", "2 ms baad aata hai"]
+          ],
+          "quiz": {
+            "q": "Agar laptop yeh offer accept kar le, to internet ka traffic pehle kahan jayega?",
+            "options": [
+              "Seedha asli router ko",
+              "192.168.1.66 par attacker ko",
+              "Kahin nahi; fail ho jayega",
+              "Sirf switch ko"
+            ],
+            "why": "Default gateway option laptop ko batata hai ki local network ke bahar sab kuch kahan bhejna hai. Yahan woh attacker hai."
+          }
+        },
+        {
+          "title": "Laptop jaal mein fas jata hai",
+          "desc": "Traffic ab attacker se hoke jata hai",
+          "detail": "Laptop rogue offer ko request karta hai aur ACK paata hai. Ab internet ki taraf jane wala har packet pehle attacker ke paas jata hai, aur har DNS lookup ka jawab attacker deta hai, jo victim ko fake websites par bhej sakta hai. Yeh man-in-the-middle position hai.",
+          "facts": [
+            ["Chosen server", "192.168.1.66"],
+            ["Risk", "Jasoosi, fake DNS answers"],
+            ["Victim ko pata chalta hai", "Aam taur par kuch nahi"]
+          ]
+        },
+        {
+          "title": "Defence: DHCP snooping",
+          "desc": "Switch sirf router ke port par bharosa karta hai",
+          "detail": "DHCP snooping on hone par switch asli router wale port ko trusted aur baaki sab ports ko untrusted mark karta hai. Untrusted port par aane wale server messages (OFFER, ACK) drop ho jate hain, isliye rogue offer laptop tak nahi pahunchta. Switch yeh bhi record karta hai ki kis MAC ko kaunsa IP mila, jo baad mein ARP spoofing block karne mein madad karta hai.",
+          "facts": [
+            ["Trusted port", "Router ki taraf uplink"],
+            ["Dropped", "Dusre ports se OFFER/ACK"],
+            ["Bonus", "ARP inspection ke liye binding table"]
+          ],
+          "quiz": {
+            "q": "Untrusted mark kiye gaye switch port par DHCP OFFER aata hai. Snooping kya karti hai?",
+            "options": [
+              "Normal tarah forward karti hai",
+              "Drop kar deti hai",
+              "Gateway field badal deti hai",
+              "Sirf router ko bhejti hai"
+            ],
+            "why": "Sirf trusted ports server messages le ja sakte hain. Clients ko kabhi OFFER ya ACK bhejna nahi padta, isliye unhe drop karna safe hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Sirf asli server hi pass hota hai",
+        "text": "DHCP usi par bharosa karta hai jo pehle jawab de, isliye rogue server sabka gateway banne ka aasan tareeka hai. Managed switches par DHCP snooping un ports se server messages rok deti hai jahan sirf clients hone chahiye.",
+        "facts": [
+          ["Attack", "Rogue DHCP server"],
+          ["Effect", "Attacker gateway aur DNS ban jata hai"],
+          ["Defence", "DHCP snooping, trusted uplink ports"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Message types (option 53)",
+      "items": [
+        ["1 DISCOVER", "Client servers dhoondta hai"],
+        ["2 OFFER", "Server address propose karta hai"],
+        ["3 REQUEST", "Client accept ya renew karta hai"],
+        ["5 ACK", "Server confirm karta hai"],
+        ["6 NAK", "Server mana karta hai (galat subnet, purana address)"],
+        ["7 RELEASE", "Client address wapas deta hai"]
+      ]
+    },
+    {
+      "title": "Common options",
+      "items": [
+        ["1", "Subnet mask"],
+        ["3", "Router (default gateway)"],
+        ["6", "DNS servers"],
+        ["51", "Lease time"],
+        ["54", "Server identifier"],
+        ["58 / 59", "T1 renew, T2 rebind"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["Ports", "UDP 68 client, 67 server"],
+        ["T1", "Lease ka 50%"],
+        ["T2", "Lease ka 87.5%"],
+        ["APIPA", "169.254.0.0/16"],
+        ["Magic cookie", "0x63825363"]
+      ]
+    }
+  ]
+}

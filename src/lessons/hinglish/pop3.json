@@ -1,0 +1,248 @@
+{
+  "tagline": "Apna mail download karo, phir (usually) server se delete kar do.",
+  "description": "POP3 mail padhne ka sabse purana simple tareeka hai: login karo, messages list karo, download karo aur chaho to server se delete kar do. Ye ek chhoti text baatcheet hai jisme har reply +OK ya -ERR se shuru hota hai. Aaj ise hamesha port 995 par TLS ke andar chalana chahiye.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "TCP 110 (plain/STLS), 995 (POP3S)"],
+    ["Defined in", "RFC 1939"],
+    ["Replies", "+OK ya -ERR"],
+    ["Model", "Download aur delete"],
+    ["Secure version", "POP3S (RFC 8314)"]
+  ],
+  "legend": [
+    "Handshake aur success",
+    "Mail app ke commands",
+    "Server ke replies aur mail",
+    "TLS: encrypted",
+    "Exposed password ya error"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Ek message download karo aur delete karo",
+      "summary": "Port 110 par login karo, mailbox check karo, message 1 fetch karo, delete karo aur quit karo.",
+      "steps": [
+        {
+          "title": "Port 110 se connect karo",
+          "desc": "TCP handshake, phir +OK greeting",
+          "detail": "Danish ki mail app pop.mailhost.example se port 110 par connect hoti hai, jo plain POP3 port hai. SMTP ki tarah yahan bhi server pehle bolta hai. POP3 replies simple hain: +OK ka matlab haan, -ERR ka matlab nahi. Number codes nahi hote.",
+          "facts": [
+            ["Server", "203.0.113.25 port 110"],
+            ["Greeting", "+OK Dovecot ready."],
+            ["Replies", "+OK ya -ERR"]
+          ]
+        },
+        {
+          "title": "USER aur PASS",
+          "desc": "Login, plain text mein",
+          "detail": "Client USER danish aur phir PASS correct-horse-42 bhejta hai. Port 110 par encryption nahi hai, isliye password packet mein padhne layak text ki tarah baitha hai. PASS packet par click karke bytes dekho: same Wi-Fi par koi bhi, ya path ka koi bhi router, ise padh sakta hai. Isiliye real apps port 995 par POP3S ya STLS use karte hain.",
+          "facts": [
+            ["Commands", "USER danish, PASS correct-horse-42"],
+            ["Encryption", "Port 110 par nahi"],
+            ["Safer", "Port 995 (POP3S) ya STLS"]
+          ],
+          "quiz": {
+            "q": "Port 110 par network path par kaun PASS line padh sakta hai?",
+            "options": [
+              "Sirf mail server",
+              "Koi nahi, POP3 passwords hash karta hai",
+              "Jo bhi packets capture kar sake",
+              "Sirf home router"
+            ],
+            "why": "Port 110 POP3 plain text hai. Jo bhi device packets dekhta hai wo password byte-by-byte padh sakta hai."
+          }
+        },
+        {
+          "title": "STAT aur LIST",
+          "desc": "Kitne messages, aur kitne bade?",
+          "detail": "STAT quick summary deta hai: messages ki sankhya aur total size bytes (octets) mein. LIST har message ka size deta hai, ek line mein ek, aur ek single dot wali line par khatam hota hai. Danish ke paas 2 messages hain, total 1598 bytes.",
+          "facts": [
+            ["STAT", "+OK 2 1598"],
+            ["LIST", "1 → 237, 2 → 1361 bytes"],
+            ["Multi-line end", "Sirf ek dot wali line"]
+          ],
+          "quiz": {
+            "q": "Server STAT ka reply \"+OK 2 1598\" deta hai. 2 ka kya matlab hai?",
+            "options": [
+              "Protocol version 2",
+              "Mailbox mein do messages",
+              "Kal se do naye messages",
+              "Agla message number 2 hai"
+            ],
+            "why": "STAT message count aur total size octets mein batata hai. Yahan: 2 messages."
+          }
+        },
+        {
+          "title": "RETR 1",
+          "desc": "Message 1 download karo, headers aur body",
+          "detail": "RETR 1 message 1 poora maangta hai. Server +OK 237 octets kehta hai, phir message waise hi bhejta hai jaise store tha: headers, ek blank line, body, aur closing dot. POP3 message ka sirf ek hissa fetch nahi kar sakta (TOP ek kam use hone wala exception hai).",
+          "facts": [
+            ["Command", "RETR 1"],
+            ["Size", "237 octets"],
+            ["From", "Priya <priya@example.org>"]
+          ]
+        },
+        {
+          "title": "DELE aur QUIT",
+          "desc": "Delete ke liye mark karo, phir commit",
+          "detail": "DELE 1 sirf message ko mark karta hai. Kuch bhi remove nahi hota jab tak QUIT session ko UPDATE state mein nahi le jaata, jahan server sach mein delete karta hai. Agar QUIT se pehle connection toot jaye, message bacha rehta hai. Download-aur-delete ki ye aadat hi wajah hai ki POP3 ek device ke liye theek hai aur IMAP kai devices ke liye.",
+          "facts": [
+            ["DELE 1", "Marked, abhi delete nahi hua"],
+            ["QUIT", "Deletions commit karo, close karo"],
+            ["States", "AUTHORIZATION → TRANSACTION → UPDATE"]
+          ],
+          "quiz": {
+            "q": "DELE 1 ke baad lekin QUIT se pehle Wi-Fi drop ho gaya. Message 1 ka kya hoga?",
+            "options": [
+              "Delete ho jayega",
+              "Server par bacha rahega",
+              "Trash mein chala jayega",
+              "Corrupt ho jayega"
+            ],
+            "why": "Deletions sirf UPDATE state mein hote hain, jo QUIT se shuru hoti hai. Toota hua session kuch delete nahi karta."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Mail download ho gaya",
+        "text": "POP3 ne login kiya, messages gine aur unka size dekha, message 1 download kiya, aur QUIT par delete kar diya. Ye chala, par password network par plain text mein gaya, isliye bina TLS ke port 110 aaj kabhi use nahi karna chahiye.",
+        "facts": [
+          ["Commands", "USER, PASS, STAT, LIST, RETR, DELE, QUIT"],
+          ["Message size", "237 octets"],
+          ["Weak spot", "110 par plain-text password"],
+          ["Total time", "0.292 s"]
+        ]
+      }
+    },
+    "bad-password": {
+      "name": "Galat password: -ERR",
+      "summary": "Purana saved password jaan-boojhkar delay ke baad reject ho jaata hai.",
+      "steps": [
+        {
+          "title": "Galat password",
+          "desc": "USER theek hai, PASS nahi",
+          "detail": "Danish ne web par apna password badal diya, par uske purane laptop mein abhi bhi purana saved hai. Server USER accept kar leta hai (wo nahi batata ki user exist karta hai ya nahi) aur phir PASS ko -ERR se reject karta hai.",
+          "facts": [
+            ["Reply", "-ERR [AUTH] Authentication failed."],
+            ["USER reply", "Hamesha +OK, taaki accounts ka pata na chale"],
+            ["Delay", "-ERR se pehle lagbhag 2 s"]
+          ],
+          "quiz": {
+            "q": "Server un names ke liye bhi USER par +OK kyun deta hai jo exist nahi karte?",
+            "options": [
+              "Ye bug hai",
+              "Taaki attackers ye test na kar sakein ki kaun se accounts exist karte hain",
+              "Kyunki POP3 mein user list nahi hoti",
+              "Time bachane ke liye"
+            ],
+            "why": "Agar USER unknown names par -ERR deta, to attacker names ek-ek karke check kar sakta tha. PASS tak ye chhupane se kuch pata nahi chalta."
+          }
+        },
+        {
+          "title": "Saaf tareeke se give up karo",
+          "desc": "App quit karti hai aur Danish se poochti hai",
+          "detail": "Mail app QUIT bhejti hai aur password prompt dikhati hai. Har -ERR se pehle 2-second ka delay password guess karne wale ko slow kar deta hai, aur kai servers kuch failures ke baad account lock ya throttle kar dete hain.",
+          "facts": [
+            ["Client", "QUIT, phir user se poochta hai"],
+            ["Defence", "Delay + failed logins par rate limit"],
+            ["Mailbox", "Touch nahi hua"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Login refuse ho gaya",
+        "text": "Server ne delay ke baad -ERR [AUTH] se jawab diya aur app ne Danish se uska naya password manga. Delay aur rate limits password guess karna slow bana dete hain.",
+        "facts": [
+          ["Reply", "-ERR [AUTH] Authentication failed."],
+          ["Delay", "≈2 s"],
+          ["Mailbox", "Unchanged"]
+        ]
+      }
+    },
+    "sniffed": {
+      "name": "Café Wi-Fi par sniff hua, POP3S se fix",
+      "summary": "Ek listener clear-text password pakad leta hai; TLS wala port 995 use chhupa deta hai.",
+      "steps": [
+        {
+          "title": "Open Wi-Fi par login",
+          "desc": "Wahi USER/PASS, par koi sun raha hai",
+          "detail": "Danish café mein mail check karta hai. Wi-Fi par password nahi hai, isliye har radio frame aas-paas ka koi bhi capture kar sakta hai. Ek eavesdropper packet capture chalata hai aur port 110 ke liye filter karta hai.",
+          "facts": [
+            ["Network", "Open café Wi-Fi"],
+            ["Port", "110, plain text"],
+            ["Eavesdropper", "Passive, kuch bhejta nahi"]
+          ]
+        },
+        {
+          "title": "Defence: 995 par POP3S",
+          "desc": "Pehle TLS, phir POP3",
+          "detail": "POP3S mein TCP connect hote hi, ek bhi POP3 word se pehle, TLS handshake hota hai. Client server ka certificate bhi pop.mailhost.example ke liye check karta hai, isliye nakli server beech mein nahi aa sakta. (Port 110 par STLS wahi upgrade karta hai, SMTP ke STARTTLS ki tarah.)",
+          "facts": [
+            ["Port", "995 (implicit TLS)"],
+            ["Checks", "pop.mailhost.example ka certificate"],
+            ["Alternative", "110 par STLS command"]
+          ],
+          "quiz": {
+            "q": "Port 995 par TCP handshake ke baad client sabse pehle kya bhejta hai?",
+            "options": [
+              "USER danish",
+              "STLS",
+              "TLS Client Hello",
+              "CAPA"
+            ],
+            "why": "Port 995 implicit TLS hai: TLS turant shuru hota hai. POP3 tabhi shuru hota hai jab tunnel ban jaye."
+          }
+        },
+        {
+          "title": "Eavesdropper ko noise dikhta hai",
+          "desc": "USER aur PASS, encrypted",
+          "detail": "Wahi POP3 commands ab TLS records ke andar jaate hain. Eavesdropper ko dikhta hai ki Danish ne mail server se baat ki aur lagbhag kitne bytes gaye, par username, password ya messages nahi.",
+          "facts": [
+            ["Inside", "+OK greeting, USER, PASS"],
+            ["Attacker sees", "IP, port 995, sizes"],
+            ["Attacker can't see", "Password, mail"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Encrypt karo ya expose ho",
+        "text": "Port 110 par eavesdropper ne ek bhi packet bheje bina password copy kar liya. Port 995 par wahi commands TLS mein wrap the, isliye capture mein sirf server address aur byte counts dikhe.",
+        "facts": [
+          ["Attack", "Passive sniffing"],
+          ["Defence", "995 par POP3S (ya STLS), app passwords"],
+          ["Rule", "110 par kabhi password mat bhejo"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Commands",
+      "items": [
+        ["USER / PASS", "Login (plain text!)"],
+        ["STAT", "Count aur total size"],
+        ["LIST", "Har message ka size"],
+        ["RETR n", "Message n download karo"],
+        ["DELE n", "Message n ko delete ke liye mark karo"],
+        ["RSET", "Deletion marks undo karo"],
+        ["QUIT", "Commit karo aur close karo"],
+        ["STLS", "Port 110 par TLS par upgrade"]
+      ]
+    },
+    {
+      "title": "Replies aur states",
+      "items": [
+        ["+OK", "Success"],
+        ["-ERR", "Failure"],
+        ["Multi-line", "Sirf dot wali line par khatam"],
+        ["States", "AUTHORIZATION, TRANSACTION, UPDATE"]
+      ]
+    },
+    {
+      "title": "Ports",
+      "items": [
+        ["110", "POP3 (plain ya STLS)"],
+        ["995", "POP3S: pehle byte se TLS"]
+      ]
+    }
+  ]
+}

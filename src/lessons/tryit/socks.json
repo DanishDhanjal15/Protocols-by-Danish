@@ -1,0 +1,27 @@
+{
+  "commands": [
+    {
+      "title": { "en": "Fetch a page through a SOCKS5 proxy", "hinglish": "SOCKS5 proxy ke through page fetch karo" },
+      "why": { "en": "Shows the proxy doing the DNS lookup (--socks5-hostname sends the name, like address type 3). You need a SOCKS server of your own, e.g. start one with ssh -D 1080 user@yourserver.", "hinglish": "Dikhata hai ki DNS lookup proxy karta hai (--socks5-hostname name bhejta hai, jaise address type 3). Aapko apna SOCKS server chahiye, jaise ssh -D 1080 user@yourserver se start karo." },
+      "windows": "curl.exe -sI --socks5-hostname 127.0.0.1:1080 http://example.com",
+      "unix": "curl -sI --socks5-hostname 127.0.0.1:1080 http://example.com",
+      "expect": { "en": "HTTP response headers from example.com (HTTP/1.1 200 OK). If no SOCKS server listens on 1080 you get 'Failed to connect' instead. Output varies by machine.", "hinglish": "example.com ke HTTP response headers (HTTP/1.1 200 OK). Agar 1080 pe koi SOCKS server nahi sun raha to 'Failed to connect' aayega. Output machine ke hisaab se alag ho sakta hai." },
+      "step": 4
+    },
+    {
+      "title": { "en": "Watch the SOCKS5 handshake in verbose mode", "hinglish": "Verbose mode mein SOCKS5 handshake dekho" },
+      "why": { "en": "curl -v prints each handshake stage: greeting, method choice, login and connect.", "hinglish": "curl -v har handshake stage print karta hai: greeting, method choice, login aur connect." },
+      "windows": "curl.exe -v --socks5-hostname 127.0.0.1:1080 --proxy-user user:pass http://example.com -o NUL",
+      "unix": "curl -v --socks5-hostname 127.0.0.1:1080 --proxy-user user:pass http://example.com -o /dev/null",
+      "expect": { "en": "Lines such as 'SOCKS5 communication to example.com:80' and 'SOCKS5 request granted'. A wrong password shows 'User was rejected by the SOCKS5 server'. Exact text varies by curl version.", "hinglish": "'SOCKS5 communication to example.com:80' aur 'SOCKS5 request granted' jaisi lines. Galat password pe 'User was rejected by the SOCKS5 server' dikhta hai. Exact text curl version pe depend karta hai." },
+      "step": 3
+    },
+    {
+      "title": { "en": "Find the SOCKS packets in the capture", "hinglish": "Capture mein SOCKS packets dhoondo" },
+      "why": { "en": "Open the lesson's .pcap in Wireshark and filter for the SOCKS messages.", "hinglish": "Lesson ka .pcap Wireshark mein kholo aur SOCKS messages filter karo." },
+      "wireshark": "socks",
+      "expect": { "en": "The greeting, method reply, login and CONNECT packets are listed; the password is visible in clear text.", "hinglish": "Greeting, method reply, login aur CONNECT packets list mein dikhenge; password clear text mein dikhta hai." },
+      "step": 1
+    }
+  ]
+}

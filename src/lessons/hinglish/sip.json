@@ -1,0 +1,215 @@
+{
+  "tagline": "Internet phone calls kaise ring hoti hain, connect hoti hain aur cut hoti hain.",
+  "description": "SIP zyadatar VoIP phones aur office phone systems ke peeche ka signalling protocol hai. Ye aapka phone register karta hai, doosri taraf ring karta hai aur SDP se audio settings agree karta hai. Voice khud alag RTP packets mein jaati hai, aam taur pe har direction mein 50 per second.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Transport", "UDP ya TCP 5060, TLS 5061"],
+    ["Style", "Text, HTTP ki tarah"],
+    ["Media", "RTP (alag UDP ports)"],
+    ["Defined in", "RFC 3261"]
+  ],
+  "legend": [
+    "Phone se requests",
+    "Voice (RTP)",
+    "Progress replies (1xx) aur challenges",
+    "Success (2xx) aur ACK",
+    "Phone rakhna",
+    "Errors"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Register karo aur call karo",
+      "summary": "Phone SIP server pe login karta hai, extension 2002 ko call karta hai, G.711 audio mein baat karta hai aur phone rakh deta hai.",
+      "steps": [
+        {
+          "title": "Register, challenge mila",
+          "desc": "REGISTER, phir 401 Unauthorized",
+          "detail": "Phone start hone par SIP server ko REGISTER se batata hai ki extension 2001 kahan mil sakta hai. Server uski baat maan nahi leta aur digest challenge ke saath 401 Unauthorized se jawab deta hai: ek realm aur ek random nonce jo phone ko apne proof mein use karna hai.",
+          "facts": [
+            ["Server", "203.0.113.50:5060 (UDP)"],
+            ["Reply", "401 + WWW-Authenticate"],
+            ["Nonce", "5f1c2a7be4d0a9c3"]
+          ],
+          "quiz": {
+            "q": "Phone ke pehle REGISTER mein password proof nahi hai. Server kya reply karta hai?",
+            "options": [
+              "200 OK",
+              "Challenge ke saath 401 Unauthorized",
+              "404 Not Found",
+              "Kuch nahi"
+            ],
+            "why": "SIP digest auth HTTP jaisa kaam karta hai: pehli koshish ka jawab 401 aur nonce se aata hai, phir client hash ke saath retry karta hai."
+          }
+        },
+        {
+          "title": "Proof ke saath register",
+          "desc": "Digest response, phir 200 OK",
+          "detail": "Phone Authorization header ke saath dobara REGISTER bhejta hai. Uski response value username, realm, password, nonce aur request ka MD5 hash hai, isliye password kabhi travel nahi karta. Server hash check karke 200 OK reply karta hai: 2001 ki calls ab ek ghante tak is phone pe bheji jaayengi.",
+          "facts": [
+            ["CSeq", "2 (nayi request)"],
+            ["Proof", "MD5 digest"],
+            ["Expires", "3600 s"]
+          ]
+        },
+        {
+          "title": "Call lagao",
+          "desc": "SDP offer ke saath INVITE",
+          "detail": "Danish 2002 dial karta hai. Phone ek INVITE bhejta hai jiski body SDP hai: wo G.711 μ-law (PCMU) audio offer karta hai aur kehta hai \"meri audio 192.168.1.23 port 40000 pe bhejo\". Server turant 100 Trying reply karta hai, jiska matlab bas \"mil gaya, dobara mat bhejo\" hai.",
+          "facts": [
+            ["Codec offered", "PCMU (PT 0), 8 kHz"],
+            ["Audio port", "40000"],
+            ["Body", "191 bytes SDP"]
+          ],
+          "quiz": {
+            "q": "100 Trying phone ko kya batata hai?",
+            "options": [
+              "Ravi ka phone ring ho raha hai",
+              "Call answer ho gayi",
+              "Server ko INVITE mil gaya, isliye ise dobara bhejna band karo",
+              "Number busy hai"
+            ],
+            "why": "UDP pe phone 500 ms baad INVITE dobara bhejta. 100 Trying hop-by-hop receipt hai; ringing 180 hai."
+          }
+        },
+        {
+          "title": "Ring hota hai",
+          "desc": "180 Ringing wapas aata hai",
+          "detail": "Server INVITE ko Ravi ke desk phone ko forward karta hai, jo ring karna shuru karta hai aur 180 Ringing se jawab deta hai. Server use wapas pass karta hai. Danish ka phone ab ringback tone khud bajata hai. To header mein ek tag jud jaata hai, jo dono phones ke beech dialog ki shuruaat mark karta hai.",
+          "facts": [
+            ["Status", "180 Ringing"],
+            ["To tag", "8d1f0c2e"],
+            ["Ringback", "Locally bajta hai"]
+          ]
+        },
+        {
+          "title": "Answer hua",
+          "desc": "SDP answer ke saath 200 OK, phir ACK",
+          "detail": "Ravi phone uthata hai. 200 OK SDP answer carry karta hai: PCMU theek hai, audio server ko port 16384 pe bhejo. Danish ka phone ACK se confirm karta hai, three-way handshake (INVITE, 200, ACK) poora hota hai. Ab se dialog established hai.",
+          "facts": [
+            ["Codec agreed", "PCMU"],
+            ["Media to", "203.0.113.50:16384"],
+            ["Handshake", "INVITE → 200 OK → ACK"]
+          ],
+          "quiz": {
+            "q": "SIP ko 200 OK ke baad ACK kyun chahiye?",
+            "options": [
+              "Ring shuru karne ke liye",
+              "Taaki callee ko pata chale ki caller ko answer mil gaya aur wo 200 OK dobara bhejna band kar sake",
+              "Password bhejne ke liye",
+              "Zaroori nahi; ACK optional hai"
+            ],
+            "why": "UDP pe 200 OK kho sakta hai. Callee use tab tak dobara bhejta rehta hai jab tak ACK na aa jaye."
+          }
+        },
+        {
+          "title": "Baat karo",
+          "desc": "Har 20 ms pe RTP voice packets",
+          "detail": "Voice ab SIP ke bahar, UDP pe RTP mein chalti hai. Har packet 20 ms ki awaaz carry karta hai: 160 G.711 samples, har ek ek byte ka, isliye timestamp 160 se badhta hai aur sequence number 1 se. Phone NAT ke peeche hai aur usne SDP mein apna private address likha; server bas audio ko us address pe wapas bhejta hai jahan se packets aa rahe hain (symmetric RTP).",
+          "facts": [
+            ["Packet rate", "Har taraf 50 per second"],
+            ["Payload", "160 bytes (20 ms)"],
+            ["Bit rate", "64 kbit/s audio, headers ke saath lagbhag 87 kbit/s"]
+          ],
+          "quiz": {
+            "q": "Pehle RTP packet ka timestamp 8000 hai. Agle ka timestamp kya hoga?",
+            "options": ["8001", "8020", "8160", "8320"],
+            "why": "Timestamp samples ginta hai. 8000 samples per second pe 20 ms matlab 160 samples."
+          }
+        },
+        {
+          "title": "Phone rakho",
+          "desc": "BYE, phir 200 OK",
+          "detail": "Danish call khatam karta hai. Uska phone usi dialog ke andar (same Call-ID aur tags) BYE bhejta hai aur doosri taraf 200 OK se jawab deti hai. Dono phones RTP bhejna band kar dete hain. Dhyan do ki BYE ko ACK nahi chahiye: three-way handshake sirf INVITE use karta hai.",
+          "facts": [
+            ["Request", "BYE (CSeq 2)"],
+            ["Reply", "200 OK"],
+            ["Call length", "Lagbhag 3 minutes"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Call poori hui",
+        "text": "SIP ne paperwork kiya: phone register kiya, doosri taraf ring kiya, SDP se codec agree kiya aur call band ki. Voice khud RTP packets mein gayi, alag UDP ports pe, har 20 ms mein 160 bytes. Plain RTP raste mein koi bhi padh sakta hai, isliye kai providers SRTP ke saath TLS pe SIP use karte hain.",
+        "facts": [
+          ["Signalling", "UDP 5060 pe SIP"],
+          ["Media", "RTP, G.711 PCMU"],
+          ["Audio per packet", "20 ms / 160 bytes"],
+          ["Secure version", "SIPS (TLS 5061) + SRTP"]
+        ]
+      }
+    },
+    "busy": {
+      "name": "Doosra phone busy hai",
+      "summary": "Ravi pehle se call pe hai, isliye INVITE 486 Busy Here se refuse hota hai.",
+      "steps": [
+        {
+          "title": "Call lagao",
+          "desc": "INVITE aur 100 Trying hamesha ki tarah",
+          "detail": "Phone pehle se registered hai, isliye wo wahi INVITE SDP offer ke saath bhejta hai, aur server use 100 Trying se confirm karta hai.",
+          "facts": [
+            ["Calling", "ext 2002"],
+            ["Codec offered", "PCMU"],
+            ["Ab tak reply", "100 Trying"]
+          ]
+        },
+        {
+          "title": "Busy Here",
+          "desc": "486, phir ACK",
+          "detail": "Ravi ka phone pehle se doosri call pe hai aur koi free line nahi hai, isliye wo 486 Busy Here se jawab deta hai. Danish ka phone busy tone bajata hai. INVITE ke failure response ko bhi ACK se acknowledge karna padta hai, taaki server 486 dobara bhejna band kare.",
+          "facts": [
+            ["Status", "486 Busy Here"],
+            ["Class", "4xx: client-side failure"],
+            ["Abhi bhi chahiye", "ACK"]
+          ],
+          "quiz": {
+            "q": "486 Busy Here ke baad caller ka phone kya bhejta hai?",
+            "options": ["BYE", "ACK", "CANCEL", "Kuch nahi"],
+            "why": "INVITE ka har final response, success ho ya failure, ACK se acknowledge hota hai. BYE sirf answer ho chuki calls ke liye hai."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Call refuse hui, saaf tareeke se",
+        "text": "Busy callee 486 Busy Here se jawab deta hai aur caller use ACK se acknowledge karta hai, INVITE ki branch reuse karke kyunki failure ka ACK usi transaction ka hota hai. Koi RTP kabhi nahi bheja jaata. Server iski jagah call voicemail pe forward bhi kar sakta hai.",
+        "facts": [
+          ["Packets", "4"],
+          ["Final status", "486 Busy Here"],
+          ["Media sent", "Koi nahi"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Requests",
+      "items": [
+        ["REGISTER", "Server ko batao main kahan hoon"],
+        ["INVITE", "Call shuru karo (SDP offer ke saath)"],
+        ["ACK", "INVITE ke final reply ko confirm karo"],
+        ["BYE", "Answer ho chuki call khatam karo"],
+        ["CANCEL", "Jo call answer nahi hui use roko"],
+        ["OPTIONS", "Poocho doosri side kya support karti hai"]
+      ]
+    },
+    {
+      "title": "Responses",
+      "items": [
+        ["100 Trying", "Mil gaya, kaam kar raha hoon"],
+        ["180 Ringing", "Phone ring ho raha hai"],
+        ["200 OK", "Success"],
+        ["401 / 407", "Prove karo aap kaun ho (digest)"],
+        ["486 Busy Here", "Callee busy hai"],
+        ["404 / 408 / 603", "Not found / timeout / declined"]
+      ]
+    },
+    {
+      "title": "Yaad rakhne wale numbers",
+      "items": [
+        ["SIP ports", "5060 UDP/TCP, 5061 TLS"],
+        ["G.711", "8000 samples/s, har ek 1 byte, 64 kbit/s"],
+        ["Per RTP packet", "20 ms, 160 bytes, timestamp +160"],
+        ["RTP header", "12 bytes (V=2)"]
+      ]
+    }
+  ]
+}

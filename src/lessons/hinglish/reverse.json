@@ -1,0 +1,235 @@
+{
+  "tagline": "Ek public front door, uske peeche kai servers.",
+  "description": "Reverse proxy website ke servers ke aage khada hota hai. Ye TLS connection ko end karta hai, ek healthy backend chunta hai, request ko private network pe forward karta hai (client ka address X-Forwarded-For mein), aur jawab wapas bhej deta hai. Users ko hamesha sirf ek address dikhta hai.",
+  "facts": [
+    ["Layer", "Application (Layer 7)"],
+    ["Front side", "HTTPS port 443 pe"],
+    ["Back side", "Private network pe plain HTTP"],
+    ["Servers chunta hai", "Round robin, least connections…"],
+    ["Health", "Regular checks jaise GET /healthz"],
+    ["Examples", "nginx, HAProxy, Envoy, cloud LBs"]
+  ],
+  "legend": [
+    "TCP aur health checks",
+    "Client ke saath TLS",
+    "Requests",
+    "Responses",
+    "Failures"
+  ],
+  "scenarios": {
+    "normal": {
+      "name": "Do requests, do backends",
+      "summary": "Proxy dono app servers ko check karta hai, browser ke liye TLS end karta hai, aur do requests ko servers mein baant deta hai.",
+      "steps": [
+        {
+          "title": "Health checks",
+          "desc": "Har 2 second: theek ho?",
+          "detail": "Kisi user ke aane se bahut pehle, proxy har app server se har kuch seconds mein /healthz maangta hai, private network pe plain HTTP se. Dono 200 ok dete hain, isliye dono pool mein hain.",
+          "facts": [
+            ["Check", "GET /healthz"],
+            ["Interval", "2 s"],
+            ["Pool", "app-1 up, app-2 up"]
+          ]
+        },
+        {
+          "title": "TLS proxy pe end hota hai",
+          "desc": "Browser sirf proxy se baat karta hai",
+          "detail": "Browser 203.0.113.10 se connect hota hai, jo reverse proxy ka hai. Proxy ke paas example.com ka certificate aur private key hai aur wahi TLS handshake complete karta hai. Ye TLS offloading hai: app servers encryption pe CPU kharch nahi karte.",
+          "facts": [
+            ["Public address", "203.0.113.10"],
+            ["Certificate kiske paas", "Proxy ke paas"],
+            ["App servers", "TLS kabhi nahi dekhte"]
+          ],
+          "quiz": {
+            "q": "example.com ke certificate ki private key kis machine ko chahiye?",
+            "options": [
+              "Har app server ko",
+              "Sirf reverse proxy ko",
+              "Browser ko",
+              "DNS server ko"
+            ],
+            "why": "TLS proxy pe end hota hai, isliye sirf wahi identity prove karta hai. Key jitni kam machines pe, risk utna kam."
+          }
+        },
+        {
+          "title": "Decrypt aur forward",
+          "desc": "app-1 ko plain HTTP, X-Forwarded-For ke saath",
+          "detail": "Proxy GET / ko decrypt karta hai, app-1 chunta hai (round robin), aur request plain HTTP pe bhejta hai. Kyunki app server ko source address proxy ka dikhta hai, proxy browser ke public address ke saath X-Forwarded-For aur X-Forwarded-Proto: https add karta hai.",
+          "facts": [
+            ["Chosen", "app-1 (round robin)"],
+            ["X-Forwarded-For", "198.51.100.7"],
+            ["Inside network", "Plain HTTP"]
+          ],
+          "quiz": {
+            "q": "App har visitor ka IP address log karta hai. X-Forwarded-For ke bina wo kaunsa address log karega?",
+            "options": [
+              "198.51.100.7",
+              "10.0.0.2",
+              "192.168.1.10",
+              "203.0.113.10"
+            ],
+            "why": "App server ka TCP connection proxy ke private address se aata hai. Asli client sirf header mein hota hai."
+          }
+        },
+        {
+          "title": "Response wapas jaata hai",
+          "desc": "Proxy phir se encrypt karta hai",
+          "detail": "app-1 plain HTTP mein jawab deta hai. Proxy response ko browser ki TLS keys se encrypt karke bhejta hai. Browser ko lagta hai sab kuch example.com se aaya.",
+          "facts": [
+            ["Backend time", "4 ms"],
+            ["Re-encrypted", "Haan, proxy ne"],
+            ["Browser dekhta hai", "Ek server"]
+          ]
+        },
+        {
+          "title": "Agli request, doosra server",
+          "desc": "Round robin app-2 chunta hai",
+          "detail": "Page usi TLS connection pe /api/cart call karta hai. Proxy ise app-2 ko bhejta hai. Har request alag backend pe ja sakti hai, isliye load balancer ke peeche wali apps session data memory mein nahi, shared store mein rakhti hain.",
+          "facts": [
+            ["Chosen", "app-2"],
+            ["Same TLS connection?", "Haan"],
+            ["Session data", "Shared store (jaise Redis)"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Ek door, kai rooms",
+        "text": "Reverse proxy ne chaar kaam kiye: backend health check ki, TLS end kiya, har request ke liye backend chuna, aur backend ko bataya ki asli client kaun hai. Capacity badhana matlab pool mein servers add karna.",
+        "facts": [
+          ["TLS", "Proxy pe end"],
+          ["Balancing", "Round robin"],
+          ["Client IP", "X-Forwarded-For"],
+          ["Health checks", "Har 2 s"]
+        ]
+      }
+    },
+    "failover": {
+      "name": "Ek backend down",
+      "summary": "app-2 crash ho jata hai. Health checks pakad lete hain, aur proxy chupchap sabko app-1 pe bhej deta hai.",
+      "steps": [
+        {
+          "title": "app-2 refuse karta hai",
+          "desc": "Health check ko RST mila",
+          "detail": "app-2 ki app crash ho gayi hai, isliye port 8080 pe kuch nahi sun raha. Proxy ke health-check connection ko RST milta hai: connection refused. Lagatar kuch failed checks ke baad (yahan 3), proxy app-2 ko down mark kar deta hai.",
+          "facts": [
+            ["Check result", "RST (refused)"],
+            ["Rule", "3 failures = down"],
+            ["Pool", "app-1 up, app-2 DOWN"]
+          ]
+        },
+        {
+          "title": "Users ko pata nahi chalta",
+          "desc": "Har request app-1 ko jaati hai",
+          "detail": "Ek user page load karta hai. Proxy sirf healthy servers mein se chunta hai, isliye request app-1 ko jaati hai, chahe app-2 ki baari ho. User ko normal page dikhta hai.",
+          "facts": [
+            ["Chosen", "app-1 (sirf wahi up hai)"],
+            ["User dekhta hai", "Normal page"],
+            ["Capacity", "Aadhi"]
+          ],
+          "quiz": {
+            "q": "Health checks na hon to kya hoga?",
+            "options": [
+              "Kuch alag nahi",
+              "Lagbhag aadhi requests app-2 ko jaayengi aur fail hongi ya wait karengi",
+              "Saari requests fail ho jaayengi",
+              "Proxy app-2 ko restart kar dega"
+            ],
+            "why": "Checks ke bina proxy app-2 ko uska hissa bhejta rehta hai, jab tak real requests pe errors nahi dikhte."
+          }
+        }
+      ],
+      "outro": {
+        "title": "Bina kisi ko pata chale failover",
+        "text": "Health checks proxy ko toota hua server rotation se hatane dete hain, users ke hit karne se pehle. Jab app-2 recover hoke kuch checks pass karta hai, wo apne aap wapas add ho jaata hai.",
+        "facts": [
+          ["Detected by", "Failed health checks"],
+          ["Action", "Pool se hatao"],
+          ["Recovery", "Checks pass karne par wapas"]
+        ]
+      }
+    },
+    "bad-gateway": {
+      "name": "Saare backends down: 502",
+      "summary": "Ek kharab deploy dono app servers ko gira deta hai. Proxy theek hai, lekin forward karne ko koi nahi.",
+      "steps": [
+        {
+          "title": "Ek request aati hai",
+          "desc": "TLS abhi bhi kaam karta hai",
+          "detail": "Ek broken release ne dono servers pe app crash kar di hai. Reverse proxy khud healthy hai, isliye browser ka TLS handshake succeed hota hai aur request normal aati hai.",
+          "facts": [
+            ["Proxy", "Healthy"],
+            ["app-1, app-2", "Crashed"],
+            ["TLS", "Normal chal raha hai"]
+          ]
+        },
+        {
+          "title": "Dono refuse karte hain",
+          "desc": "app-1 se RST, phir app-2 se",
+          "detail": "Proxy app-1 try karta hai aur RST paata hai, app-2 pe retry karta hai aur phir RST. Try karne ko koi healthy server nahi bacha.",
+          "facts": [
+            ["app-1", "RST"],
+            ["app-2", "RST"],
+            ["Retries", "1 (doosre server pe)"]
+          ],
+          "quiz": {
+            "q": "Proxy browser ko kaunsa status bhejega?",
+            "options": [
+              "404 Not Found",
+              "500 Internal Server Error",
+              "502 Bad Gateway",
+              "200 OK khali page ke saath"
+            ],
+            "why": "502 ka matlab hai ki proxy (gateway ki tarah) ko peeche ke server se koi valid jawab nahi mila. Pool khali ho to 503 bhi common hai."
+          }
+        },
+        {
+          "title": "502 Bad Gateway",
+          "desc": "Proxy ne banaya, encrypted",
+          "detail": "Proxy apna error page status 502 Bad Gateway ke saath banata hai aur TLS connection ke andar bhejta hai. 5xx user aur monitoring ko batata hai ki problem server side hai, request mein nahi.",
+          "facts": [
+            ["Status", "502 Bad Gateway"],
+            ["Made by", "Reverse proxy"],
+            ["Similar", "503 (no servers), 504 (backend too slow)"]
+          ]
+        }
+      ],
+      "outro": {
+        "title": "Front door chal raha hai, rooms band hain",
+        "text": "502 ka matlab proxy theek hai lekin uske peeche kisi ne sahi se jawab nahi diya. Ye crashed ya misconfigured backends ka classic sign hai. Rolling deploys, jo ek time pe ek server update karte hain, sabko ek saath girne se bachate hain.",
+        "facts": [
+          ["502", "Backend se bad answer ya koi answer nahi"],
+          ["503", "Koi server available nahi"],
+          ["504", "Backend too slow"]
+        ]
+      }
+    }
+  },
+  "cheatsheet": [
+    {
+      "title": "Headers jo add hote hain",
+      "items": [
+        ["X-Forwarded-For", "Original client IP"],
+        ["X-Forwarded-Proto", "http ya https"],
+        ["X-Request-ID", "Ek request ko logs mein trace karo"],
+        ["Forwarded", "Upar walon ka standard version (RFC 7239)"]
+      ]
+    },
+    {
+      "title": "Balancing methods",
+      "items": [
+        ["Round robin", "Baari baari"],
+        ["Least connections", "Sabse kam busy server"],
+        ["IP hash", "Same client, same server"],
+        ["Weighted", "Bade servers ko zyada"]
+      ]
+    },
+    {
+      "title": "Gateway errors",
+      "items": [
+        ["502 Bad Gateway", "Backend ne refuse kiya ya garbage bheja"],
+        ["503 Service Unavailable", "Koi healthy backend nahi"],
+        ["504 Gateway Timeout", "Backend too slow"]
+      ]
+    }
+  ]
+}
