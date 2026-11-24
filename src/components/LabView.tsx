@@ -20,12 +20,11 @@ export function LabView({ lab, lesson: compact }: { lab: Lab; lesson: Lesson }) 
   const scenario = lesson.scenarios.find((s) => s.id === lab.scenario) ?? lesson.scenarios[0];
 
   const captured = useMemo(() => {
-    let no = 1;
-    return scenario.steps.flatMap((st, i) => {
-      const g = groupsOf(st.events, i, no).flatMap((x) => x.packets);
-      no += g.length;
-      return g;
+    const out: ReturnType<typeof groupsOf>[number]["packets"] = [];
+    scenario.steps.forEach((st, i) => {
+      out.push(...groupsOf(st.events, i, out.length + 1).flatMap((x) => x.packets));
     });
+    return out;
   }, [scenario]);
 
   const [sel, setSel] = useState<string>(captured[0]?.key ?? "");

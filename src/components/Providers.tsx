@@ -22,6 +22,8 @@ interface AppCtx {
   t: Strings;
   progress: Progress;
   updateProgress: (fn: (p: Progress) => Progress) => void;
+  /** Send any progress save that is still waiting (call before signing out). */
+  flushProgress: () => void;
   paletteOpen: boolean;
   layer: number;
   contentLang: ContentLang;
@@ -46,15 +48,29 @@ export function Providers({ catalog, children }: { catalog: LessonMeta[]; childr
   const [user, setUser] = useState<SessionUser | null>(null);
   const userRef = useRef<SessionUser | null>(null);
   const pushTimer = useRef<number>(0);
+  const pending = useRef<Progress | null>(null);
 
   // save the whole progress object to the account, debounced
+  const send = useCallback(() => {
+    window.clearTimeout(pushTimer.current);
+    const p = pending.current;
+    pending.current = null;
+    if (p) fetch("/api/progress", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p), keepalive: true }).catch(() => {});
+  }, []);
   const push = useCallback((p: Progress) => {
     if (!userRef.current) return;
+    pending.current = p;
     window.clearTimeout(pushTimer.current);
-    pushTimer.current = window.setTimeout(() => {
-      fetch("/api/progress", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p), keepalive: true }).catch(() => {});
-    }, 1500);
-  }, []);
+    pushTimer.current = window.setTimeout(send, 1500);
+  }, [send]);
+  const flushProgress = send;
+
+  // don't lose a waiting save when the tab is hidden or closed
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === "hidden") send(); };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [send]);
 
   // signed in? then merge the account's progress with this browser's and keep them in sync
   useEffect(() => {
@@ -130,8 +146,8 @@ export function Providers({ catalog, children }: { catalog: LessonMeta[]; childr
   }, []);
 
   const value = useMemo(
-    () => ({ user, catalog, lang, setLang, t: STRINGS[lang], progress, updateProgress, paletteOpen, setPaletteOpen, layer, setLayer, contentLang, setContentLang }),
-    [user, catalog, lang, setLang, progress, updateProgress, paletteOpen, layer, contentLang, setContentLang]
+    () => ({ user, catalog, lang, setLang, t: STRINGS[lang], progress, updateProgress, flushProgress, paletteOpen, setPaletteOpen, layer, setLayer, contentLang, setContentLang }),
+    [user, catalog, lang, setLang, progress, updateProgress, flushProgress, paletteOpen, layer, contentLang, setContentLang]
   );
 
   return (

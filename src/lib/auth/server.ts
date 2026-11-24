@@ -1,5 +1,6 @@
 // Server-only: Postgres access, sessions and progress storage.
 import "server-only";
+import { mergeProgress, type Progress } from "@/lib/progress";
 import postgres from "postgres";
 import { cookies } from "next/headers";
 import { randomToken, SESSION_COOKIE, SESSION_DAYS, sha256, signToken, verifyCookie } from "./cookie";
@@ -24,6 +25,8 @@ export interface SessionUser {
 
 export async function upsertGoogleUser(u: { sub: string; email: string; name?: string; picture?: string }): Promise<string> {
   const sql = db();
+  // an email that now belongs to a different Google account: release it from the old row
+  await sql`update users set email = email || '#replaced-' || id where email = ${u.email.toLowerCase()} and google_sub <> ${u.sub}`;
   const [row] = await sql<{ id: string }[]>`
     insert into users (google_sub, email, name, avatar_url)
     values (${u.sub}, ${u.email.toLowerCase()}, ${u.name ?? null}, ${u.picture ?? null})
@@ -70,9 +73,14 @@ export async function loadProgress(userId: string): Promise<unknown | null> {
   return rows[0]?.data ?? null;
 }
 
-export async function saveProgress(userId: string, data: unknown) {
-  const json = db().json(data as Parameters<ReturnType<typeof postgres>["json"]>[0]);
-  await db()`
-    insert into progress (user_id, data, updated_at) values (${userId}, ${json}, now())
-    on conflict (user_id) do update set data = excluded.data, updated_at = now()`;
+/** Merge an upload into the stored progress (row-locked, so two tabs saving at once can't drop each other's work). */
+export async function mergeAndSaveProgress(userId: string, incoming: Progress) {
+  await db().begin(async (tx) => {
+    const rows = await tx<{ data: Partial<Progress> }[]>`select data from progress where user_id = ${userId} for update`;
+    const merged = mergeProgress(incoming, rows[0]?.data ?? null);
+    const json = tx.json(merged as unknown as Parameters<typeof tx.json>[0]);
+    await tx`
+      insert into progress (user_id, data, updated_at) values (${userId}, ${json}, now())
+      on conflict (user_id) do update set data = excluded.data, updated_at = now()`;
+  });
 }

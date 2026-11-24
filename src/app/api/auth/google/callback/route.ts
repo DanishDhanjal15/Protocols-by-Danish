@@ -3,7 +3,7 @@
 import { decodeIdToken } from "arctic";
 import { cookies } from "next/headers";
 import { authEnabled } from "@/lib/auth/cookie";
-import { googleClient, safeNext } from "@/lib/auth/google";
+import { googleClient, safeNext, secureCookies } from "@/lib/auth/google";
 import { startSession, upsertGoogleUser } from "@/lib/auth/server";
 
 interface GoogleClaims { sub: string; email?: string; email_verified?: boolean; name?: string; picture?: string }
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 
   try {
     const userId = await upsertGoogleUser({ sub: claims.sub, email: claims.email, name: claims.name, picture: claims.picture });
-    await startSession(userId, url.protocol === "https:");
+    await startSession(userId, secureCookies(request.url));
   } catch (e) {
     console.error("Database error during sign-in", e);
     return fail("database");

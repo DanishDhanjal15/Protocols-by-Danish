@@ -36,6 +36,8 @@ const NAV = [
   { href: "/tools", key: "tools" as const },
 ];
 
+const isActive = (href: string, path: string) => (href === "/" ? path === "/" : path === href || path.startsWith(href + "/"));
+
 export function TopBar() {
   const { t, lang, setLang, setPaletteOpen, catalog, progress, user } = useApp();
   const path = usePathname();
@@ -55,7 +57,7 @@ export function TopBar() {
 
         <nav className="hidden lg:flex items-center gap-1" aria-label="Main">
           {NAV.map((n) => {
-            const active = n.href === "/" ? path === "/" : n.href === "/learn" ? path.startsWith("/learn") : path.startsWith(n.href);
+            const active = isActive(n.href, path);
             return (
               <Link key={n.href} href={n.href}
                 className={`px-3 h-8 inline-flex items-center rounded-lg text-[13.5px] font-medium whitespace-nowrap ${active ? "bg-panel-3 text-ink" : "text-muted hover:text-ink"}`}>
@@ -99,7 +101,7 @@ export function TopBar() {
       </div>
       <nav className="lg:hidden flex gap-1 px-4 pb-2 overflow-x-auto" aria-label="Main">
         {NAV.map((n) => (
-          <Link key={n.href} href={n.href} className={`px-3 h-8 inline-flex items-center rounded-lg text-[13px] font-medium shrink-0 ${path === n.href ? "bg-panel-3 text-ink" : "text-muted"}`}>
+          <Link key={n.href} href={n.href} className={`px-3 h-8 inline-flex items-center rounded-lg text-[13px] font-medium shrink-0 ${isActive(n.href, path) ? "bg-panel-3 text-ink" : "text-muted"}`}>
             {t[n.key]}
           </Link>
         ))}
@@ -109,7 +111,7 @@ export function TopBar() {
 }
 
 function UserMenu() {
-  const { user } = useApp();
+  const { user, flushProgress } = useApp();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -135,7 +137,7 @@ function UserMenu() {
             <div className="text-[12.5px] text-muted truncate">{user.email}</div>
           </div>
           <p className="text-[12px] text-muted">Your progress is saved to this account.</p>
-          <form action="/api/auth/logout" method="post" onSubmit={() => { try { localStorage.removeItem("pbd:progress:v1"); } catch {} }}>
+          <form action="/api/auth/logout" method="post" onSubmit={() => { flushProgress(); try { localStorage.removeItem("pbd:progress:v1"); } catch {} }}>
             <button className="btn w-full justify-center" role="menuitem"><LogOut size={15} /> Sign out</button>
           </form>
         </div>

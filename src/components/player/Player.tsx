@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight, Check, ChevronLeft, ChevronRight, Download, Expand, Keyboard, Layers, ListTree, Menu, Network, PanelLeft,
+  ArrowRight, Check, ChevronLeft, ChevronRight, Download, Expand, Keyboard, Layers, ListTree, Menu, Network,
   Pause, Play, RotateCcw, Rows3, Search, SkipForward, Sparkles, Volume2, VolumeX, X, GraduationCap, Terminal, Boxes, Table2,
 } from "lucide-react";
 import type { Lesson } from "@/lib/lesson";
@@ -46,7 +46,7 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
   const [view, setView] = useState<"network" | "sequence" | "layers">("network");
   const [bottom, setBottom] = useState<"capture" | "tables">("capture");
   const [tab, setTab] = useState<Tab>("info");
-  const [sidebar, setSidebar] = useState(true);
+  const [sidebar, setSidebarState] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [panels, setPanels] = useState(true);
   const [family, setFamily] = useState<keyof typeof FAMILY_NAME>("all");
@@ -62,11 +62,44 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
   const stepper = useRef<HTMLDivElement>(null);
   const urlApplied = useRef(false);
 
+  // the protocol list is hidden by default so the lesson has room; remember the learner's choice
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (localStorage.getItem("pbd:sidebar") === "1") setSidebarState(true);
+    } catch {}
+  }, []);
+  const setSidebar = useCallback((fn: (s: boolean) => boolean) => {
+    setSidebarState((s) => {
+      const next = fn(s);
+      try { localStorage.setItem("pbd:sidebar", next ? "1" : "0"); } catch {}
+      return next;
+    });
+  }, []);
+  /** One menu button: docks the list on wide screens, slides it in as a drawer on smaller ones. */
+  const toggleList = useCallback(() => {
+    if (window.matchMedia("(min-width: 1280px)").matches) setSidebar((s) => !s);
+    else setDrawer((d) => !d);
+  }, [setSidebar]);
+
   useEffect(() => {
     const li = activeRow.current;
     const ul = li?.parentElement;
     if (li && ul) ul.scrollTop = li.offsetTop - ul.clientHeight / 3;
   }, [lesson.id, sidebar, drawer, family]);
+
+  // jump to a finished step of a given scenario, after any scenario switch (and its reset) has happened
+  const [jump, setJump] = useState<{ sc: number; step: number } | null>(null);
+  useEffect(() => {
+    if (!jump || jump.sc !== scIdx) return;
+    api.showStepDone(Math.min(Math.max(jump.step, 0), scenario.steps.length - 1));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setJump(null);
+  }, [jump, scIdx, api, scenario.steps.length]);
+  const goStepIn = useCallback((sc: number, step: number) => {
+    setScIdx(sc);
+    setJump({ sc, step });
+  }, [setScIdx]);
 
   useEffect(() => {
     if (urlApplied.current) return;
@@ -74,11 +107,12 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
     const sp = new URLSearchParams(window.location.search);
     const s = sp.get("s");
     const i = s ? lesson.scenarios.findIndex((x) => x.id === s) : -1;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (i > 0) setScIdx(i);
     const st = Number(sp.get("step"));
-    if (st >= 1) setTimeout(() => api.showStepDone(Math.min(st, lesson.scenarios[Math.max(i, 0)].steps.length) - 1), 30);
-  }, [lesson, api]);
+    // applying the shared link's state once after mount is the point of this effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (st >= 1) goStepIn(Math.max(i, 0), st - 1);
+    else if (i > 0) setScIdx(i);
+  }, [lesson, goStepIn, setScIdx]);
 
   useEffect(() => {
     const mq = matchMedia("(max-width: 640px)");
@@ -109,11 +143,11 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
   const finished = api.stepIdx >= scenario.steps.length;
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (quizPending && api.playing && api.groupIdx === 0) api.setPlaying(false);
   }, [quizPending, api.playing, api.groupIdx, api]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (quizPending) setTab("info");
   }, [quizPending]);
 
@@ -137,7 +171,7 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
     u.lang = u.voice?.lang ?? "en-IN";
     speechSynthesis.speak(u);
     return () => speechSynthesis.cancel();
-  }, [narrate, step, finished, api.stepIdx, scenario, lesson]);
+  }, [narrate, step, finished, api.stepIdx, scenario, lesson, lang]);
 
   useEffect(() => {
     if (!finished) return;
@@ -193,7 +227,7 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
       else if (k === "s" || k === "S") api.stepPacket();
       else if (k === "v" || k === "V") setView((v) => (v === "network" ? "sequence" : v === "sequence" ? "layers" : "network"));
       else if (k === "d" || k === "D") setPanels((p) => !p);
-      else if (k === "l" || k === "L") { setSidebar((s) => !s); setDrawer((d) => !d); }
+      else if (k === "l" || k === "L") toggleList();
       else if (k === "f" || k === "F") toggleFs();
       else if (k === "p" || k === "P") setPredict((p) => !p);
       else if (k === "r" || k === "R") api.restart();
@@ -203,7 +237,7 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [api, scenario.steps.length, help, drawer, toggleFs]);
+  }, [api, scenario.steps.length, help, drawer, toggleFs, toggleList]);
 
   const quizzes = useMemo(() => scenario.steps.flatMap((st, i) => (st.quiz ? [{ step: i, title: st.title, quiz: st.quiz }] : [])), [scenario]);
   const recordQuiz = useCallback((ok: boolean) => {
@@ -233,6 +267,7 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
       <div className="flex items-center justify-between px-4 pt-4">
         <span className="hud-title">Protocols <span className="mono text-[11px] normal-case tracking-normal">· {catalog.length}</span></span>
         <button className="icon-btn xl:hidden" onClick={() => setDrawer(false)} aria-label="Close"><X size={16} /></button>
+        <button className="icon-btn hidden xl:inline-grid" onClick={() => setSidebar(() => false)} aria-label="Hide protocol list" title="Hide list (L)"><X size={16} /></button>
       </div>
       <div className="px-4 pt-3 flex flex-col gap-2">
         <label className="flex items-center gap-2 h-9 px-3 rounded-lg bg-panel-2 border border-line focus-within:border-line-2">
@@ -367,7 +402,7 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
       {/* stage */}
       <section ref={stageRef} className={`hud flex flex-col min-h-0 overflow-hidden order-1 xl:order-none ${c1} xl:row-start-1`}>
         <div className="flex flex-wrap items-center gap-2 px-3 pt-3">
-          <button className="icon-btn xl:hidden" onClick={() => setDrawer(true)} aria-label={t.menu}><Menu size={17} /></button>
+          <button className="icon-btn" onClick={toggleList} aria-pressed={sidebar} aria-label={sidebar ? "Hide protocol list" : "Show protocol list"} title="Protocols (L)"><Menu size={18} /></button>
           <div className="min-w-0 flex-1 basis-[calc(100%-48px)]">
             <h1 className="text-[20px] font-bold leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
               {lesson.name} <span className="text-muted font-medium text-[14px]">{lesson.full}</span>
@@ -399,9 +434,8 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
               </button>
             ))}
           </div>
-          <button className="icon-btn hidden xl:inline-grid" aria-pressed={!sidebar} onClick={() => setSidebar((s) => !s)} title={`${t.menu} (L)`} aria-label={t.menu}><PanelLeft size={17} /></button>
           <button className="icon-btn hidden sm:inline-grid" onClick={toggleFs} title={`${t.fullscreen} (F)`} aria-label={t.fullscreen}><Expand size={17} /></button>
-          <button className="icon-btn hidden sm:inline-grid" onClick={() => setHelp(true)} title={`${t.shortcuts} (?)`} aria-label={t.shortcuts}><Keyboard size={17} /></button>
+          <button className={`icon-btn hidden ${sidebar ? "2xl:inline-grid" : "sm:inline-grid"}`} onClick={() => setHelp(true)} title={`${t.shortcuts} (?)`} aria-label={t.shortcuts}><Keyboard size={17} /></button>
         </div>
 
         <div className="relative flex-1 min-h-[260px] stage-bg mx-3 mt-3 rounded-lg overflow-hidden">
@@ -474,7 +508,7 @@ export function Player({ lesson: compact, hinglish, tryit }: { lesson: Lesson; h
           {tab === "info" && <div className="p-4">{infoEl}</div>}
           {tab === "inspect" && <Inspector cap={selected} onPrev={() => movePacket(-1)} onNext={() => movePacket(1)} />}
           {tab === "quiz" && <QuizRun key={scenario.id} items={quizzes} onAnswer={recordQuiz} onGoStep={(i) => { api.showStepDone(i); setTab("info"); }} />}
-          {tab === "try" && <TryItPanel data={tryit ?? null} lang={lang} onDownload={download} onGoStep={(i) => { if (scIdx !== 0) setScIdx(0); api.showStepDone(i); setTab("info"); }} />}
+          {tab === "try" && <TryItPanel data={tryit ?? null} lang={lang} onDownload={download} onGoStep={(i) => { goStepIn(0, i); setTab("info"); }} />}
           {tab === "cheat" && <CheatSheet lesson={lesson} />}
         </div>
       </section>

@@ -38,12 +38,14 @@ npm run dev                  # http://localhost:3000
 Users sign in with Google only (no passwords, no registration form). Their email, name, photo and
 progress (lessons done, quiz scores, labs solved, streak) are stored in Postgres.
 
-1. Copy `.env.example` to `.env.local` and fill in `DATABASE_URL`, `GOOGLE_CLIENT_ID`,
+1. Copy `.env.example` to `.env.local` (or `.env`) and fill in `DATABASE_URL`, `GOOGLE_CLIENT_ID`,
    `GOOGLE_CLIENT_SECRET` and `AUTH_SECRET`.
 2. Create the tables: `npm run db:migrate`
-3. In Google Cloud Console, the OAuth client's authorised redirect URIs must include
-   `http://localhost:3000/api/auth/google/callback` and
-   `https://protocols-by-danish.vercel.app/api/auth/google/callback`.
+3. In Google Cloud Console, create an OAuth client (Web application) whose authorised redirect URIs
+   include `http://localhost:3000/api/auth/google/callback` and
+   `https://<your-domain>/api/auth/google/callback`. On a deployment, set `APP_URL` to that domain.
+
+Never commit `.env` / `.env.local` (they are gitignored).
 
 Until all four variables are set the site runs without the login wall. With them set, every page
 except `/login` requires a signed-in user (`src/proxy.ts`).
@@ -72,3 +74,19 @@ The registry (`src/lessons/index.ts`) is generated automatically before `dev` an
 | `src/lessons/` | One file per protocol |
 | `src/components/player/` | Player, stage (network + sequence), inspector, panels |
 | `scripts/` | Registry generator and lesson validator |
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a PR, run:
+
+```bash
+npx tsc --noEmit
+npm run lint
+npm run validate            # all lessons
+npm run build
+```
+
+## License
+
+[MIT](LICENSE) © Danish Dhanjal. The social-links widget in the footer is adapted from
+[Uiverse.io by Praashoo7](https://uiverse.io/Praashoo7/smooth-crab-52) (MIT).

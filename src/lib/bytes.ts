@@ -61,7 +61,7 @@ export const ip4 = (s: string): Bytes => {
 };
 
 export const ip6 = (s: string): Bytes => {
-  let [head, tail] = s.split("::");
+  const [head, tail] = s.split("::");
   const h = head ? head.split(":") : [];
   const t = tail !== undefined ? (tail ? tail.split(":") : []) : [];
   if (tail === undefined && h.length !== 8) throw new Error(`bad IPv6 ${s}`);

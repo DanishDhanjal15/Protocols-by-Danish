@@ -60,12 +60,14 @@ export const useProgress = (s: ProgressStore) => useSyncExternalStore(s.sub, s.g
 /** `holdRef.current()` returning true delays auto-advance (e.g. while the voice guide is still talking). */
 export function usePlayer(scenario: Scenario, holdRef?: { current: () => boolean }) {
   const stepGroups = useMemo(() => {
-    let no = 1;
-    return scenario.steps.map((st, i) => {
-      const g = groupsOf(st.events, i, no);
-      no += g.reduce((n, x) => n + x.packets.length, 0);
-      return g;
-    });
+    const out: ReturnType<typeof groupsOf>[] = [];
+    let count = 0;
+    for (let i = 0; i < scenario.steps.length; i++) {
+      const g = groupsOf(scenario.steps[i].events, i, count + 1);
+      count += g.reduce((n, x) => n + x.packets.length, 0);
+      out.push(g);
+    }
+    return out;
   }, [scenario]);
 
   const allPackets = useMemo(() => stepGroups.flat().flatMap((g) => g.packets), [stepGroups]);
@@ -75,7 +77,7 @@ export function usePlayer(scenario: Scenario, holdRef?: { current: () => boolean
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1.5);
   const [single, setSingle] = useState(false);
-  const store = useMemo(createStore, []);
+  const store = useMemo(() => createStore(), []);
   const raf = useRef<number>(0);
 
   const groups = stepIdx >= 0 && stepIdx < stepGroups.length ? stepGroups[stepIdx] : [];

@@ -121,7 +121,7 @@ const A = {
   priority: (p: number): Attr => ({ type: 0x0024, name: "PRIORITY", fields: [{ name: "Priority", u32: p }], value: String(p), note: "The priority this path would have if it is learned from this check." }),
   controlling: (): Attr => ({ type: 0x802a, name: "ICE-CONTROLLING", fields: [{ name: "Tie breaker", bytes: "6b2f90c1d4e8a713", value: "0x6b2f90c1d4e8a713" }], value: "tie breaker", note: "This side (the caller) picks the final path." }),
   controlled: (): Attr => ({ type: 0x8029, name: "ICE-CONTROLLED", fields: [{ name: "Tie breaker", bytes: "1c55e2a09b3f7d48", value: "0x1c55e2a09b3f7d48" }], value: "tie breaker", note: "This side follows the caller’s choice." }),
-  useCandidate: (): Attr => ({ type: 0x0025, name: "USE-CANDIDATE", fields: [], value: "(flag)", note: "The controlling side says: if this check works, use this path." }),
+  candidateFlag: (): Attr => ({ type: 0x0025, name: "USE-CANDIDATE", fields: [], value: "(flag)", note: "The controlling side says: if this check works, use this path." }),
   integrity: (seed: number): Attr => ({ type: 0x0008, name: "MESSAGE-INTEGRITY", fields: [{ name: "HMAC-SHA1", random: 20, seed, opaque: true }], value: "20-byte HMAC", note: "A keyed hash using the password from the SDP (or the TURN password). A stranger cannot forge a check." }),
   transport: (): Attr => ({ type: 0x0019, name: "REQUESTED-TRANSPORT", fields: [{ name: "Protocol", u8: 17, value: "17 (UDP)" }, { name: "Reserved", zero: 3 }], value: "UDP" }),
   error401: (): Attr => ({ type: 0x0009, name: "ERROR-CODE", fields: [{ name: "Reserved", zero: 2 }, { name: "Class", u8: 4 }, { name: "Number", u8: 1 }, { name: "Reason", text: "Unauthorized" }], value: "401 Unauthorized", note: "Class 4 and number 01 make 401: prove who you are first." }),
@@ -453,7 +453,7 @@ export default defineLesson({
           events: [
             pkt("client", "peer", "green", "ICE CHECK", ["Binding Request", "USE-CANDIDATE"], {
               time: 2.43, info: "Binding Request user: Pq7v:a9Xk",
-              packet: build(...toPeer(), stun(0x0001, "4d1fa1e05c9b23b8e6f0aa12", [A.username("Pq7v:a9Xk", "Friend’s ufrag : my ufrag, both from the SDP."), A.priority(PRFLX_PRIO), A.controlling(), A.useCandidate(), A.integrity(521)])),
+              packet: build(...toPeer(), stun(0x0001, "4d1fa1e05c9b23b8e6f0aa12", [A.username("Pq7v:a9Xk", "Friend’s ufrag : my ufrag, both from the SDP."), A.priority(PRFLX_PRIO), A.controlling(), A.candidateFlag(), A.integrity(521)])),
             }),
             pkt("peer", "client", "green", "ICE CHECK", ["Binding Request", "from the friend"], {
               time: 2.431, parallel: true, info: "Binding Request user: a9Xk:Pq7v",
