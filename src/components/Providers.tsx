@@ -1,13 +1,21 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { LessonMeta } from "@/lib/catalog";
 import { Lang, STRINGS, Strings } from "@/lib/i18n";
-import { loadProgress, Progress, saveProgress, touchStreak } from "@/lib/progress";
+import { loadProgress, mergeProgress, Progress, saveProgress, touchStreak } from "@/lib/progress";
 import type { ContentLang } from "@/lib/text";
 import { CommandPalette } from "./CommandPalette";
 
+export interface SessionUser {
+  id: string;
+  email: string;
+  name: string | null;
+  avatar_url: string | null;
+}
+
 interface AppCtx {
+  user: SessionUser | null;
   catalog: LessonMeta[];
   lang: Lang;
   setLang: (l: Lang) => void;
@@ -35,6 +43,40 @@ export function Providers({ catalog, children }: { catalog: LessonMeta[]; childr
   const [progress, setProgress] = useState<Progress>({ done: [], quiz: {}, streak: { day: "", count: 0 } });
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [layer, setLayer] = useState(0);
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const userRef = useRef<SessionUser | null>(null);
+  const pushTimer = useRef<number>(0);
+
+  // save the whole progress object to the account, debounced
+  const push = useCallback((p: Progress) => {
+    if (!userRef.current) return;
+    window.clearTimeout(pushTimer.current);
+    pushTimer.current = window.setTimeout(() => {
+      fetch("/api/progress", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p), keepalive: true }).catch(() => {});
+    }, 1500);
+  }, []);
+
+  // signed in? then merge the account's progress with this browser's and keep them in sync
+  useEffect(() => {
+    let live = true;
+    fetch("/api/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j: { user: SessionUser | null; progress: Partial<Progress> | null }) => {
+        if (!live || !j.user) return;
+        userRef.current = j.user;
+        setUser(j.user);
+        setProgress((local) => {
+          const merged = mergeProgress(local, j.progress);
+          saveProgress(merged);
+          push(merged);
+          return merged;
+        });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [push]);
   const [contentLang, setContentLangState] = useState<ContentLang>("en");
 
   useEffect(() => {
@@ -71,9 +113,10 @@ export function Providers({ catalog, children }: { catalog: LessonMeta[]; childr
     setProgress((p) => {
       const next = touchStreak(fn(p));
       saveProgress(next);
+      push(next);
       return next;
     });
-  }, []);
+  }, [push]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -87,8 +130,8 @@ export function Providers({ catalog, children }: { catalog: LessonMeta[]; childr
   }, []);
 
   const value = useMemo(
-    () => ({ catalog, lang, setLang, t: STRINGS[lang], progress, updateProgress, paletteOpen, setPaletteOpen, layer, setLayer, contentLang, setContentLang }),
-    [catalog, lang, setLang, progress, updateProgress, paletteOpen, layer, contentLang, setContentLang]
+    () => ({ user, catalog, lang, setLang, t: STRINGS[lang], progress, updateProgress, paletteOpen, setPaletteOpen, layer, setLayer, contentLang, setContentLang }),
+    [user, catalog, lang, setLang, progress, updateProgress, paletteOpen, layer, contentLang, setContentLang]
   );
 
   return (

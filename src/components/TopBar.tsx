@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Linkedin, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Linkedin, LogOut, Search } from "lucide-react";
 import { useApp } from "./Providers";
 
 export const LINKEDIN_URL = "https://www.linkedin.com/in/danish-dhanjal-758838373";
@@ -36,8 +37,9 @@ const NAV = [
 ];
 
 export function TopBar() {
-  const { t, lang, setLang, setPaletteOpen, catalog, progress } = useApp();
+  const { t, lang, setLang, setPaletteOpen, catalog, progress, user } = useApp();
   const path = usePathname();
+  if (path === "/login") return null;
   const done = progress.done.filter((d) => catalog.some((c) => c.id === d)).length;
 
   return (
@@ -84,6 +86,8 @@ export function TopBar() {
           <span className="hidden md:inline">Danish on LinkedIn</span>
         </a>
 
+        {user && <UserMenu />}
+
         <button
           className="h-9 px-2.5 rounded-lg border border-line bg-panel text-[12.5px] font-semibold hover:border-line-2 whitespace-nowrap shrink-0"
           onClick={() => setLang(lang === "en" ? "hi" : "en")}
@@ -101,5 +105,41 @@ export function TopBar() {
         ))}
       </nav>
     </header>
+  );
+}
+
+function UserMenu() {
+  const { user } = useApp();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [open]);
+  if (!user) return null;
+  const initial = (user.name || user.email).slice(0, 1).toUpperCase();
+  return (
+    <div ref={box} className="relative shrink-0">
+      <button onClick={() => setOpen((o) => !o)} className="w-9 h-9 rounded-full overflow-hidden border border-line-2 grid place-items-center bg-panel-3 text-[13px] font-semibold" aria-label="Account" aria-expanded={open}>
+        {user.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={user.avatar_url} alt="" width={36} height={36} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+        ) : initial}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-11 w-64 card p-3 flex flex-col gap-2 z-50 fade-up" role="menu">
+          <div className="min-w-0">
+            <div className="text-[14px] font-semibold truncate">{user.name || "Signed in"}</div>
+            <div className="text-[12.5px] text-muted truncate">{user.email}</div>
+          </div>
+          <p className="text-[12px] text-muted">Your progress is saved to this account.</p>
+          <form action="/api/auth/logout" method="post" onSubmit={() => { try { localStorage.removeItem("pbd:progress:v1"); } catch {} }}>
+            <button className="btn w-full justify-center" role="menuitem"><LogOut size={15} /> Sign out</button>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }

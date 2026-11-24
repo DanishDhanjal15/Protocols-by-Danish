@@ -33,6 +33,21 @@ npm run dev                  # http://localhost:3000
 
 `npm run build` makes a production build; every lesson page is pre-rendered.
 
+## Sign-in and saved progress
+
+Users sign in with Google only (no passwords, no registration form). Their email, name, photo and
+progress (lessons done, quiz scores, labs solved, streak) are stored in Postgres.
+
+1. Copy `.env.example` to `.env.local` and fill in `DATABASE_URL`, `GOOGLE_CLIENT_ID`,
+   `GOOGLE_CLIENT_SECRET` and `AUTH_SECRET`.
+2. Create the tables: `npm run db:migrate`
+3. In Google Cloud Console, the OAuth client's authorised redirect URIs must include
+   `http://localhost:3000/api/auth/google/callback` and
+   `https://protocols-by-danish.vercel.app/api/auth/google/callback`.
+
+Until all four variables are set the site runs without the login wall. With them set, every page
+except `/login` requires a signed-in user (`src/proxy.ts`).
+
 ## Adding a lesson
 
 Read [AUTHORING.md](AUTHORING.md). In short: add `src/lessons/<id>.ts` exporting

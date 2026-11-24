@@ -9,11 +9,14 @@
     "lint": "eslint",
     "predev": "node scripts/gen-registry.mjs",
     "prebuild": "node scripts/gen-registry.mjs",
-    "validate": "tsx scripts/validate.mts"
+    "validate": "tsx scripts/validate.mts",
+    "db:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/db-migrate.mjs"
   },
   "dependencies": {
+    "arctic": "^3.7.0",
     "lucide-react": "^0.460.0",
     "next": "16.4.6",
+    "postgres": "^3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
