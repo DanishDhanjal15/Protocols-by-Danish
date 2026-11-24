@@ -77,6 +77,37 @@ body { font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif; fon
   .btn-primary:hover { background: var(--brand); filter: brightness(1.08); }
   .btn[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); border-color: rgba(76, 195, 138, .4); }
   .btn-ghost { background: transparent; border-color: transparent; }
+  /* Social hover grid: from Uiverse.io by Praashoo7 - https://uiverse.io/Praashoo7/smooth-crab-52
+     MIT License, Copyright (c) Praashoo7 (Prashant). Adapted to one row of three links. */
+  .sx-main { position: relative; isolation: isolate; display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; width: 14em; height: 6em; }
+  .sx-back { position: absolute; border-radius: 10px; width: 11em; height: 4.6em; background: linear-gradient(0deg, #03a9f4, #cc39a4, #ffb5d2); z-index: -2; box-shadow: inset 0 0 60px 5px #fff; transition: opacity .4s ease-in-out; }
+  .sx-card { display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; background: rgba(255, 255, 255, .596); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); border: 1px solid transparent; border-radius: 0; transition: .4s ease-in-out, .2s background-color ease-in-out; }
+  .sx-card:nth-child(1) { border-radius: 10px 0 0 10px; }
+  .sx-card:nth-child(3) { border-radius: 0 10px 10px 0; }
+  .sx-card svg { opacity: 0; transition: .2s ease-in-out; }
+  .sx-instagram { fill: #cc39a4; }
+  .sx-linkedin { fill: #0a66c2; }
+  .sx-github { fill: #000; }
+  .sx-text { position: absolute; margin: 0; font-size: .7em; font-weight: 700; letter-spacing: .33em; color: #000; text-align: center; z-index: 3; pointer-events: none; transition: .4s ease-in-out; }
+
+  .sx-main:hover, .sx-main:focus-within { cursor: pointer; }
+  .sx-main:hover .sx-back, .sx-main:focus-within .sx-back { opacity: 0; }
+  .sx-main:hover .sx-card, .sx-main:focus-within .sx-card { margin: .2em; border-radius: 10px; box-shadow: 0 4px 30px rgba(0, 0, 0, .1); border: 1px solid rgba(255, 255, 255, .3); background: rgba(255, 255, 255, .2); }
+  .sx-main:hover .sx-text, .sx-main:focus-within .sx-text { opacity: 0; z-index: -3; }
+  .sx-main:hover .sx-card svg, .sx-main:focus-within .sx-card svg { opacity: 1; }
+
+  .sx-card:nth-child(1):hover, .sx-card:nth-child(1):focus-visible { background-color: #cc39a4; }
+  .sx-card:nth-child(2):hover, .sx-card:nth-child(2):focus-visible { background-color: #0a66c2; }
+  .sx-card:nth-child(3):hover, .sx-card:nth-child(3):focus-visible { background-color: #000; }
+  .sx-card:hover svg, .sx-card:focus-visible svg { fill: #fff; }
+
+  /* touch screens can't hover: show the icons straight away */
+  @media (hover: none) {
+    .sx-back, .sx-text { opacity: 0; }
+    .sx-card { margin: .2em; border-radius: 10px !important; border: 1px solid rgba(255, 255, 255, .3); background: rgba(255, 255, 255, .2); }
+    .sx-card svg { opacity: 1; }
+  }
+
   .icon-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--ink-2); cursor: pointer; transition: background .15s; }
   .icon-btn:hover { background: var(--panel-3); color: var(--ink); }
   .icon-btn[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); border-color: rgba(76, 195, 138, .35); }

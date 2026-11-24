@@ -3,6 +3,7 @@ import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import { TopBar } from "@/components/TopBar";
 import { Providers } from "@/components/Providers";
+import { SiteFooter } from "@/components/SiteFooter";
 import { getCatalog } from "@/lessons";
 
 const inter = IBM_Plex_Sans({ variable: "--font-inter", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
@@ -34,6 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Providers catalog={catalog}>
           <TopBar />
           <div className="flex-1 flex flex-col min-h-0">{children}</div>
+          <SiteFooter />
         </Providers>
       </body>
     </html>
